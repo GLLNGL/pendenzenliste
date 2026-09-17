@@ -31,8 +31,12 @@ jobs:
       - run: npm run build
         env:
           GITHUB_PAGES: true
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Als Repository-VARIABLES hinterlegt, nicht als Secrets: der Supabase anon key ist
+          # bewusst oeffentlich (steht so oder so im ausgelieferten Browser-Code) -- als Secret
+          # wuerde GitHub ihn ueberall maskieren, auch in der gebauten Datei selbst, und damit
+          # kaputt machen (das war die Ursache des "non ISO-8859-1"-Fehlers beim Login).
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
