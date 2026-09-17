@@ -1,0 +1,6 @@
+# Domain unten anpassen -- muss per DNS-A-Eintrag auf die Server-IP zeigen.
+# Caddy besorgt automatisch ein HTTPS-Zertifikat.
+
+pendenzen.estcontrolling.ch {
+    reverse_proxy app:3001
+}

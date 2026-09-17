@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+backend/data
+backend/.env
+.git
+.claude
+*.md
+Pendenzenliste.ico
+Pendenzenliste-starten.vbs
+Logo EST.PNG
+icon-master.png

@@ -1,0 +1,42 @@
+# Startet die Pendenzenliste zusammen mit Caddy als Reverse-Proxy.
+# Caddy holt automatisch ein gueltiges HTTPS-Zertifikat (Let's Encrypt) fuer die
+# in der Caddyfile eingetragene Domain.
+#
+# Voraussetzungen auf dem Server:
+#   - Docker + Docker Compose installiert
+#   - eine (Sub-)Domain, deren DNS-A-Eintrag auf die Server-IP zeigt
+#   - Ports 80 und 443 erreichbar
+#
+# Start:  docker compose up -d
+# Logs:   docker compose logs -f
+# Stopp:  docker compose down   (Daten bleiben im Volume erhalten)
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DB_PFAD=/data/pendenzen.sqlite
+    volumes:
+      - pendenzen-daten:/data
+    expose:
+      - "3001"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-daten:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  pendenzen-daten:
+  caddy-daten:
+  caddy-config:

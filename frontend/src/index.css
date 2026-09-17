@@ -1,0 +1,1188 @@
+:root {
+  --bg: #f2f3f5;
+  --surface: #ffffff;
+  --surface-hover: #f7f8fa;
+  --surface-2: #f4f6f9;
+  --surface-3: #eef1f5;
+  --border: #dde1e6;
+  --text: #1c2129;
+  --text-muted: #67707d;
+  --text-faint: #9aa2ad;
+  --accent: #2a5fd6;
+  --accent-hover: #1f4bb8;
+  --danger: #c8351f;
+  --danger-bg: #fbeae7;
+  --warning: #a3690a;
+  --warning-bg: #fbf1de;
+  --success: #17824f;
+  --success-bg: #e6f4ed;
+  --neutral-bg: #eef0f3;
+  --radius: 5px;
+  --font: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  /* Wird von AuthGate.jsx synchron zu document.documentElement.style.zoom gesetzt. Browser
+     berechnen vh/vw anhand der UNGEZOOMTEN Fenstergroesse, "zoom" vergroessert/verkleinert das
+     Ergebnis danach aber nochmals sichtbar -- ohne diese Korrektur waeren alle vh-Werte auf
+     grossen Monitoren (Zoom > 1) zu gross und liefen ueber den sichtbaren Bereich hinaus (z.B.
+     der Speichern-Button im Bearbeiten-Dialog war dadurch nicht mehr erreichbar). */
+  --app-zoom: 1;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+
+button { cursor: pointer; }
+
+a { color: var(--accent); text-decoration: none; }
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 208px 1fr;
+  height: calc(100vh / var(--app-zoom));
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+}
+
+.sidebar-titel {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 0 16px 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 1px; }
+
+.sidebar-nav a {
+  color: var(--text);
+  padding: 8px 16px;
+  font-size: 13.5px;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-nav a:hover { background: var(--surface-hover); }
+
+.sidebar-nav a.aktiv {
+  background: var(--neutral-bg);
+  border-left-color: var(--accent);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.sidebar-fuss {
+  margin-top: auto;
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.btn-neu {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-neu:hover { background: var(--accent-hover); }
+
+.taste { opacity: 0.75; font-size: 11px; border: 1px solid rgba(255,255,255,0.5); border-radius: 3px; padding: 1px 5px; }
+
+.hauptbereich { overflow-y: auto; padding: 24px 32px 60px; }
+
+.seiten-titel {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.seiten-untertitel {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.karte {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.karte-kopf {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.zaehler-pille {
+  background: var(--neutral-bg);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* ---------- Faelligkeits-Uebersicht (Kategorien links, Liste rechts) ---------- */
+
+.uebersicht-layout { display: flex; align-items: stretch; }
+
+.uebersicht-kategorien {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+
+.uebersicht-kategorie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 8px 7px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.uebersicht-kategorie:hover { background: var(--surface-hover); }
+
+.uebersicht-kategorie.aktiv { background: var(--neutral-bg); border-left-color: var(--accent); color: var(--text); font-weight: 600; }
+
+.uebersicht-kategorie.ueberfaellig .zaehler-pille { background: var(--danger); color: #fff; }
+.uebersicht-kategorie.nachfassen .zaehler-pille { background: var(--warning); color: #fff; }
+
+/* Ohne Hoehenbegrenzung wuerde eine lange Faelligkeiten-Liste die Kalender-Karte darunter aus
+   dem Sichtbereich schieben (Seiten-Scroll). calc() mit vh ist unter dem Zoom-Mechanismus
+   (AuthGate.jsx) nachweislich korrekt -- anders als flex-grow, das dort einen echten
+   Browser-Bug zeigt (siehe Kommentar bei --app-zoom). "Alle Pendenzen" hebt das ueber
+   .uebersicht-liste-voll wieder auf, dort ist die Liste der einzige Seiteninhalt. */
+.uebersicht-liste { flex: 1; min-width: 0; border-left: 1px solid var(--border); max-height: calc(30vh / var(--app-zoom)); overflow-y: auto; }
+
+/* Alle Pendenzen: keine Kategorien-Spalte davor (keine doppelte Linie), und keine
+   Hoehenbegrenzung -- dort ist die Liste der einzige Seiteninhalt. */
+.uebersicht-liste-voll { border-left: none; max-height: none; overflow-y: visible; }
+
+/* ---------- Pendenz-Vorschau (dritte Spalte: Fälligkeiten-Block und Kalender) ---------- */
+
+.pendenz-vorschau-spalte {
+  width: 420px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.pendenz-vorschau-spalte > .leer-hinweis { padding: 40px 20px; }
+
+.pendenz-vorschau {
+  padding: 18px 22px;
+  cursor: pointer;
+}
+
+.pendenz-vorschau:hover { background: var(--surface-3); }
+
+.pendenz-vorschau-kopf { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+.pendenz-vorschau-titel { font-size: 15.5px; font-weight: 700; line-height: 1.35; margin-bottom: 6px; }
+
+.pendenz-vorschau-mandant { font-size: 12.5px; color: var(--text-muted); margin-bottom: 10px; }
+
+.pendenz-vorschau-daten {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pendenz-vorschau-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  margin: 0 0 14px;
+}
+
+.pendenz-vorschau-text.pendenz-vorschau-leer { color: var(--text-faint); font-style: italic; }
+
+.pendenz-vorschau-hinweis { font-size: 11.5px; color: var(--accent); font-weight: 600; }
+
+/* Teilaufgaben unterhalb der Vorschau (nur bei Hauptaufgaben) -- eigener, nicht anklickbarer
+   Bereich der Spalte, damit ein Klick auf eine Teilaufgabe nicht auch die Hauptaufgabe oeffnet. */
+.pendenz-vorschau-teilaufgaben { padding: 4px 22px 20px; border-top: 1px solid var(--border); }
+
+/* Historie (Notizen + E-Mail-Versaende) -- immer der letzte Abschnitt der Vorschau-Spalte. */
+.pendenz-vorschau-fortschritt { padding: 4px 22px 20px; border-top: 1px solid var(--border); }
+.pendenz-vorschau-fortschritt .notizen-liste { max-height: none; margin-bottom: 0; }
+
+.pendenz-vorschau-fortschritt-leer { font-size: 12px; font-style: italic; color: var(--text-faint); margin: 0; }
+
+.pendenz-vorschau-teilaufgaben-titel {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin: 14px 0 8px;
+}
+
+.pendenz-vorschau-teilaufgaben .teilaufgabe-zeile { cursor: pointer; }
+.pendenz-vorschau-teilaufgaben .teilaufgabe-zeile:hover { background: var(--surface-hover); }
+
+/* ---------- Faelligkeitskalender ---------- */
+
+/* Auf sehr breiten Bildschirmen nicht ins Unendliche ziehen, sonst wirken die drei Spalten
+   winzig in viel Leerflaeche -- bis dahin aber die volle verfuegbare Breite nutzen. Die drei
+   Spalten (Kategorien/Kalender, Liste, Vorschau) bleiben bei jeder Fensterbreite nebeneinander
+   -- wird es enger, uebernimmt zuerst die automatische Skalierung (siehe AuthGate.jsx), und
+   erst wenn selbst deren Untergrenze nicht mehr reicht, scrollt die Karte horizontal statt
+   umzubrechen. */
+.karte-kalender { max-width: 1500px; overflow-x: auto; }
+
+/* Cockpit: Kalenderkarte bleibt am unteren Fensterrand "kleben", waehrend nur die
+   Faelligkeiten-Karte darueber scrollt (siehe .uebersicht-liste) -- robuster als eine exakte
+   Hoehenberechnung, weil die Karte so IMMER sichtbar bleibt, unabhaengig von Bildschirmgroesse
+   oder Anzahl Faelligkeiten. */
+.kalender-fixiert { position: sticky; bottom: 0; z-index: 2; margin-bottom: 0; }
+
+/* Links der Monat, rechts die Pendenzen des angeklickten Tages. */
+.kalender-layout { display: flex; align-items: stretch; }
+
+.kalender { width: 300px; flex-shrink: 0; padding: 12px 14px; }
+
+.kalender-tagesliste {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+}
+
+.kalender-tagesliste-titel {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-hover);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.kalender-tagesliste > .leer-hinweis { padding: 40px 20px; }
+
+.kalender-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kalender-monat {
+  font-weight: 600;
+  font-size: 13.5px;
+  min-width: 130px;
+  text-align: center;
+}
+
+.kalender-heute { margin-left: auto; }
+
+.kalender-wochentage {
+  display: grid;
+  grid-template-columns: 16px repeat(7, 1fr);
+  gap: 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.kalender-raster {
+  display: grid;
+  grid-template-columns: 16px repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+/* Kalenderwoche des Montags dieser Zeile -- klein und kursiv wie im iPhone-Kalender, keine
+   eigene Spaltenueberschrift, faellt neben den Tageszahlen bewusst kaum auf. */
+.kalender-kw {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.kalender-tag {
+  border: none;
+  background: none;
+  padding: 1px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 12.5px;
+}
+
+/* Die Tageszahl selbst ist der Kreis (wie im iPhone-Kalender) -- Punkt fuer "hat Pendenzen"
+   sitzt knapp darunter. */
+.kalender-tag-zahl {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kalender-tag:hover .kalender-tag-zahl { background: var(--surface-hover); }
+
+.kalender-tag.ausserhalb .kalender-tag-zahl { color: var(--text-faint); opacity: 0.5; }
+
+.kalender-tag.hat-pendenzen .kalender-tag-zahl { font-weight: 700; color: var(--text); }
+
+.kalender-tag.heute .kalender-tag-zahl { background: var(--accent); color: #fff; font-weight: 700; }
+
+.kalender-tag.ausgewaehlt .kalender-tag-zahl { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+.kalender-tag.heute.ausgewaehlt .kalender-tag-zahl { box-shadow: inset 0 0 0 2px var(--surface); }
+
+.kalender-tag-punkt {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Wide-content-Container (Regel: eigenes Scrollen statt die Seite breiter zu machen). */
+.pendenz-tabelle-wrap { overflow-x: auto; }
+
+.pendenz-tabelle {
+  width: 100%;
+  /* Verhindert, dass table-layout:fixed die Titel-Spalte bei wenig Platz auf 0 zusammendrueckt
+     (Inhalt ueberlagerte dann die Nachbarspalte statt sauber zu scrollen) -- ab hier greift das
+     eigene Scrollen von .pendenz-tabelle-wrap. */
+  min-width: 560px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.pendenz-tabelle col.col-check { width: 30px; }
+.pendenz-tabelle col.col-mandant { width: 190px; }
+.pendenz-tabelle col.col-status { width: 128px; }
+.pendenz-tabelle col.col-faellig { width: 92px; }
+
+.pendenz-tabelle thead th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--text-faint);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-hover);
+}
+
+.pendenz-zeile { cursor: pointer; }
+
+.pendenz-zeile td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.pendenz-zeile:first-child td { border-top: none; }
+.pendenz-zeile:hover td { background: var(--surface-hover); }
+.pendenz-zeile:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Teilaufgaben: eingerueckt, leicht abgesetzter Hintergrund, feinere Trennlinie -- ruhiger als
+   die Hauptzeile. Tragen bewusst keinen eigenen Farbstreifen (siehe .zeile-rail), ihre
+   Prioritaet ergibt sich aus der Hauptpendenz. */
+.pendenz-zeile.pz-kind td { border-top: 1px dashed var(--border); background: var(--surface-2); font-size: 12.5px; }
+
+/* Zeile, deren Vorschau gerade rechts angezeigt wird -- als eigene Regel mit hoeherer
+   Spezifitaet fuer pz-haupt UND pz-kind, sonst gewinnt sonst je nach Quellreihenfolge die
+   pz-kind-Hintergrundfarbe und eine angeklickte Teilaufgabe zeigt keine sichtbare Markierung. */
+.pendenz-zeile.pz-haupt.vorschau-aktiv td,
+.pendenz-zeile.pz-kind.vorschau-aktiv td { background: var(--neutral-bg); }
+.pendenz-zeile.pz-kind:hover td { background: var(--surface-3); }
+.pendenz-zeile.pz-kind .zeile-titel { padding-left: 20px; font-weight: 400; }
+
+.pendenz-zeile.erledigt .zeile-titel-text { text-decoration: line-through; color: var(--text-faint); }
+
+/* Prioritaet als schmaler Farbstreifen an der ersten Zelle statt als eigener Chip -- faellt bei
+   vielen Zeilen sofort auf, ohne mit Status und Mandant um Aufmerksamkeit zu konkurrieren. */
+.zeile-rail.prio-hoch { border-left: 3px solid var(--danger); }
+.zeile-rail.prio-mittel { border-left: 3px solid var(--warning); }
+.zeile-rail.prio-tief { border-left: 3px solid var(--text-faint); }
+
+.pz-td-check { text-align: center; }
+
+.zeile-status-tag {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.abhaken {
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  border: 1.5px solid var(--text-faint);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.abhaken.aktiv { background: var(--success); border-color: var(--success); color: #fff; }
+
+.pz-td-titel { min-width: 0; }
+
+.zeile-titel {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.zeile-titel-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Markierung "E-Mail wurde bereits versendet" -- Details (wann, an wen) im Tooltip und in der
+   Vorschau/im Bearbeiten-Fenster. */
+.zeile-email-markierung { color: var(--success); font-size: 11px; flex-shrink: 0; }
+
+.zeile-id {
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.zeile-einklapp-toggle {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 10px;
+  padding: 0 5px 0 0;
+  vertical-align: 1px;
+  line-height: 1;
+}
+
+.zeile-einklapp-toggle:hover { color: var(--text); }
+
+.zeile-hinweis { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+
+.pz-td-mandant {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teilaufgaben-fortschritt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tf-balken {
+  width: 34px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  overflow: hidden;
+}
+
+.tf-fuellung {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  border-radius: inherit;
+}
+
+.pz-td-faellig {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.pz-td-faellig.ueberfaellig { color: var(--danger); font-weight: 600; }
+.pz-td-faellig.heute { color: var(--accent); font-weight: 600; }
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-hoch { background: var(--danger-bg); color: var(--danger); }
+.badge-mittel { background: var(--warning-bg); color: var(--warning); }
+.badge-tief { background: var(--neutral-bg); color: var(--text-muted); }
+
+.status-select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 130px;
+}
+
+.status-offen { color: var(--text-muted); }
+.status-in-arbeit { color: var(--accent); }
+.status-warte-auf-kunde { color: var(--warning); }
+.status-warte-intern { color: #6d4fc4; }
+.status-erledigt { color: var(--success); }
+
+.leer-hinweis { padding: 24px 14px; color: var(--text-faint); font-size: 13px; text-align: center; }
+
+.filter-leiste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+
+.filter-leiste select, .filter-leiste input[type="text"], .filter-leiste input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  background: var(--surface);
+}
+
+.filter-leiste input[type="text"] { min-width: 220px; }
+
+.filter-reset {
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  text-decoration: underline;
+}
+
+/* Modal */
+.modal-hintergrund {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 32, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: calc(8vh / var(--app-zoom));
+  z-index: 50;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 8px;
+  width: 480px;
+  max-width: 92vw;
+  max-height: calc(82vh / var(--app-zoom));
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+}
+
+/* Kopf und Fuss (mit dem Speichern-Button) bleiben immer sichtbar -- nur der Inhalt
+   dazwischen scrollt. Vorher scrollte der ganze Dialog inklusive Fuss weg, sodass der
+   Speichern-Button bei kleineren Fenstern/Bildschirmen ausserhalb des Sichtbereichs landen
+   und nicht mehr erreichbar sein konnte. */
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.modal-kopf {
+  flex-shrink: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 14.5px;
+}
+
+.modal-schliessen { background: none; border: none; font-size: 18px; color: var(--text-muted); line-height: 1; padding: 2px 4px; }
+
+.modal-koerper { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+.feld { display: flex; flex-direction: column; gap: 4px; }
+
+.feld label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+.feld-hinweis { font-size: 11.5px; color: var(--text-faint); margin: -1px 0 0; }
+
+.feld input, .feld select, .feld textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  background: var(--surface);
+  width: 100%;
+}
+
+.feld textarea { resize: vertical; min-height: 60px; }
+
+.feld-reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.modal-fuss {
+  flex-shrink: 0;
+  padding: 12px 18px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.btn:hover { background: var(--surface-hover); }
+
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-gefahr { color: var(--danger); }
+
+.hinweis-fehler { color: var(--danger); font-size: 12.5px; }
+.hinweis-erfolg { color: var(--success); font-size: 12.5px; }
+
+/* Login / Ersteinrichtung */
+.login-seite {
+  min-height: calc(100vh / var(--app-zoom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 20px;
+}
+
+.login-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px 26px;
+  width: 360px;
+  max-width: 100%;
+  box-shadow: 0 8px 30px rgba(20, 40, 90, 0.10);
+}
+
+.login-titel { font-size: 20px; font-weight: 700; }
+.login-untertitel { color: var(--text-muted); font-size: 13px; margin: 4px 0 18px; }
+.login-box .feld { margin-bottom: 12px; }
+.login-box .feld input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.login-link {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12.5px;
+  text-decoration: underline;
+}
+
+.sidebar-benutzer {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sidebar-benutzer-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sidebar-abmelden {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  flex-shrink: 0;
+}
+
+.abschnitt-titel { font-size: 15px; font-weight: 700; margin: 24px 0 4px; }
+.abschnitt-titel:first-of-type { margin-top: 8px; }
+
+.adress-liste { margin: 6px 0 0; padding-left: 20px; }
+.adress-liste li { margin: 2px 0; }
+.anleitung-liste { margin: 6px 0 0; padding-left: 20px; }
+.anleitung-liste li { margin: 4px 0; line-height: 1.5; }
+code {
+  background: var(--neutral-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.mandant-karte { margin-bottom: 16px; }
+
+.mandant-kopf {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mandant-name { font-weight: 700; font-size: 14px; }
+
+.mandant-kuerzel { color: var(--text-faint); font-weight: 500; font-size: 12px; margin-left: 6px; }
+
+.mandant-zaehler { display: flex; gap: 6px; }
+
+.status-gruppe-titel {
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  background: var(--bg);
+}
+
+table.tabelle { width: 100%; border-collapse: collapse; }
+
+table.tabelle th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+table.tabelle td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+table.tabelle tr:last-child td { border-bottom: none; }
+table.tabelle tr:hover td { background: var(--surface-hover); }
+
+.toggle-inaktiv {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+}
+
+.tag-inaktiv { color: var(--text-faint); font-size: 11px; font-weight: 600; }
+
+.spalte-aktionen { display: flex; gap: 6px; justify-content: flex-end; }
+
+.btn-klein {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn-klein:hover { background: var(--surface-hover); }
+
+.teilaufgaben-liste {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.teilaufgabe-zeile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.teilaufgabe-zeile:last-child { border-bottom: none; }
+
+.teilaufgabe-zeile.erledigt .teilaufgabe-titel { text-decoration: line-through; color: var(--text-faint); }
+
+.teilaufgabe-titel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.teilaufgabe-datum { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.teilaufgabe-kalender {
+  background: none;
+  border: none;
+  text-decoration: none;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.75;
+}
+
+.teilaufgabe-kalender:hover { opacity: 1; background: var(--neutral-bg); }
+
+.teilaufgabe-loeschen {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.teilaufgabe-loeschen:hover { color: var(--danger); }
+
+.teilaufgaben-leer { padding: 10px 8px; color: var(--text-faint); font-size: 12.5px; }
+
+.teilaufgaben-zaehler {
+  margin-left: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.teilaufgabe-neu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teilaufgabe-neu input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+
+.teilaufgabe-neu-zeile2 {
+  display: flex;
+  gap: 6px;
+}
+
+.teilaufgabe-neu input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+
+.teilaufgaben-hinweis { font-size: 12px; color: var(--text-faint); margin: 0; }
+
+.email-empfaenger-auswahl { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.email-verlauf {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--success-bg);
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+
+.email-verlauf-eintrag { display: flex; align-items: flex-start; gap: 7px; color: var(--text); }
+.email-verlauf-symbol { color: var(--success); font-weight: 700; flex-shrink: 0; }
+
+/* ---------- Fortschritt: manuelle Notizen ---------- */
+
+.notizen-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.notiz-eintrag {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  background: var(--surface-2);
+}
+
+.notiz-kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.notiz-datum { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.notiz-autor { font-weight: 600; color: var(--text-muted); }
+
+.notiz-loeschen {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.notiz-loeschen:hover { color: var(--danger); }
+
+.notiz-text { margin: 0; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; color: var(--text-muted); }
+
+.notiz-neu { display: flex; flex-direction: column; gap: 6px; }
+
+.notiz-neu textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  resize: vertical;
+}
+
+.notiz-neu button { align-self: flex-end; }
+
+.email-formular {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.email-formular input, .email-formular textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  width: 100%;
+  font-family: inherit;
+}
+
+.email-formular textarea { resize: vertical; }
+
+.vorschau-liste { list-style: none; margin: 0; padding: 0; font-size: 12.5px; color: var(--text-muted); }
+.vorschau-liste li { padding: 2px 0; }
+
+.ladeindikator, .fehleranzeige { padding: 20px; color: var(--text-muted); font-size: 13px; }
+.fehleranzeige { color: var(--danger); }
+
+/* ==========================================================================
+   Responsive -- die App laeuft als installierte PWA auch auf dem iPhone,
+   darum muss sie sich echt anpassen statt nur zu schrumpfen.
+   ========================================================================== */
+
+/* Handy: Sidebar wird zur schmalen, horizontal scrollbaren Kopfleiste statt feste 208px breit
+   den halben Bildschirm zu belegen. */
+@media (max-width: 640px) {
+  .app-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .sidebar-titel {
+    padding: 0 10px 0 0;
+    margin-bottom: 0;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .sidebar-nav { flex-direction: row; }
+
+  .sidebar-nav a {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    padding: 6px 10px;
+  }
+
+  .sidebar-nav a.aktiv { border-left-color: transparent; border-bottom-color: var(--accent); }
+
+  .sidebar-fuss {
+    margin-top: 0;
+    margin-left: auto;
+    padding: 0 0 0 10px;
+    border-top: none;
+    border-left: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-neu { width: auto; white-space: nowrap; }
+  .btn-neu .taste { display: none; }
+
+  .sidebar-benutzer { margin-top: 0; }
+  .sidebar-benutzer-name { display: none; }
+
+  .hauptbereich { padding: 16px 12px 40px; }
+
+  .seiten-titel { font-size: 17px; }
+
+  /* Kategorien-Pillen und Kalender-Navigation auf sehr schmalen Screens nicht ueberladen. */
+  .uebersicht-kategorie { flex-basis: 100%; }
+  .kalender-monat { min-width: 0; flex: 1; }
+  .kalender-tag-zahl { width: 26px; height: 26px; }
+
+  /* Die drei Kalender-Spalten (Monat / Tagesliste / Vorschau) passen auf Handybreite nicht
+     nebeneinander -- hier untereinander statt horizontal zu scrollen. */
+  .karte-kalender { overflow-x: visible; }
+  .kalender-layout { flex-direction: column; }
+  .kalender { width: 100%; }
+  .kalender-tagesliste { border-left: none; border-top: 1px solid var(--border); }
+  .pendenz-vorschau-spalte { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* ==========================================================================
+   MobilApp -- eigene, schmale Ansicht fuers Handy (siehe App.jsx/MobilApp.jsx):
+   nur Erfassen + Kalender, keine Sidebar-Navigation.
+   ========================================================================== */
+
+.mobil-app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.mobil-kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.mobil-tabs { display: flex; gap: 4px; flex: 1; }
+
+.mobil-tabs button {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.mobil-tabs button.aktiv { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.mobil-abmelden {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mobil-hauptbereich { flex: 1; padding: 16px 14px 40px; }
+
+.mobil-erfassen form { display: flex; flex-direction: column; gap: 14px; }
+
+.mobil-erfassen label { font-size: 13px; }
+
+.mobil-erfassen input, .mobil-erfassen textarea { font-size: 16px; padding: 10px; }
+
+.mobil-erfassen textarea { min-height: 120px; }
+
+.mobil-erfassen-speichern { padding: 12px; font-size: 15px; }
+
+.mobil-erfassen-erfolg { color: var(--success); font-size: 13px; font-weight: 600; }
+
+.mobil-kalender .karte-kalender { max-width: none; }
