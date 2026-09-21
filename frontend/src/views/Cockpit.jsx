@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import PendenzListe from '../components/PendenzListe.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
@@ -9,12 +9,21 @@ import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 
 const REIHENFOLGE = ['ueberfaellig', 'heuteFaellig', 'morgenFaellig', 'nachfassen'];
 
+const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-faelligkeiten-hoehe';
+const HOEHE_MIN = 140; // Mindesthoehe der Faelligkeiten-Liste
+const KALENDER_MIN = 200; // Mindesthoehe der Kalender-Karte
+
+function gespeicherteHoeheLesen() {
+  const wert = Number(localStorage.getItem(HOEHE_SPEICHER_SCHLUESSEL));
+  return Number.isFinite(wert) && wert > 0 ? wert : null;
+}
+
 // Ausserhalb von Cockpit definiert, damit React sie nicht bei jedem Render neu montiert (sonst
 // wuerde PendenzListe ihren Einklapp-Zustand fuer Teilaufgaben staendig verlieren). Links die
 // Kategorien (wie Ordner in einem Mail-Programm), in der Mitte die Liste der gewaehlten
 // Kategorie -- Klick auf eine Zeile zeigt rechts die Vorschau, erst ein Klick darin oeffnet
 // wie gehabt das Bearbeiten-Fenster.
-function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern }) {
+function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern, layoutRef, hoehe }) {
   const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const gesamtAnzahl = bloecke.reduce((summe, b) => summe + b.items.length, 0);
   const aktuelle = bloecke.find((b) => b.key === aktiveKategorie) || bloecke[0];
@@ -34,7 +43,11 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
         <span className="zaehler-pille">{gesamtAnzahl}</span>
       </div>
 
-      <div className="uebersicht-layout">
+      <div
+        className="uebersicht-layout"
+        ref={layoutRef}
+        style={hoehe ? { '--faelligkeiten-hoehe': `${hoehe}px` } : undefined}
+      >
         <div className="uebersicht-kategorien">
           {bloecke.map((b) => (
             <button
@@ -72,8 +85,69 @@ export default function Cockpit() {
   const [fehler, setFehler] = useState(null);
   const [aktivePendenz, setAktivePendenz] = useState(null);
   const [aktiveKategorie, setAktiveKategorie] = useState(null);
+  const [faelligkeitenHoehe, setFaelligkeitenHoehe] = useState(gespeicherteHoeheLesen);
+  const [ziehtGerade, setZiehtGerade] = useState(false);
+  const layoutRef = useRef(null);
+  const kalenderRef = useRef(null);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
+
+  // Ziehgriff zwischen Faelligkeiten-Karte und Kalender (aehnlich dem Spalten-Ziehgriff im
+  // Supabase SQL-Editor). Das eigentliche "nie ueberlaufen"-Versprechen kommt NICHT aus einer
+  // JS-Berechnung, sondern aus dem Flexbox-Layout selbst (siehe .cockpit-resizable/
+  // .cockpit-kalender-wrapper in index.css): die Kalender-Karte hat flex:1 und fuellt darum
+  // IMMER exakt den nach der Faelligkeiten-Karte verbleibenden Platz, egal wie hoch diese ist
+  // -- eine echte Browser-Berechnung statt einer angenaeherten. Hier wird waehrend des Ziehens
+  // nur noch geprueft, ob die Kalender-Karte dabei unter ihre Mindesthoehe faellt (reine
+  // Messung des tatsaechlichen Ergebnisses, keine Vorausberechnung).
+  const ziehenStarten = useCallback((e) => {
+    e.preventDefault();
+    if (!layoutRef.current || !kalenderRef.current) return;
+    const startY = e.clientY;
+    const startHoehe = layoutRef.current.getBoundingClientRect().height;
+    let letzteHoehe = startHoehe;
+    let angefragt = false;
+    setZiehtGerade(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    // Waehrend des Ziehens direkt am DOM-Element setzen statt bei jeder Mausbewegung den
+    // kompletten React-Baum (inkl. der ggf. langen Pendenzliste) neu zu rendern -- das war
+    // spuerbar ruckelig. React-State wird erst beim Loslassen einmalig aktualisiert.
+    function anwenden(kandidat) {
+      angefragt = false;
+      layoutRef.current.style.setProperty('--faelligkeiten-hoehe', `${kandidat}px`);
+      const kalenderHoehe = kalenderRef.current.getBoundingClientRect().height;
+      if (kalenderHoehe < KALENDER_MIN) {
+        // Kalender-Karte waere zu klein geworden -- die Differenz ist bei einem echten
+        // Flexbox-flex:1-Element exakt (keine Naeherung), darum reicht eine einzelne
+        // Korrektur ohne Iteration.
+        const korrigiert = Math.max(HOEHE_MIN, kandidat - (KALENDER_MIN - kalenderHoehe));
+        layoutRef.current.style.setProperty('--faelligkeiten-hoehe', `${korrigiert}px`);
+        letzteHoehe = korrigiert;
+      } else {
+        letzteHoehe = kandidat;
+      }
+    }
+    function bewegen(ev) {
+      const kandidat = Math.max(HOEHE_MIN, startHoehe + (ev.clientY - startY));
+      if (!angefragt) {
+        angefragt = true;
+        requestAnimationFrame(() => anwenden(kandidat));
+      }
+    }
+    function loslassen() {
+      window.removeEventListener('mousemove', bewegen);
+      window.removeEventListener('mouseup', loslassen);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setZiehtGerade(false);
+      setFaelligkeitenHoehe(letzteHoehe);
+      localStorage.setItem(HOEHE_SPEICHER_SCHLUESSEL, String(letzteHoehe));
+    }
+    window.addEventListener('mousemove', bewegen);
+    window.addEventListener('mouseup', loslassen);
+  }, []);
 
   const laden = useCallback(() => {
     api.pendenzen.cockpit().then(setDaten).catch((e) => setFehler(e.message));
@@ -108,19 +182,31 @@ export default function Cockpit() {
     ?? 'ueberfaellig';
 
   return (
-    <div>
+    <div className="cockpit-seite">
       <h1 className="seiten-titel">Cockpit</h1>
       <p className="seiten-untertitel">Überfällige und anstehende Pendenzen auf einen Blick.</p>
 
-      <FaelligkeitsUebersicht
-        bloecke={bloecke}
-        aktiveKategorie={gewaehlteKategorie}
-        onKategorieWaehlen={setAktiveKategorie}
-        onOeffnen={setAktivePendenz}
-        onStatusAendern={statusAendern}
-      />
+      <div className="cockpit-resizable">
+        <FaelligkeitsUebersicht
+          bloecke={bloecke}
+          aktiveKategorie={gewaehlteKategorie}
+          onKategorieWaehlen={setAktiveKategorie}
+          onOeffnen={setAktivePendenz}
+          onStatusAendern={statusAendern}
+          layoutRef={layoutRef}
+          hoehe={faelligkeitenHoehe}
+        />
 
-      <Faelligkeitskalender onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} className="kalender-fixiert" />
+        <div
+          className={`cockpit-resize-griff ${ziehtGerade ? 'aktiv' : ''}`}
+          onMouseDown={ziehenStarten}
+          title="Höhe ziehen, um mehr oder weniger Fälligkeiten zu sehen"
+        />
+
+        <div ref={kalenderRef} className="cockpit-kalender-wrapper">
+          <Faelligkeitskalender onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} />
+        </div>
+      </div>
 
       {aktivePendenz && (
         <PendenzModal

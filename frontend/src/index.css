@@ -50,6 +50,10 @@ a { color: var(--accent); text-decoration: none; }
 .app-layout {
   display: grid;
   grid-template-columns: 208px 1fr;
+  /* minmax(0, 1fr) statt des impliziten "auto" -- ohne das sizt die Grid-Zeile selbst nach dem
+     Inhalt (max-content), auch wenn .hauptbereich bereits min-height:0 hat, und die ganze Seite
+     waechst ueber 100vh hinaus statt dass NUR .hauptbereich intern scrollt. */
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100vh / var(--app-zoom));
 }
 
@@ -72,6 +76,10 @@ a { color: var(--accent); text-decoration: none; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 1px; }
 
 .sidebar-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--text);
   padding: 8px 16px;
   font-size: 13.5px;
@@ -111,13 +119,22 @@ a { color: var(--accent); text-decoration: none; }
 
 .taste { opacity: 0.75; font-size: 11px; border: 1px solid rgba(255,255,255,0.5); border-radius: 3px; padding: 1px 5px; }
 
-.hauptbereich { overflow-y: auto; padding: 24px 32px 60px; }
+/* min-height: 0 hebelt die Grid-Standardregel "min-height: auto" aus, nach der ein Grid-Kind
+   NIE kleiner als sein Inhalt werden darf -- ohne das wuerde .hauptbereich ueber die von
+   .app-layout vorgegebene Hoehe hinauswachsen, sein eigenes overflow-y:auto griffe nie, und
+   stattdessen wuerde das GANZE Fenster scrollen (Sidebar inklusive) statt nur dieser Bereich. */
+.hauptbereich { overflow-y: auto; min-height: 0; padding: 24px 32px 60px; }
 
 .seiten-titel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 19px;
   font-weight: 700;
   margin: 0 0 4px;
 }
+
+.seiten-titel-pille { background: var(--accent); color: #fff; }
 
 .seiten-untertitel {
   color: var(--text-muted);
@@ -152,9 +169,17 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 600;
 }
 
+/* Eingang-Zaehler in der Navigation -- faellt farblich auf, aehnlich der Ueberfaellig-Pille im
+   Cockpit, da unbearbeitete Eingang-Notizen leicht vergessen gehen. Selektor extra spezifisch,
+   damit er nach der allgemeinen .zaehler-pille-Regel (Quellreihenfolge) trotzdem gewinnt. */
+.sidebar-nav a .nav-eingang-pille { background: var(--accent); color: #fff; }
+
 /* ---------- Faelligkeits-Uebersicht (Kategorien links, Liste rechts) ---------- */
 
-.uebersicht-layout { display: flex; align-items: stretch; }
+/* --faelligkeiten-hoehe steuert die Hoehe aller drei Spalten gemeinsam -- Standardwert wie
+   bisher (siehe Kommentar bei .uebersicht-liste), per Ziehgriff (.cockpit-resize-griff in
+   Cockpit.jsx) durch eine Inline-Style-Deklaration auf diesem Element ueberschreibbar. */
+.uebersicht-layout { display: flex; align-items: stretch; --faelligkeiten-hoehe: calc(30vh / var(--app-zoom)); }
 
 .uebersicht-kategorien {
   width: 200px;
@@ -163,6 +188,8 @@ a { color: var(--accent); text-decoration: none; }
   flex-direction: column;
   gap: 2px;
   padding: 8px;
+  max-height: var(--faelligkeiten-hoehe);
+  overflow-y: auto;
 }
 
 .uebersicht-kategorie {
@@ -192,7 +219,7 @@ a { color: var(--accent); text-decoration: none; }
    (AuthGate.jsx) nachweislich korrekt -- anders als flex-grow, das dort einen echten
    Browser-Bug zeigt (siehe Kommentar bei --app-zoom). "Alle Pendenzen" hebt das ueber
    .uebersicht-liste-voll wieder auf, dort ist die Liste der einzige Seiteninhalt. */
-.uebersicht-liste { flex: 1; min-width: 0; border-left: 1px solid var(--border); max-height: calc(30vh / var(--app-zoom)); overflow-y: auto; }
+.uebersicht-liste { flex: 1; min-width: 0; border-left: 1px solid var(--border); max-height: var(--faelligkeiten-hoehe); overflow-y: auto; }
 
 /* Alle Pendenzen: keine Kategorien-Spalte davor (keine doppelte Linie), und keine
    Hoehenbegrenzung -- dort ist die Liste der einzige Seiteninhalt. */
@@ -205,6 +232,8 @@ a { color: var(--accent); text-decoration: none; }
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   background: var(--surface-2);
+  max-height: var(--faelligkeiten-hoehe);
+  overflow-y: auto;
 }
 
 .pendenz-vorschau-spalte > .leer-hinweis { padding: 40px 20px; }
@@ -280,11 +309,51 @@ a { color: var(--accent); text-decoration: none; }
    umzubrechen. */
 .karte-kalender { max-width: 1500px; overflow-x: auto; }
 
-/* Cockpit: Kalenderkarte bleibt am unteren Fensterrand "kleben", waehrend nur die
-   Faelligkeiten-Karte darueber scrollt (siehe .uebersicht-liste) -- robuster als eine exakte
-   Hoehenberechnung, weil die Karte so IMMER sichtbar bleibt, unabhaengig von Bildschirmgroesse
-   oder Anzahl Faelligkeiten. */
-.kalender-fixiert { position: sticky; bottom: 0; z-index: 2; margin-bottom: 0; }
+/* Ziehgriff zwischen Faelligkeiten-Karte und Kalender (Cockpit.jsx) -- passt
+   --faelligkeiten-hoehe per Maus an, aehnlich dem Spalten-Ziehgriff im Supabase SQL-Editor. */
+.cockpit-resize-griff {
+  height: 16px;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  border-radius: var(--radius);
+}
+
+.cockpit-resize-griff:hover,
+.cockpit-resize-griff.aktiv {
+  background: var(--surface-hover);
+}
+
+.cockpit-resize-griff::after {
+  content: '';
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
+  /* text-faint statt border -- border ist auf dem hellen Hintergrund kaum erkennbar. */
+  background: var(--text-faint);
+  transition: background 0.15s;
+}
+
+.cockpit-resize-griff:hover::after,
+.cockpit-resize-griff.aktiv::after {
+  background: var(--accent);
+}
+
+/* Cockpit-Seite als Flexspalte in voller Hoehe von .hauptbereich (dessen Innenbereich, also
+   bereits abzueglich Padding) -- ".resizable" darin nimmt per flex:1 automatisch GENAU den
+   nach Titel/Fälligkeiten-Karte/Griff verbleibenden Platz ein, die Kalender-Karte darin
+   wiederum per flex:1 GENAU den Rest davon. Das ist eine echte Browser-Berechnung (kein
+   JS-Naeherungswert mit Rundungsrisiko) und funktioniert nachweislich auch unter der
+   CSS-"zoom"-Mehrbildschirm-Skalierung (isoliert getestet) -- im Gegensatz zu einem
+   frueheren, in diesem Projekt dokumentierten Versuch, wo EIN einzelnes flex-grow-Element
+   ohne diese Struktur (min-height:0 fehlte) unter Zoom nicht korrekt gefuellt wurde. */
+.cockpit-seite { display: flex; flex-direction: column; height: 100%; }
+.cockpit-resizable { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.cockpit-resizable > .karte-kalender { flex: 0 0 auto; }
+.cockpit-resizable > .cockpit-resize-griff { flex: 0 0 auto; }
+.cockpit-kalender-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 /* Links der Monat, rechts die Pendenzen des angeklickten Tages. */
 .kalender-layout { display: flex; align-items: stretch; }

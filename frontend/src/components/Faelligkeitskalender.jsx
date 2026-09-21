@@ -47,7 +47,7 @@ function baueRaster(jahr, monatIndex) {
 // Ersetzt die fruehere "Naechste 7 Tage"-Liste: ein Monatskalender, dessen Tage fett
 // erscheinen, sobald eine offene Pendenz an diesem Tag faellig ist. Anklicken zeigt die
 // Pendenzen des Tages darunter -- ueberfaellig/heute/morgen bleiben eigene Listen im Cockpit.
-export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, className = '' }) {
+export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
   const heuteISO = heutigesDatumISO();
   const jetzt = useMemo(() => new Date(), []);
   const [ansicht, setAnsicht] = useState({ jahr: jetzt.getFullYear(), monatIndex: jetzt.getMonth() });
@@ -112,7 +112,7 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, class
     : null;
 
   return (
-    <div className={`karte karte-kalender ${className}`.trim()}>
+    <div className="karte karte-kalender">
       <div className="karte-kopf">
         <span>Weitere Pendenzen</span>
         <span className="zaehler-pille">{gesamtAnzahl}</span>

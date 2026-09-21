@@ -28,7 +28,10 @@ export default function Eingang() {
 
   return (
     <div>
-      <h1 className="seiten-titel">Eingang</h1>
+      <h1 className="seiten-titel">
+        Eingang
+        {eintraege.length > 0 && <span className="zaehler-pille seiten-titel-pille">{eintraege.length}</span>}
+      </h1>
       <p className="seiten-untertitel">Unterwegs erfasste Notizen -- hier öffnen, um sie einem Mandanten/einer Fälligkeit zuzuordnen. Danach erscheinen sie ganz normal in Cockpit und Alle Pendenzen.</p>
 
       <div className="karte">

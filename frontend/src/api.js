@@ -238,6 +238,14 @@ const api = {
       pruefeFehler(error);
       return data;
     },
+    // Leichtgewichtige Zaehlabfrage (kein Datentransfer) fuer die Eingang-Pille in der
+    // Navigation -- muss nicht die vollen Datensaetze laden, nur die Anzahl.
+    eingangAnzahl: async () => {
+      const { count, error } = await supabase.from('pendenzen')
+        .select('id', { count: 'exact', head: true }).eq('geplant', false);
+      pruefeFehler(error);
+      return count ?? 0;
+    },
     teilaufgaben: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('uebergeordnete_pendenz_id', id).order('faelligkeit');

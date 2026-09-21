@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import api from '../api.js';
 import PendenzModal from './PendenzModal.jsx';
-import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren } from '../events.js';
+import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren, aufAenderungHoeren } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
 
 const NAV_EINTRAEGE = [
@@ -28,6 +28,7 @@ export default function Layout() {
   const [mandanten, setMandanten] = useState([]);
   const [mitarbeitende, setMitarbeitende] = useState([]);
   const [schnellErfassungOffen, setSchnellErfassungOffen] = useState(false);
+  const [eingangAnzahl, setEingangAnzahl] = useState(0);
 
   const ladeMandanten = useCallback(() => {
     api.mandanten.liste().then(setMandanten).catch(() => {});
@@ -47,6 +48,15 @@ export default function Layout() {
     return aufMitarbeitendeAenderungHoeren(ladeMitarbeitende);
   }, [ladeMitarbeitende]);
 
+  const ladeEingangAnzahl = useCallback(() => {
+    api.pendenzen.eingangAnzahl().then(setEingangAnzahl).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    ladeEingangAnzahl();
+    return aufAenderungHoeren(ladeEingangAnzahl);
+  }, [ladeEingangAnzahl]);
+
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === 'n' && !editierbaresElementFokussiert() && !schnellErfassungOffen) {
@@ -65,7 +75,10 @@ export default function Layout() {
         <nav className="sidebar-nav">
           {NAV_EINTRAEGE.map((eintrag) => (
             <NavLink key={eintrag.pfad} to={eintrag.pfad} end={eintrag.pfad === '/'} className={({ isActive }) => (isActive ? 'aktiv' : '')}>
-              {eintrag.label}
+              <span>{eintrag.label}</span>
+              {eintrag.pfad === '/eingang' && eingangAnzahl > 0 && (
+                <span className="zaehler-pille nav-eingang-pille">{eingangAnzahl}</span>
+              )}
             </NavLink>
           ))}
         </nav>
