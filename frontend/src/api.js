@@ -61,6 +61,10 @@ function sortiereListe(liste, sort) {
 
 async function pendenzenListe(query = {}) {
   let q = supabase.from('pendenzen_angereichert').select('*');
+  // Eingang-Notizen (siehe api.pendenzen.eingang) sind hier immer ausgeblendet -- sie tauchen
+  // erst auf, wenn sie eingeplant wurden (geplant = true, automatisch beim Speichern im vollen
+  // Bearbeiten-Fenster).
+  q = q.eq('geplant', true);
 
   if (query.status) {
     const werte = String(query.status).split(',').filter((s) => STATUS_WERTE.includes(s));
@@ -226,6 +230,14 @@ const api = {
       pruefeFehler(error);
       return data;
     },
+    // Noch nicht eingeplante Notizen (siehe erstellen() geplant:false, z.B. aus MobilErfassen) --
+    // fuer die "Eingang"-Uebersicht, damit sie nicht schon in Cockpit/Alle Pendenzen erscheinen.
+    eingang: async () => {
+      const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
+        .eq('geplant', false).order('erstellt_am', { ascending: false });
+      pruefeFehler(error);
+      return data;
+    },
     teilaufgaben: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('uebergeordnete_pendenz_id', id).order('faelligkeit');
@@ -275,6 +287,9 @@ const api = {
         warte_seit: daten.status === 'Warte auf Kunde' ? (daten.warteSeit || heutigesDatumISO()) : (daten.warteSeit || null),
         wiedervorlage: daten.wiedervorlage || null,
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
+        // Mobil-Erfassen (siehe MobilErfassen.jsx) uebergibt explizit geplant:false -- so eine
+        // Notiz landet im Eingang statt sofort in Cockpit/Alle Pendenzen aufzutauchen.
+        geplant: daten.geplant === undefined ? true : !!daten.geplant,
       }).select().single();
       pruefeFehler(error);
       return data;
@@ -302,6 +317,9 @@ const api = {
       if (daten.aufwandStunden !== undefined) patch.aufwand_stunden = daten.aufwandStunden;
       if (daten.warteSeit !== undefined && patch.warte_seit === undefined) patch.warte_seit = daten.warteSeit || null;
       if (daten.wiedervorlage !== undefined) patch.wiedervorlage = daten.wiedervorlage || null;
+      // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
+      // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
+      patch.geplant = true;
 
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
       pruefeFehler(error);

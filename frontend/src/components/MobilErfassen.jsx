@@ -29,6 +29,9 @@ export default function MobilErfassen() {
         faelligkeit: heutigesDatumISO(),
         prioritaet: 'Mittel',
         status: 'Offen',
+        // Landet im "Eingang" (Desktop-Ansicht) statt sofort in Cockpit/Alle Pendenzen --
+        // wird dort einem Mandanten/einer echten Faelligkeit zugeordnet.
+        geplant: false,
       });
       meldeAenderung();
       setTitel('');
@@ -45,7 +48,7 @@ export default function MobilErfassen() {
   return (
     <div className="mobil-erfassen">
       <h1 className="seiten-titel">Neue Pendenz</h1>
-      <p className="seiten-untertitel">Schnell aufnotieren -- Details lassen sich spaeter ergaenzen.</p>
+      <p className="seiten-untertitel">Schnell aufnotieren -- landet im Eingang, dort planst du sie später ein.</p>
 
       <form onSubmit={speichern}>
         <div className="feld">

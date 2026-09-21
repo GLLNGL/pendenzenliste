@@ -102,7 +102,12 @@ create table if not exists public.pendenzen (
   regel_id                    bigint references public.wiederkehr_regeln(id) on delete set null,
   perioden_schluessel         text,
   uebergeordnete_pendenz_id   bigint references public.pendenzen(id) on delete cascade,
-  bearbeiter_id               bigint references public.mitarbeitende(id) on delete set null
+  bearbeiter_id               bigint references public.mitarbeitende(id) on delete set null,
+  -- "Eingang" -- schnell unterwegs erfasste Notizen (Mobil-Erfassen), die erst noch einem
+  -- Mandanten/einer echten Faelligkeit zugeordnet werden muessen, bevor sie in Cockpit/Alle
+  -- Pendenzen/Mandanten auftauchen. false = liegt im Eingang, true = eingeplant (normal
+  -- sichtbar). Wird beim vollstaendigen Bearbeiten/Speichern automatisch auf true gesetzt.
+  geplant                     boolean not null default true
 );
 
 -- Idempotenz: pro Regel und Periode darf nur eine Pendenz existieren (Regel-Generator).
@@ -319,22 +324,22 @@ as $$
     'ueberfaellig', coalesce((
       select jsonb_agg(p order by p.faelligkeit asc)
       from public.pendenzen_angereichert p
-      where p.status != 'Erledigt' and p.faelligkeit < current_date
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit < current_date
     ), '[]'::jsonb),
     'heuteFaellig', coalesce((
       select jsonb_agg(p)
       from public.pendenzen_angereichert p
-      where p.status != 'Erledigt' and p.faelligkeit = current_date
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date
     ), '[]'::jsonb),
     'morgenFaellig', coalesce((
       select jsonb_agg(p)
       from public.pendenzen_angereichert p
-      where p.status != 'Erledigt' and p.faelligkeit = current_date + 1
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date + 1
     ), '[]'::jsonb),
     'nachfassen', coalesce((
       select jsonb_agg(p order by p.wiedervorlage asc)
       from public.pendenzen_angereichert p
-      where p.status = 'Warte auf Kunde' and p.wiedervorlage is not null and p.wiedervorlage <= current_date
+      where p.geplant and p.status = 'Warte auf Kunde' and p.wiedervorlage is not null and p.wiedervorlage <= current_date
     ), '[]'::jsonb)
   );
 $$;
@@ -348,8 +353,8 @@ language sql
 stable
 as $$
   select m.id, m.name, m.kuerzel, m.email, m.geschaeftsfuehrung_email, m.aktiv, m.notizen,
-    count(p.id) filter (where p.status != 'Erledigt') as offene_pendenzen,
-    count(p.id) filter (where p.status != 'Erledigt' and p.faelligkeit < current_date) as ueberfaellige_pendenzen
+    count(p.id) filter (where p.geplant and p.status != 'Erledigt') as offene_pendenzen,
+    count(p.id) filter (where p.geplant and p.status != 'Erledigt' and p.faelligkeit < current_date) as ueberfaellige_pendenzen
   from public.mandanten m
   left join public.pendenzen p on p.mandant_id = m.id
   group by m.id

@@ -7,6 +7,7 @@ import { useAuth } from '../AuthContext.jsx';
 
 const NAV_EINTRAEGE = [
   { pfad: '/', label: 'Cockpit' },
+  { pfad: '/eingang', label: 'Eingang' },
   { pfad: '/pendenzen', label: 'Alle Pendenzen' },
   { pfad: '/mandanten', label: 'Mandanten' },
   { pfad: '/regeln', label: 'Wiederkehr-Regeln' },
