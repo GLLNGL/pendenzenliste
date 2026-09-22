@@ -339,6 +339,13 @@ const api = {
       if (status === 'Warte auf Kunde') {
         const { data: bestehend } = await supabase.from('pendenzen').select('warte_seit').eq('id', id).single();
         if (!bestehend?.warte_seit) patch.warte_seit = heutigesDatumISO();
+      } else {
+        // Verlaesst die Pendenz "Warte auf Kunde" (z.B. Kunde hat geantwortet), muss auch die
+        // Wiedervorlage geloescht werden -- sonst bleibt ein altes Nachfassen-Datum im
+        // Hintergrund gespeichert und taucht beim naechsten Wechsel zurueck auf "Warte auf
+        // Kunde" faelschlich sofort mit dem alten (laengst vergangenen) Datum wieder auf.
+        patch.warte_seit = null;
+        patch.wiedervorlage = null;
       }
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
       pruefeFehler(error);

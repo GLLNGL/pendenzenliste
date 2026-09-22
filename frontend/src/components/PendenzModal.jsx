@@ -199,8 +199,13 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       prioritaet: formular.prioritaet,
       status: formular.status,
       aufwandStunden: formular.aufwandStunden === '' ? null : Number(formular.aufwandStunden),
-      warteSeit: formular.status === 'Warte auf Kunde' ? (formular.warteSeit || heutigesDatumISO()) : formular.warteSeit || null,
-      wiedervorlage: formular.wiedervorlage || null,
+      // Ausserhalb von "Warte auf Kunde" IMMER auf null zuruecksetzen (nicht nur wenn leer) --
+      // sonst bleibt ein frueher gesetztes Wiedervorlage-Datum im Hintergrund gespeichert (das
+      // Feld ist dann nur ausgeblendet, formular.wiedervorlage aber weiterhin befuellt) und
+      // taucht beim naechsten Wechsel zurueck auf "Warte auf Kunde" faelschlich sofort wieder
+      // mit dem alten Datum in "Nachfassen" auf.
+      warteSeit: formular.status === 'Warte auf Kunde' ? (formular.warteSeit || heutigesDatumISO()) : null,
+      wiedervorlage: formular.status === 'Warte auf Kunde' ? (formular.wiedervorlage || null) : null,
     };
 
     setSpeichertGerade(true);
