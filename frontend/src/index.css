@@ -694,6 +694,28 @@ a { color: var(--accent); text-decoration: none; }
 
 .eingang-eintrag-text { margin: 0; font-size: 12.5px; color: var(--text-muted); white-space: pre-wrap; }
 
+/* Schnellerfassung am PC (Eingang.jsx) -- gleiches Prinzip wie MobilErfassen.jsx (nur Titel +
+   Bemerkung, landet per geplant:false direkt im Eingang), oben in derselben Karte wie die
+   Liste, damit "erfassen" und "einplanen" auf einen Blick zusammengehoeren. */
+.eingang-schnellerfassung {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.eingang-schnellerfassung input[type='text'],
+.eingang-schnellerfassung textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.eingang-schnellerfassung button { align-self: flex-start; }
+
 .filter-leiste {
   display: flex;
   flex-wrap: wrap;
