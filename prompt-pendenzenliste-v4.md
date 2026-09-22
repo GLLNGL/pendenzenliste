@@ -5,8 +5,10 @@ Der grösste Unterschied zu v3: die App läuft nicht mehr auf einem eigenen Node
 mit lokaler SQLite-Datei, sondern als reine statische Web-App (React/Vite) gegen **Supabase**
 (Postgres, Auth, Edge Functions) und wird über **GitHub Pages** öffentlich ausgeliefert. Grund:
 Unabhängigkeit vom Büro-PC/Tailscale für Handy- und Zuhause-Zugriff. Neu dazugekommen sind
-ausserdem eine eigene Handy-Ansicht (nur Erfassen + Kalender) und ein "Eingang" für unterwegs
-erfasste, noch nicht eingeplante Notizen. v1–v3 bleiben als Historie erhalten; alles, was v3
+ausserdem eine eigene Handy-Ansicht (nur Erfassen + Kalender), ein "Eingang" für unterwegs
+oder am PC erfasste, noch nicht eingeplante Notizen (mit Zähler-Pille in der Navigation), und
+ein ziehbarer Höhenregler im Cockpit zwischen Fälligkeiten-Liste und Kalender. v1–v3 bleiben
+als Historie erhalten; alles, was v3
 schon beschrieben hat und hier nicht erwähnt wird (Tabellen-Design, Dreispaltiges Layout,
 Status-Automatik Haupt-/Teilaufgabe, Bedienung, Responsives Zoom-Verhalten am Desktop), gilt
 unverändert weiter.
@@ -123,32 +125,55 @@ Der bestehende Desktop-Zoom-Mechanismus (`document.documentElement.style.zoom`, 
 CSS-Variable bleibt auf `1`) -- die Handy-Ansicht ist für ihre Breite von Grund auf entworfen,
 statt vom Zoom-Ausgleich für Desktop-/Laptop-Fenstergrössen betroffen zu sein.
 
-**Wichtige, in dieser Session gefundene Falle**: der `zoom`-Mechanismus verträgt sich nicht mit
-`flex-grow`/`flex: 1`-basierter Höhenverteilung (ein Container mit `flex:1` kollabiert unter
-`zoom != 1` auf seine Kopfzeile statt den verfügbaren Platz zu füllen -- reproduzierbarer
-Browser-Bug). vh-basierte `calc()`-Ausdrücke (z.B. `calc(30vh / var(--app-zoom))`) bleiben
-dagegen korrekt. Wo im Desktop-Layout etwas von der Fenstergrösse abhängen soll (z.B. die
-Höhenbegrenzung der Fälligkeiten-Liste im Cockpit, damit die Kalenderkarte darunter ohne
-Seiten-Scroll sichtbar bleibt), **immer** vh+calc verwenden, nie flex-grow, solange der
-Zoom-Mechanismus aktiv ist.
+**Zoom + Höhenberechnung -- Lehre aus zwei Sessions**: der `zoom`-Mechanismus erschwert jede
+JS-basierte Pixel-Berechnung (`getComputedStyle()` für Längen wie `padding` steht NICHT im
+selben Maßstab wie `getBoundingClientRect()`/`clientHeight`/`scrollHeight`, die die tatsächlich
+gerenderte, gezoomte Größe zeigen). Ein früherer Verdacht, `flex-grow`/`flex:1` sei unter
+`zoom` grundsätzlich fehlerhaft, hat sich beim Bau des Cockpit-Höhenreglers (siehe unten) als zu
+pauschal erwiesen -- der eigentliche Fallstrick war ein fehlendes `min-height: 0` auf einer der
+beteiligten Flex-/Grid-Ebenen (Standard-CSS-Falle: ein Flex-/Grid-Kind darf sonst nicht kleiner
+als sein Inhalt werden). **Mit `min-height: 0` auf jeder verschachtelten Ebene ist Flexbox
+(`flex: 1 1 auto; min-height: 0;` für das füllende Element) der zuverlässigste Weg für
+"Element A fest, Element B füllt den Rest"** -- isoliert mit echtem `zoom` getestet, siehe
+[[zoom-flexbox-resize-pendenzenliste]] (Gedächtnis-Notiz). Vor einer neuen JS-Pixelrechnung
+immer zuerst dieses Flexbox-Muster probieren.
 
 ## Eingang (neu in v4)
 
-Sammelbecken für unterwegs per Handy erfasste Notizen, bevor sie einem Mandanten/einer echten
-Fälligkeit zugeordnet sind:
+Sammelbecken für unterwegs per Handy **oder direkt am PC** erfasste Notizen, bevor sie einem
+Mandanten/einer echten Fälligkeit zugeordnet sind:
 
 - Jede neu erstellte Pendenz hat `geplant:true` per Default -- **ausser** die
-  Mobil-Erfassen-Ansicht, die explizit `geplant:false` setzt.
+  Mobil-Erfassen-Ansicht und die PC-Schnellerfassung (siehe unten), die explizit
+  `geplant:false` setzen.
 - Alle Listen-Abfragen (Cockpit-RPC, `api.pendenzen.liste(...)` und damit Alle Pendenzen/
   Mandanten/Archiv/Kalender, Mandanten-Übersicht-RPC) filtern implizit auf `geplant = true` --
   eine Eingang-Notiz taucht nirgends sonst auf.
 - Eigene Desktop-Ansicht **"Eingang"** (eigener Sidebar-Eintrag, zwischen Cockpit und Alle
-  Pendenzen): einfache Liste (Titel, Bemerkung, Erfassungszeitpunkt), Klick öffnet das normale
+  Pendenzen): oben eine **Schnellerfassung** (`Eingang.jsx`, gleiches minimales Formular wie
+  `MobilErfassen.jsx` -- nur Titel + Bemerkung, `geplant:false`), damit sich auch am PC schnell
+  etwas zum späteren Einplanen notieren lässt, ohne das volle Bearbeiten-Formular zu öffnen.
+  Darunter die Liste (Titel, Bemerkung, Erfassungszeitpunkt), Klick öffnet das normale
   Bearbeiten-Fenster. Ein vollständiges Speichern dort (egal welche Felder geändert wurden)
   setzt `geplant` automatisch auf `true` -- die Notiz verschwindet aus dem Eingang und
   erscheint ab sofort ganz normal überall.
 - Kein separater Toggle/Button nötig, um etwas "einzuplanen" -- das Öffnen + Speichern im
   bestehenden Bearbeiten-Formular reicht (Mandant/Fälligkeit/Priorität dort wie gewohnt setzen).
+- **Zähler-Pille** neben "Eingang" in der Sidebar-Navigation (`Layout.jsx`, akzentfarben) und
+  im Seitentitel selbst zeigen die Anzahl noch nicht eingeplanter Notizen auf einen Blick, auch
+  von anderen Seiten aus.
+
+## Cockpit-Höhenregler (neu in v4)
+
+Zwischen der "Fälligkeiten"-Karte und "Weitere Pendenzen" (Kalender) im Cockpit lässt sich per
+Ziehgriff die Höhenaufteilung anpassen (ähnlich dem Spalten-Ziehgriff im Supabase SQL-Editor).
+Technisch ein reines Flexbox-Layout (`.cockpit-seite`/`.cockpit-resizable`/
+`.cockpit-kalender-wrapper` in `index.css`, `Cockpit.jsx`) -- die Kalender-Karte hat `flex: 1 1
+auto; min-height: 0;` und füllt darum IMMER exakt den nach der (ziehbaren) Fälligkeiten-Karte
+verbleibenden Platz, echte Browser-Berechnung statt einer JS-Näherung. Siehe voriger Abschnitt
+zur Zoom-Lehre, die zu diesem Ansatz geführt hat. Während des Ziehens wird direkt am DOM
+manipuliert (kein React-Rerender pro Mausbewegung), React-State erst beim Loslassen aktualisiert
+und in `localStorage` gespeichert.
 
 ## Authentifizierung (v4 -- ersetzt den Abschnitt aus v3)
 
@@ -175,6 +200,17 @@ Fälligkeit zugeordnet sind:
 - Die "Einstellungen"-Seite hat kein editierbares SMTP-Formular mehr (Zugangsdaten sind
   Edge-Function-Secrets, nicht in der App änderbar) -- nur noch den Testmail-Button und
   Hinweistext.
+
+## Nachfassen-Datum -- gefundener und behobener Bug (v4)
+
+Beim Statuswechsel weg von "Warte auf Kunde" (z.B. weil der Kunde geantwortet hat) wurden
+`warte_seit`/`wiedervorlage` bisher NICHT geleert -- weder im Bearbeiten-Formular
+(`PendenzModal.jsx`, die Felder waren nur ausgeblendet, der State blieb aber gefüllt) noch in
+der Status-Schnellauswahl (`api.pendenzen.statusAendern`). Wechselte eine Pendenz später wieder
+zurück auf "Warte auf Kunde", tauchte sie darum sofort mit dem alten, längst vergangenen Datum
+in "Nachfassen" auf. Beide Stellen setzen `warte_seit`/`wiedervorlage` jetzt explizit auf `null`,
+sobald der Status nicht mehr "Warte auf Kunde" ist. Betroffene Altdaten wurden per
+einmaligem SQL-Update bereinigt.
 
 ## Offene Punkte (Stand Ende dieser Migration, noch zu tun)
 
