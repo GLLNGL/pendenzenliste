@@ -107,8 +107,19 @@ create table if not exists public.pendenzen (
   -- Mandanten/einer echten Faelligkeit zugeordnet werden muessen, bevor sie in Cockpit/Alle
   -- Pendenzen/Mandanten auftauchen. false = liegt im Eingang, true = eingeplant (normal
   -- sichtbar). Wird beim vollstaendigen Bearbeiten/Speichern automatisch auf true gesetzt.
-  geplant                     boolean not null default true
+  geplant                     boolean not null default true,
+  -- Bearbeitungstag -- eigenstaendiges, von der Faelligkeit UNABHAENGIGES Planungsdatum: wann
+  -- als Naechstes an dieser Pendenz gearbeitet werden soll (z.B. schon am 20.10. anfangen,
+  -- obwohl die echte Faelligkeit erst der 30.10. ist). Bewusst ein zweites Datumsfeld statt die
+  -- Faelligkeit zu verschieben -- siehe "Cockpit neu"-Planung: Muss-Datum und Planungsdatum
+  -- sollen getrennt bleiben.
+  bearbeitungstag             date
 );
+
+-- "create table if not exists" legt neue Spalten nur bei einer NEUEN Tabelle an -- bei einer
+-- bereits bestehenden pendenzen-Tabelle (wie hier, nach der urspruenglichen Migration) bewirkt
+-- es nichts. Darum zusaetzlich explizit nachtragen, idempotent dank "if not exists".
+alter table public.pendenzen add column if not exists bearbeitungstag date;
 
 -- Idempotenz: pro Regel und Periode darf nur eine Pendenz existieren (Regel-Generator).
 create unique index if not exists idx_pendenzen_regel_periode
@@ -118,6 +129,7 @@ create index if not exists idx_pendenzen_status on public.pendenzen (status);
 create index if not exists idx_pendenzen_faelligkeit on public.pendenzen (faelligkeit);
 create index if not exists idx_pendenzen_mandant on public.pendenzen (mandant_id);
 create index if not exists idx_pendenzen_uebergeordnet on public.pendenzen (uebergeordnete_pendenz_id);
+create index if not exists idx_pendenzen_bearbeitungstag on public.pendenzen (bearbeitungstag);
 
 -- --------------------------------------------------------------------------
 -- Status-Kaskade Haupt-/Teilaufgabe -- Portierung von
@@ -157,8 +169,16 @@ begin
         where id = new.uebergeordnete_pendenz_id
           and status is distinct from abgeleiteter_status;
     end if;
-  else
-    -- Diese Zeile ist eine Hauptaufgabe: Status an alle direkten Teilaufgaben weitergeben.
+  elsif pg_trigger_depth() <= 1 then
+    -- Diese Zeile ist eine Hauptaufgabe UND die Aenderung kam direkt von aussen (nicht aus der
+    -- Bottom-up-Ableitung oben) -- nur dann top-down an die Teilaufgaben weitergeben.
+    -- pg_trigger_depth() <= 1 verhindert eine sonst entstehende Endlosschleife: aendert man eine
+    -- einzelne Teilaufgabe, leitet der Zweig oben daraus einen neuen Hauptaufgaben-Status ab und
+    -- speichert ihn -- OHNE diese Tiefenpruefung wuerde genau dieses Speichern hier erneut den
+    -- Top-down-Zweig ausloesen und ALLE Teilaufgaben (auch die gerade erst geaenderte) sofort
+    -- wieder zurueck auf Offen/Erledigt setzen, die eigene Aenderung also augenblicklich
+    -- rueckgaengig machen. Bei einer direkt am Menschen ausgeloesten Aenderung der Hauptaufgabe
+    -- selbst (Tiefe 1) bleibt das bisherige Kaskadenverhalten unveraendert.
     ziel_status := case when new.status = 'Erledigt' then 'Erledigt' else 'Offen' end;
     update public.pendenzen
       set status = ziel_status,
@@ -253,7 +273,14 @@ create index if not exists idx_pendenz_notizen_pendenz on public.pendenz_notizen
 -- fuer diese View wirkungslos).
 -- ==========================================================================
 
-create or replace view public.pendenzen_angereichert
+-- "create or replace view" erlaubt nur neu angehaengte Spalten am ENDE der Ausgabe-Spaltenliste
+-- -- faellt eine neue Spalte der zugrunde liegenden Tabelle (ueber "p.*") mitten in die
+-- bestehende Liste (z.B. vor "mandant_name"), schlaegt "or replace" mit einem Fehler fehl
+-- ("cannot change name of view column"). Darum hier bewusst drop + create statt replace --
+-- bleibt idempotent, nur in zwei Schritten.
+drop view if exists public.pendenzen_angereichert;
+
+create view public.pendenzen_angereichert
 with (security_invoker = true) as
 select
   p.*,
@@ -335,6 +362,11 @@ as $$
       select jsonb_agg(p)
       from public.pendenzen_angereichert p
       where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date + 1
+    ), '[]'::jsonb),
+    'heuteZuBearbeiten', coalesce((
+      select jsonb_agg(p order by p.bearbeitungstag asc)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status != 'Erledigt' and p.bearbeitungstag is not null and p.bearbeitungstag <= current_date
     ), '[]'::jsonb),
     'nachfassen', coalesce((
       select jsonb_agg(p order by p.wiedervorlage asc)

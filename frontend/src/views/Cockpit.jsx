@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
-import PendenzListe from '../components/PendenzListe.jsx';
+import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import Faelligkeitskalender from '../components/Faelligkeitskalender.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 
-const REIHENFOLGE = ['ueberfaellig', 'heuteFaellig', 'morgenFaellig', 'nachfassen'];
+const REIHENFOLGE = ['ueberfaellig', 'heuteFaellig', 'heuteZuBearbeiten', 'morgenFaellig', 'nachfassen'];
 
 const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-faelligkeiten-hoehe';
 const HOEHE_MIN = 140; // Mindesthoehe der Faelligkeiten-Liste
@@ -63,7 +63,7 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
         </div>
 
         <div className="uebersicht-liste">
-          <PendenzListe
+          <PendenzListeNachKunde
             pendenzen={aktuelle.items}
             onOeffnen={onOeffnen}
             onStatusAendern={onStatusAendern}
@@ -170,6 +170,7 @@ export default function Cockpit() {
   const bloecke = [
     { key: 'ueberfaellig', titel: 'Überfällig', klasse: 'ueberfaellig', items: daten.ueberfaellig, leer: 'Keine überfälligen Pendenzen.' },
     { key: 'heuteFaellig', titel: 'Heute fällig', items: daten.heuteFaellig, leer: 'Heute nichts fällig.' },
+    { key: 'heuteZuBearbeiten', titel: 'Heute bearbeiten', klasse: 'bearbeiten', items: daten.heuteZuBearbeiten || [], leer: 'Nichts zum Bearbeiten geplant.' },
     { key: 'morgenFaellig', titel: 'Morgen fällig', items: daten.morgenFaellig, leer: 'Morgen nichts fällig.' },
     { key: 'nachfassen', titel: 'Nachfassen', klasse: 'nachfassen', items: daten.nachfassen, leer: 'Nichts zum Nachfassen.' },
   ];

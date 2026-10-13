@@ -83,7 +83,7 @@ export default function Mandanten() {
                 return (
                   <div key={status}>
                     <div className="status-gruppe-titel">{status} ({gruppe.length})</div>
-                    <PendenzListe pendenzen={gruppe} onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} mitKopf={mitKopf} />
+                    <PendenzListe pendenzen={gruppe} onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} mitKopf={mitKopf} ohneMandantSpalte />
                   </div>
                 );
               });

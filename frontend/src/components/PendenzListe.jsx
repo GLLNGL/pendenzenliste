@@ -27,7 +27,7 @@ function baueBaum(pendenzen) {
 // Enter oeffnet die Detailansicht, Leertaste hakt ab (bzw. macht das Abhaken rueckgaengig).
 export default function PendenzListe({
   pendenzen, onOeffnen, onStatusAendern, leerText = 'Keine Pendenzen.', ohneAbhaken = false, mitKopf = true,
-  onVorschau, vorschauId,
+  onVorschau, vorschauId, ohneMandantSpalte = false,
 }) {
   const containerRef = useRef(null);
   const [eingeklappt, setEingeklappt] = useState(() => new Set());
@@ -62,7 +62,7 @@ export default function PendenzListe({
   // Wechseln zwischen Kategorien/Tagen staendig "Titel / Mandant / Status / Fällig" weg und
   // wieder hin.
   const { wurzeln, kinderVonEltern } = baueBaum(pendenzen);
-  const spaltenAnzahl = ohneAbhaken ? 4 : 5;
+  const spaltenAnzahl = ohneAbhaken ? 5 : 6;
 
   return (
     <div className="pendenz-tabelle-wrap" ref={containerRef}>
@@ -71,6 +71,7 @@ export default function PendenzListe({
           {!ohneAbhaken && <col className="col-check" />}
           <col />
           <col className="col-mandant" />
+          <col className="col-aufwand" />
           <col className="col-status" />
           <col className="col-faellig" />
         </colgroup>
@@ -79,7 +80,8 @@ export default function PendenzListe({
             <tr>
               {!ohneAbhaken && <th aria-hidden="true"></th>}
               <th>Titel</th>
-              <th>Mandant / Bearbeiter</th>
+              <th>{ohneMandantSpalte ? 'Bearbeiter' : 'Mandant / Bearbeiter'}</th>
+              <th>Aufwand</th>
               <th>Status</th>
               <th>Fällig</th>
             </tr>
@@ -104,6 +106,7 @@ export default function PendenzListe({
                   eingeklappt={istEingeklappt}
                   onToggleEinklappen={hatKinder ? () => toggleEinklappen(p.id) : undefined}
                   ohneAbhaken={ohneAbhaken}
+                  ohneMandantSpalte={ohneMandantSpalte}
                   onVorschau={onVorschau}
                   istVorschau={p.id === vorschauId}
                 />
@@ -117,6 +120,7 @@ export default function PendenzListe({
                     eingezogen
                     anzeigeId={`${p.id}.${idx + 1}`}
                     ohneAbhaken={ohneAbhaken}
+                    ohneMandantSpalte={ohneMandantSpalte}
                     onVorschau={onVorschau}
                     istVorschau={k.id === vorschauId}
                   />

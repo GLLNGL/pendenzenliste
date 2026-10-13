@@ -17,6 +17,7 @@ function leeresFormular(vorgabe) {
     aufwandStunden: '',
     warteSeit: '',
     wiedervorlage: '',
+    bearbeitungstag: '',
     ...vorgabe,
   };
 }
@@ -33,6 +34,7 @@ function ausPendenz(pendenz) {
     aufwandStunden: pendenz.aufwand_stunden ?? '',
     warteSeit: pendenz.warte_seit ?? '',
     wiedervorlage: pendenz.wiedervorlage ?? '',
+    bearbeitungstag: pendenz.bearbeitungstag ?? '',
   };
 }
 
@@ -206,6 +208,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       // mit dem alten Datum in "Nachfassen" auf.
       warteSeit: formular.status === 'Warte auf Kunde' ? (formular.warteSeit || heutigesDatumISO()) : null,
       wiedervorlage: formular.status === 'Warte auf Kunde' ? (formular.wiedervorlage || null) : null,
+      bearbeitungstag: formular.bearbeitungstag || null,
     };
 
     setSpeichertGerade(true);
@@ -271,14 +274,25 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                 />
               </div>
               <div className="feld">
-                <label htmlFor="mandant">Mandant</label>
-                <select id="mandant" value={formular.mandantId} onChange={(e) => feldAendern('mandantId', e.target.value)}>
-                  <option value="">Kein Mandant (intern)</option>
-                  {mandanten.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
+                <label htmlFor="bearbeitungstag">Bearbeiten am (geplant)</label>
+                <input
+                  id="bearbeitungstag"
+                  type="date"
+                  value={formular.bearbeitungstag}
+                  onChange={(e) => feldAendern('bearbeitungstag', e.target.value)}
+                />
+                <p className="feld-hinweis">Wann du als Nächstes daran arbeitest – unabhängig von der Fälligkeit.</p>
               </div>
+            </div>
+
+            <div className="feld">
+              <label htmlFor="mandant">Mandant</label>
+              <select id="mandant" value={formular.mandantId} onChange={(e) => feldAendern('mandantId', e.target.value)}>
+                <option value="">Kein Mandant (intern)</option>
+                {mandanten.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="feld-reihe">

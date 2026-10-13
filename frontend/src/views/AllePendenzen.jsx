@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
-import PendenzListe from '../components/PendenzListe.jsx';
+import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
@@ -101,7 +101,7 @@ export default function AllePendenzen() {
       <div className="karte karte-kalender">
         <div className="uebersicht-layout">
           <div className="uebersicht-liste uebersicht-liste-voll">
-            <PendenzListe
+            <PendenzListeNachKunde
               pendenzen={pendenzen}
               onOeffnen={setAktivePendenz}
               onStatusAendern={statusAendern}

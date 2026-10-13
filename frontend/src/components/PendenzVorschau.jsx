@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import { formatiereDatum, formatiereZeitstempel } from '../format.js';
-import { statusSlug } from '../constants.js';
+import { STATUS_WERTE, statusSlug } from '../constants.js';
 import { aufAenderungHoeren } from '../events.js';
 import Badge from './Badge.jsx';
 
@@ -78,7 +78,22 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
       >
         <div className="pendenz-vorschau-kopf">
           <Badge prioritaet={pendenz.prioritaet} />
-          <span className={`zeile-status-tag status-${statusSlug(pendenz.status)}`}>{pendenz.status}</span>
+          {istHauptaufgabe ? (
+            // Status direkt hier aenderbar -- man muss dafuer nicht erst das volle
+            // Bearbeiten-Fenster oeffnen (gleiche Dropdown-Logik wie in der Tabellenzeile).
+            <select
+              className={`status-select status-${statusSlug(pendenz.status)}`}
+              value={pendenz.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onStatusAendern(pendenz, e.target.value)}
+            >
+              {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            // Teilaufgaben bleiben ruhig, wie in der Tabellenzeile -- vollstaendig bearbeiten
+            // per Klick (oeffnet hier das Bearbeiten-Fenster dieser Teilaufgabe).
+            <span className={`zeile-status-tag status-${statusSlug(pendenz.status)}`}>{pendenz.status}</span>
+          )}
         </div>
 
         <div className="pendenz-vorschau-titel">{pendenz.titel}</div>
@@ -87,6 +102,7 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
 
         <div className="pendenz-vorschau-daten">
           <span>Fällig {formatiereDatum(pendenz.faelligkeit)}</span>
+          {pendenz.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(pendenz.bearbeitungstag)}</span>}
           {pendenz.wiedervorlage && <span>Wiedervorlage {formatiereDatum(pendenz.wiedervorlage)}</span>}
           {pendenz.aufwand_stunden != null && <span>{pendenz.aufwand_stunden} Std.</span>}
         </div>

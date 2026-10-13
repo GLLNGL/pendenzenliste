@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
-import PendenzListe from './PendenzListe.jsx';
+import PendenzListeNachKunde from './PendenzListeNachKunde.jsx';
 import PendenzVorschau from './PendenzVorschau.jsx';
 import { OFFENE_STATUS } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
@@ -173,7 +173,7 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
           {ausgewaehlterTag ? (
             <>
               <div className="kalender-tagesliste-titel">{formatiereDatum(ausgewaehlterTag)}</div>
-              <PendenzListe
+              <PendenzListeNachKunde
                 pendenzen={ausgewaehlteListe}
                 onOeffnen={onOeffnen}
                 onStatusAendern={onStatusAendern}

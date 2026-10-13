@@ -213,6 +213,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .uebersicht-kategorie.ueberfaellig .zaehler-pille { background: var(--danger); color: #fff; }
 .uebersicht-kategorie.nachfassen .zaehler-pille { background: var(--warning); color: #fff; }
+.uebersicht-kategorie.bearbeiten .zaehler-pille { background: var(--accent); color: #fff; }
 
 /* Ohne Hoehenbegrenzung wuerde eine lange Faelligkeiten-Liste die Kalender-Karte darunter aus
    dem Sichtbereich schieben (Seiten-Scroll). calc() mit vh ist unter dem Zoom-Mechanismus
@@ -481,10 +482,16 @@ a { color: var(--accent); text-decoration: none; }
   font-size: 13px;
 }
 
+/* col-mandant, col-aufwand, col-status, col-faellig bewusst aehnlich schmal gehalten (statt wie
+   frueher 190px fuer "Mandant · Bearbeiter") -- seit "ohneMandantSpalte" ueberall verwendet
+   wird, steht hier nur noch der kurze Bearbeiter-Name, darum passen die vier Spalten jetzt
+   optisch als ruhige, gleichmaessige Reihe zusammen statt eine davon unnoetig breit wirken zu
+   lassen. */
 .pendenz-tabelle col.col-check { width: 30px; }
-.pendenz-tabelle col.col-mandant { width: 190px; }
-.pendenz-tabelle col.col-status { width: 128px; }
-.pendenz-tabelle col.col-faellig { width: 92px; }
+.pendenz-tabelle col.col-mandant { width: 110px; }
+.pendenz-tabelle col.col-aufwand { width: 64px; }
+.pendenz-tabelle col.col-status { width: 120px; }
+.pendenz-tabelle col.col-faellig { width: 100px; }
 
 .pendenz-tabelle thead th {
   text-align: left;
@@ -602,6 +609,9 @@ a { color: var(--accent); text-decoration: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Rechtsbuendig statt direkt am Titel klebend -- rueckt den Bearbeiter-Namen naeher an
+     Aufwand/Status/Faellig heran, mit denen er optisch als ruhige Spaltengruppe zusammengehoert. */
+  text-align: right;
 }
 
 .teilaufgaben-fortschritt {
@@ -629,6 +639,13 @@ a { color: var(--accent); text-decoration: none; }
   height: 100%;
   background: var(--success);
   border-radius: inherit;
+}
+
+.pz-td-aufwand {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
 }
 
 .pz-td-faellig {
@@ -660,7 +677,12 @@ a { color: var(--accent); text-decoration: none; }
   padding: 3px 6px;
   font-size: 12px;
   font-weight: 600;
-  max-width: 130px;
+  /* Immer exakt die Breite der Status-Spalte fuellen, nie fest (frueher 130px) -- sonst ragt das
+     Dropdown bei einer schmaleren Spalte ueber ihren Rand hinaus und ueberlappt die
+     Faellig-Spalte daneben. */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .status-offen { color: var(--text-muted); }
@@ -938,6 +960,37 @@ code {
   color: var(--text-faint);
   background: var(--bg);
 }
+
+/* Spaltenkopf fuer PendenzListeNachKunde -- erscheint nur einmal ganz oben (gleiche Hoehe wie
+   der Listenanfang), bleibt beim Scrollen der Liste sichtbar (sticky) statt pro Kunde-Gruppe
+   wiederholt zu werden. */
+.pendenz-liste-nach-kunde-kopf { position: sticky; top: 0; z-index: 2; }
+
+/* Primaere Gliederung einer Pendenzen-Liste (Cockpit, Kalender-Tagesliste, Alle Pendenzen,
+   Archiv): Kunde als Gruppenkopf ueber seinen Pendenzen, deshalb kraeftiger als die
+   untergeordnete .status-gruppe-titel-Zeile in Mandanten.jsx. */
+.kunde-gruppe + .kunde-gruppe { margin-top: 10px; }
+
+.kunde-gruppe-titel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--neutral-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.zeile-bearbeitungstag {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.zeile-bearbeitungstag.aktuell { color: var(--accent); font-weight: 600; }
 
 table.tabelle { width: 100%; border-collapse: collapse; }
 

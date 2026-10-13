@@ -11,12 +11,13 @@ const PRIO_SLUG = { Hoch: 'hoch', Mittel: 'mittel', Tief: 'tief' };
 export default function PendenzZeile({
   pendenz, onOeffnen, onStatusAendern, onKeyDown,
   eingezogen = false, anzeigeId, hatKinder = false, eingeklappt = false, onToggleEinklappen,
-  ohneAbhaken = false, onVorschau, istVorschau = false,
+  ohneAbhaken = false, onVorschau, istVorschau = false, ohneMandantSpalte = false,
 }) {
   const heute = heutigesDatumISO();
   const erledigt = pendenz.status === 'Erledigt';
   const ueberfaellig = !erledigt && pendenz.faelligkeit < heute;
   const istHeute = !erledigt && pendenz.faelligkeit === heute;
+  const bearbeitungAktuell = !erledigt && !!pendenz.bearbeitungstag && pendenz.bearbeitungstag <= heute;
 
   const teilaufgabenGesamt = pendenz.teilaufgaben_gesamt || 0;
   const teilaufgabenErledigt = pendenz.teilaufgaben_erledigt || 0;
@@ -26,7 +27,9 @@ export default function PendenzZeile({
 
   const prioSlug = PRIO_SLUG[pendenz.prioritaet] || 'tief';
   const railKlasse = !eingezogen ? `zeile-rail prio-${prioSlug}` : '';
-  const mandantText = [pendenz.mandant_name, pendenz.bearbeiter_name].filter(Boolean).join(' · ');
+  const mandantText = ohneMandantSpalte
+    ? (pendenz.bearbeiter_name || '')
+    : [pendenz.mandant_name, pendenz.bearbeiter_name].filter(Boolean).join(' · ');
 
   function abhaken(e) {
     e.stopPropagation();
@@ -98,6 +101,8 @@ export default function PendenzZeile({
 
       <td className="pz-td-mandant">{mandantText}</td>
 
+      <td className="pz-td-aufwand">{pendenz.aufwand_stunden != null ? `${pendenz.aufwand_stunden} Std.` : ''}</td>
+
       <td className="pz-td-status">
         {eingezogen ? (
           // Teilaufgaben bleiben ruhig: Status nur als kleiner Text statt Dropdown, aber immer
@@ -119,6 +124,11 @@ export default function PendenzZeile({
 
       <td className={`pz-td-faellig ${ueberfaellig ? 'ueberfaellig' : ''} ${istHeute ? 'heute' : ''}`}>
         {formatiereDatum(pendenz.faelligkeit)}
+        {!eingezogen && pendenz.bearbeitungstag && (
+          <div className={`zeile-bearbeitungstag ${bearbeitungAktuell ? 'aktuell' : ''}`}>
+            → bearbeiten {formatiereDatum(pendenz.bearbeitungstag)}
+          </div>
+        )}
       </td>
     </tr>
   );

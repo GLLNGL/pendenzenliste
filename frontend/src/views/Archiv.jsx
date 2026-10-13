@@ -4,6 +4,7 @@ import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { formatiereDatum } from '../format.js';
 import Badge from '../components/Badge.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
+import { gruppiereNachMandant } from '../lib/gruppierung.js';
 
 const LEERE_FILTER = { mandantId: '', erledigtVon: '', erledigtBis: '' };
 
@@ -47,37 +48,43 @@ export default function Archiv() {
         )}
       </div>
 
-      <div className="karte">
-        <table className="tabelle">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Titel</th>
-              <th>Mandant</th>
-              <th>Priorität</th>
-              <th>Fällig gewesen</th>
-              <th>Erledigt am</th>
-              <th>Aufwand</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pendenzen.map((p) => (
-              <tr key={p.id} onClick={() => setAktivePendenz(p)} style={{ cursor: 'pointer' }}>
-                <td className="zeile-id">{p.id}</td>
-                <td>{p.titel}</td>
-                <td>{p.mandant_name || '–'}</td>
-                <td><Badge prioritaet={p.prioritaet} /></td>
-                <td>{formatiereDatum(p.faelligkeit)}</td>
-                <td>{formatiereDatum(p.erledigt_am)}</td>
-                <td>{p.aufwand_stunden ?? '–'}</td>
+      {pendenzen.length === 0 && (
+        <div className="karte"><div className="leer-hinweis" style={{ padding: 24 }}>Keine erledigten Pendenzen im gewählten Zeitraum.</div></div>
+      )}
+
+      {gruppiereNachMandant(pendenzen).map((gruppe) => (
+        <div className="karte mandant-karte" key={gruppe.mandantId ?? 'kein-mandant'}>
+          <div className="kunde-gruppe-titel">
+            <span>{gruppe.mandantName || 'Kein Mandant (intern)'}</span>
+            {gruppe.mandantKuerzel && <span className="mandant-kuerzel">{gruppe.mandantKuerzel}</span>}
+            <span className="zaehler-pille">{gruppe.items.length}</span>
+          </div>
+          <table className="tabelle">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Titel</th>
+                <th>Priorität</th>
+                <th>Fällig gewesen</th>
+                <th>Erledigt am</th>
+                <th>Aufwand</th>
               </tr>
-            ))}
-            {pendenzen.length === 0 && (
-              <tr><td colSpan={7} className="leer-hinweis">Keine erledigten Pendenzen im gewählten Zeitraum.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {gruppe.items.map((p) => (
+                <tr key={p.id} onClick={() => setAktivePendenz(p)} style={{ cursor: 'pointer' }}>
+                  <td className="zeile-id">{p.id}</td>
+                  <td>{p.titel}</td>
+                  <td><Badge prioritaet={p.prioritaet} /></td>
+                  <td>{formatiereDatum(p.faelligkeit)}</td>
+                  <td>{formatiereDatum(p.erledigt_am)}</td>
+                  <td>{p.aufwand_stunden ?? '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
 
       {aktivePendenz && (
         <PendenzModal

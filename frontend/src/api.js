@@ -294,6 +294,7 @@ const api = {
         aufwand_stunden: daten.aufwandStunden ?? null,
         warte_seit: daten.status === 'Warte auf Kunde' ? (daten.warteSeit || heutigesDatumISO()) : (daten.warteSeit || null),
         wiedervorlage: daten.wiedervorlage || null,
+        bearbeitungstag: daten.bearbeitungstag || null,
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
         // Mobil-Erfassen (siehe MobilErfassen.jsx) uebergibt explizit geplant:false -- so eine
         // Notiz landet im Eingang statt sofort in Cockpit/Alle Pendenzen aufzutauchen.
@@ -325,6 +326,7 @@ const api = {
       if (daten.aufwandStunden !== undefined) patch.aufwand_stunden = daten.aufwandStunden;
       if (daten.warteSeit !== undefined && patch.warte_seit === undefined) patch.warte_seit = daten.warteSeit || null;
       if (daten.wiedervorlage !== undefined) patch.wiedervorlage = daten.wiedervorlage || null;
+      if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
       // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
       // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
       patch.geplant = true;
