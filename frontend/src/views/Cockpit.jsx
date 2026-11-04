@@ -63,46 +63,46 @@ function stunden(minuten) {
   return (minuten / 60).toLocaleString('de-CH', { maximumFractionDigits: 1 });
 }
 
-// Kennzahlen oben: In Arbeit (WIP), Auslastung naechste Woche, Block-Filter fuer das
-// Abarbeiten am Stueck (z.B. alle Zahlungslaeufe nacheinander).
+// Kennzahlen als eine schmale Leiste (damit die Uebersicht darunter den meisten Platz bekommt):
+// In Arbeit (WIP), Auslastung naechste Woche, Block-Filter fuer das Abarbeiten am Stueck.
+// Erklaerungen und Warntexte stehen im Tooltip; eine Warnung zeigt sich zusaetzlich rot.
 function Kennzahlen({ inArbeitAnzahl, auslastung, block, onBlockWaehlen }) {
   const prozent = Math.round(auslastung.anteil * 100);
+  const wipWarnung = inArbeitAnzahl > WIP_LIMIT;
+  const auslastungTipp = [
+    `Auslastung ${formatiereDatum(auslastung.wocheVon)}–${formatiereDatum(auslastung.wocheBis)}: `
+      + `${stunden(auslastung.minuten)} h von ${stunden(auslastung.fokusMinuten)} h Fokuszeit.`,
+    auslastung.warnung ? 'Mehr als 70 % verplant – Pendenzen verschieben, delegieren oder bündeln.' : '',
+    auslastung.ohneAufwand > 0 ? `${auslastung.ohneAufwand} Pendenz${auslastung.ohneAufwand === 1 ? '' : 'en'} ohne Aufwand nicht mitgezählt.` : '',
+  ].filter(Boolean).join('\n');
+
   return (
     <div className="cockpit-kennzahlen">
-      <div className={`kennzahl ${inArbeitAnzahl > WIP_LIMIT ? 'kennzahl-warnung' : ''}`}>
-        <div className="kennzahl-titel">In Arbeit (du)</div>
-        <div className="kennzahl-wert">{inArbeitAnzahl} <span className="kennzahl-einheit">/ {WIP_LIMIT}</span></div>
-        <div className="kennzahl-hinweis">
-          {inArbeitAnzahl > WIP_LIMIT ? 'Zu viel gleichzeitig – zuerst abschliessen oder zurückstellen.' : 'Tagesstart: Top 3 auf «In Arbeit» setzen.'}
-        </div>
+      <div
+        className={`kennzahl ${wipWarnung ? 'kennzahl-warnung' : ''}`}
+        title={wipWarnung ? 'Zu viel gleichzeitig – zuerst abschliessen oder zurückstellen.' : 'Tagesstart: Top 3 auf «In Arbeit» setzen.'}
+      >
+        <span className="kennzahl-titel">In Arbeit</span>
+        <span className="kennzahl-wert">{inArbeitAnzahl}<span className="kennzahl-einheit"> / {WIP_LIMIT}</span></span>
       </div>
 
-      <div className={`kennzahl kennzahl-breit ${auslastung.warnung ? 'kennzahl-warnung' : ''}`}>
-        <div className="kennzahl-titel">
-          Auslastung nächste Woche ({formatiereDatum(auslastung.wocheVon)}–{formatiereDatum(auslastung.wocheBis)})
-        </div>
-        <div className="kennzahl-wert">
-          {stunden(auslastung.minuten)} h <span className="kennzahl-einheit">von {stunden(auslastung.fokusMinuten)} h Fokuszeit · {prozent} %</span>
-        </div>
-        <div className="auslastung-balken" aria-hidden="true">
+      <div className={`kennzahl ${auslastung.warnung ? 'kennzahl-warnung' : ''}`} title={auslastungTipp}>
+        <span className="kennzahl-titel">Nächste Woche</span>
+        <span className="kennzahl-wert">{stunden(auslastung.minuten)} h<span className="kennzahl-einheit"> / {stunden(auslastung.fokusMinuten)} h · {prozent} %</span></span>
+        <span className="auslastung-balken" aria-hidden="true">
           <span className="auslastung-fuellung" style={{ width: `${Math.min(100, prozent)}%` }} />
           <span className="auslastung-schwelle" />
-        </div>
-        <div className="kennzahl-hinweis">
-          {auslastung.warnung ? 'Mehr als 70 % verplant – Pendenzen verschieben, delegieren oder bündeln. ' : ''}
-          {auslastung.ohneAufwand > 0 ? `${auslastung.ohneAufwand} Pendenz${auslastung.ohneAufwand === 1 ? '' : 'en'} ohne Aufwand nicht mitgezählt.` : ''}
-        </div>
+        </span>
       </div>
 
-      <div className="kennzahl kennzahl-breit">
-        <div className="kennzahl-titel">Block (am Stück abarbeiten)</div>
+      <div className="kennzahl kennzahl-block" title="Block wählen, um z.B. alle Zahlungsläufe am Stück abzuarbeiten">
+        <span className="kennzahl-titel">Block</span>
         <div className="block-filter">
           <button type="button" className={`block-chip ${block === '' ? 'aktiv' : ''}`} onClick={() => onBlockWaehlen('')}>Alle</button>
           {BLOECKE.map((b) => (
             <button type="button" key={b} className={`block-chip ${block === b ? 'aktiv' : ''}`} onClick={() => onBlockWaehlen(b)}>{b}</button>
           ))}
         </div>
-        <div className="kennzahl-hinweis">Tagesabschluss: Status nachführen, «Nachfassen» abarbeiten.</div>
       </div>
     </div>
   );
@@ -321,10 +321,14 @@ export default function Cockpit() {
 
   return (
     <div className="cockpit-seite">
-      <h1 className="seiten-titel">Cockpit</h1>
-      <p className="seiten-untertitel">
-        {block ? `Gefiltert auf Block «${block}». ` : ''}Tagesstart: Fällige ansehen, Top 3 auf «In Arbeit». Tagesabschluss: Status nachführen, nachfassen.
-      </p>
+      {/* Titel und Arbeitsrhythmus in einer Zeile -- der obere Bereich bleibt schmal. */}
+      <div className="cockpit-kopfzeile">
+        <h1 className="seiten-titel">Cockpit</h1>
+        <span className="cockpit-kopf-hinweis">
+          {block ? <strong>Block «{block}» · </strong> : null}
+          Tagesstart: Fällige ansehen, Top 3 auf «In Arbeit» · Tagesabschluss: Status nachführen, nachfassen
+        </span>
+      </div>
 
       <Kennzahlen inArbeitAnzahl={daten.inArbeitAnzahl} auslastung={daten.auslastung} block={block} onBlockWaehlen={blockWaehlen} />
 
