@@ -8,7 +8,7 @@ import NachfassMails from '../components/NachfassMails.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
-import { BLOECKE } from '../constants.js';
+import { BLOECKE, aufwandSumme, formatiereStunden } from '../constants.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { berechneCockpit } from '../lib/cockpit.js';
 import { WIP_LIMIT } from '../lib/wip.js';
@@ -124,12 +124,20 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
   const angezeigtePendenz = vorschauPendenz
     ? aktuelle.items.find((p) => p.id === vorschauPendenz.id) ?? null
     : null;
+  const summe = aufwandSumme(aktuelle.items);
 
   return (
     <div className="karte karte-kalender uebersicht-karte">
-      <div className="karte-kopf">
-        <span>Übersicht</span>
-        <span className="zaehler-pille">{bloecke[0].items.length} fällig</span>
+      {/* Kopf zeigt den gewaehlten Bereich mit Anzahl und geschaetzter Gesamtzeit, z.B.
+          "Heute bearbeiten · 6 Pendenzen · 4.5 h geschätzt". */}
+      <div className="karte-kopf uebersicht-kopf">
+        <span>Übersicht <span className="uebersicht-kopf-bereich">· {aktuelle.titel}</span></span>
+        <span className="uebersicht-kopf-summe">
+          {aktuelle.items.length} Pendenz{aktuelle.items.length === 1 ? '' : 'en'}
+          {' · '}
+          <strong>{formatiereStunden(summe.minuten)}</strong> geschätzt
+          {summe.ohne > 0 && <span className="uebersicht-kopf-ohne"> ({summe.ohne} ohne Schätzung)</span>}
+        </span>
       </div>
 
       <div className="uebersicht-layout">
@@ -161,6 +169,7 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
             aktiveId={angezeigtePendenz?.id}
             onWaehlen={setVorschauPendenz}
             mitFrist
+            speicherSchluessel="cockpit-uebersicht-eingeklappt"
             leerText={aktuelle.leer}
           />
         </div>

@@ -537,16 +537,28 @@ a { color: var(--accent); text-decoration: none; }
 /* Gruppe pro Mandant -- schlichter Zwischentitel statt farbigem Gruppenkopf. */
 .tagesliste-gruppe + .tagesliste-gruppe { border-top: 6px solid var(--bg); }
 
+/* Mandantenkopf: klickbar zum Ein-/Ausklappen; zeigt Anzahl und geschaetzte Gesamtzeit --
+   eingeklappt bleibt nur dieser Kopf sichtbar. */
 .tagesliste-gruppe-titel {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 6px 14px 4px;
+  width: 100%;
+  padding: 6px 14px 5px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
   font-size: var(--fs-klein);
   font-weight: var(--fw-fett);
   color: var(--text);
-  border-bottom: 1px solid var(--border);
+  cursor: pointer;
 }
+
+.tagesliste-gruppe-titel:hover { background: var(--surface-hover); }
+.tagesliste-gruppe-pfeil { width: 10px; color: var(--text-faint); font-size: 10px; font-weight: var(--fw-normal); }
+.tagesliste-gruppe-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tagesliste-gruppe-zeit { margin-left: auto; color: var(--text-muted); font-weight: var(--fw-mittel); font-size: var(--fs-liste-klein); white-space: nowrap; }
 
 .tagesliste-gruppe-anzahl { color: var(--text-muted); font-weight: var(--fw-normal); font-size: var(--fs-liste-klein); }
 
@@ -554,7 +566,7 @@ a { color: var(--accent); text-decoration: none; }
   display: grid;
   /* Feste Spalten fuer Frist und Status, damit sie ueber alle Gruppen hinweg untereinander
      stehen; der naechste Schritt nimmt den Rest (mit Auslassungspunkten). */
-  grid-template-columns: minmax(0, 1fr) 86px;
+  grid-template-columns: minmax(0, 1fr) 64px 86px;
   align-items: baseline;
   gap: 12px;
   width: 100%;
@@ -568,7 +580,11 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text);
 }
 
-.tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 96px 86px; }
+.tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 96px 64px 86px; }
+
+/* Geschaetzte Zeit pro Pendenz. */
+.tagesliste-aufwand { color: var(--text-muted); white-space: nowrap; }
+.tagesliste-aufwand.leer { color: var(--text-faint); }
 
 /* Prioritaet A faellt als schmaler roter Strich links auf (wie frueher in der Tabelle). */
 .tagesliste-eintrag.prio-a { border-left-color: var(--danger); }
@@ -580,7 +596,7 @@ a { color: var(--accent); text-decoration: none; }
 .tagesliste-eintrag:hover { background: var(--surface-hover); }
 .tagesliste-eintrag.aktiv { background: var(--neutral-bg); }
 
-.tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 10px; }
+.tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 14px; }
 .tagesliste-eltern { color: var(--text-faint); }
 .tagesliste-status { font-size: var(--fs-label); font-weight: var(--fw-mittel); white-space: nowrap; }
 
@@ -1772,3 +1788,9 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
 .pendenz-vorschau-spalte .notiz-eintrag { padding: 5px 8px; }
 .pendenz-vorschau-spalte .notiz-kopf { font-size: 10.5px; }
 .pendenz-vorschau-spalte .badge { font-size: 10.5px; padding: 1px 6px; }
+
+/* Kopf der Uebersicht: gewaehlter Bereich, Anzahl und geschaetzte Gesamtzeit. */
+.uebersicht-kopf-bereich { color: var(--text-muted); font-weight: var(--fw-mittel); }
+.uebersicht-kopf-summe { font-size: var(--fs-klein); font-weight: var(--fw-normal); color: var(--text-muted); }
+.uebersicht-kopf-summe strong { color: var(--text); font-weight: var(--fw-halbfett); }
+.uebersicht-kopf-ohne { color: var(--text-faint); }

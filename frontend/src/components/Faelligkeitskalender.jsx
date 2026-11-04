@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
 import PendenzVorschau from './PendenzVorschau.jsx';
 import PendenzGruppenListe from './PendenzGruppenListe.jsx';
-import { OFFENE_STATUS } from '../constants.js';
+import { OFFENE_STATUS, aufwandSumme, formatiereStunden } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { aufAenderungHoeren } from '../events.js';
 
@@ -180,6 +180,7 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, mitVo
                 {WOCHENTAG_LANG[new Date(`${ausgewaehlterTag}T00:00:00`).getDay()]}, {formatiereDatum(ausgewaehlterTag)}
                 <span className="kalender-tagesliste-anzahl">
                   {ausgewaehlteListe.length} Pendenz{ausgewaehlteListe.length === 1 ? '' : 'en'}
+                  {ausgewaehlteListe.length > 0 && ` · ${formatiereStunden(aufwandSumme(ausgewaehlteListe).minuten)} geschätzt`}
                 </span>
               </div>
               <PendenzGruppenListe
@@ -187,6 +188,7 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, mitVo
                 aktiveId={angezeigtePendenz?.id}
                 onWaehlen={(p) => (mitVorschau ? setVorschauPendenz(p) : onOeffnen(p))}
                 leerText="Keine Pendenzen an diesem Tag."
+                speicherSchluessel="kalender-eingeklappt"
               />
             </>
           ) : (

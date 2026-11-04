@@ -52,6 +52,20 @@ function statusWechselBrauchtFormular(pendenz, neuerStatus) {
   return neuerStatus === 'Warten auf' && !(pendenz.warten_auf_person && pendenz.wiedervorlage);
 }
 
+// Geschaetzte Gesamtzeit einer Liste: Summe der Minuten plus Anzahl Pendenzen ohne Schaetzung
+// (die in der Summe fehlen und darum separat ausgewiesen werden).
+function aufwandSumme(pendenzen) {
+  return pendenzen.reduce((s, p) => (p.aufwand_minuten == null
+    ? { ...s, ohne: s.ohne + 1 }
+    : { ...s, minuten: s.minuten + p.aufwand_minuten }), { minuten: 0, ohne: 0 });
+}
+
+// Stunden mit hoechstens einer Nachkommastelle im Schweizer Format ("4.5 h", "45 Min.").
+function formatiereStunden(minuten) {
+  if (minuten < 60) return `${minuten} Min.`;
+  return `${(minuten / 60).toLocaleString('de-CH', { maximumFractionDigits: 1 })} h`;
+}
+
 function formatiereAufwand(minuten) {
   if (minuten == null) return '';
   return minuten < 60 ? `${minuten} Min.` : `${minuten / 60} Std.`;
@@ -60,5 +74,5 @@ function formatiereAufwand(minuten) {
 export {
   STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE,
   MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN, RHYTHMEN, RHYTHMUS_LABEL, FAELLIGKEIT_TYPEN, statusSlug, formatiereAufwand,
-  statusWechselBrauchtFormular,
+  statusWechselBrauchtFormular, aufwandSumme, formatiereStunden,
 };
