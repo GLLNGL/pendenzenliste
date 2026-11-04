@@ -464,25 +464,73 @@ a { color: var(--accent); text-decoration: none; }
 .cockpit-resizable { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .cockpit-resizable > .karte-kalender { flex: 0 0 auto; }
 .cockpit-resizable > .cockpit-resize-griff { flex: 0 0 auto; }
-.cockpit-kalender-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-/* Kein Kartenabstand unter dem Kalender -- er sitzt ganz unten und wuerde sonst einen unnoetigen
-   Scrollbalken erzeugen. */
-.cockpit-kalender-wrapper > .karte { margin-bottom: 0; }
+/* Kalender-Karte fuellt ihren Bereich ganz aus; scrollen kann nur die Tagesliste rechts -- der
+   Monatskalender bleibt dabei stehen. min-height:0 auf jeder Ebene, sonst wachsen Flex-Kinder
+   mit ihrem Inhalt mit (siehe Zoom-/Flexbox-Lehre in prompt v4). */
+.cockpit-kalender-wrapper { flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column; }
+.cockpit-kalender-wrapper > .karte { flex: 1 1 auto; min-height: 0; margin-bottom: 0; display: flex; flex-direction: column; }
+.cockpit-kalender-wrapper .kalender-layout { flex: 1 1 auto; min-height: 0; }
+.cockpit-kalender-wrapper .kalender-tagesliste { overflow-y: auto; }
+/* Monatsraster in seiner natuerlichen Hoehe (nicht auf die Kartenhoehe gestreckt) -- sonst
+   misst die Standardhoehen-Berechnung im Cockpit den Kalender zu gross. */
+.cockpit-kalender-wrapper .kalender { align-self: flex-start; }
 
 /* Links der Monat, rechts die Pendenzen des angeklickten Tages. */
 .kalender-layout { display: flex; align-items: stretch; }
 
 .kalender { flex-shrink: 0; padding: 6px 12px 6px; }
 
-.kalender-tagesliste-titel {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-hover);
-  font-weight: 600;
-  font-size: var(--fs-text);
+.kalender-tagesliste {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
 }
 
-.kalender-tagesliste > .leer-hinweis { padding: 40px 20px; }
+.kalender-tagesliste-titel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: var(--fw-halbfett);
+  font-size: var(--fs-liste);
+}
+
+.kalender-tagesliste-anzahl { color: var(--text-muted); font-weight: var(--fw-normal); font-size: var(--fs-liste-klein); }
+
+.kalender-tagesliste > .leer-hinweis { padding: 28px 20px; }
+
+/* Schlichte Tagesliste: eine Zeile pro Pendenz -- Mandant | naechster Schritt | Status. */
+.tagesliste { list-style: none; margin: 0; padding: 0; }
+
+.tagesliste-eintrag {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  font-size: var(--fs-liste);
+  color: var(--text);
+}
+
+.tagesliste li:last-child .tagesliste-eintrag { border-bottom: none; }
+.tagesliste-eintrag:hover { background: var(--surface-hover); }
+
+.tagesliste-mandant,
+.tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tagesliste-mandant { color: var(--text-muted); font-size: var(--fs-liste-klein); }
+.tagesliste-eltern { color: var(--text-faint); }
+.tagesliste-status { font-size: var(--fs-liste-klein); font-weight: var(--fw-mittel); white-space: nowrap; }
 
 /* Monatsnavigation im Kartenkopf statt als eigene Zeile im Kalender. */
 .kalender-kopf { gap: 12px; padding-top: 7px; padding-bottom: 7px; }

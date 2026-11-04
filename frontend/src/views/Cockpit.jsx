@@ -161,6 +161,9 @@ export default function Cockpit() {
   const [aktiveKategorie, setAktiveKategorie] = useState(null);
   const [block, setBlock] = useState(gespeichertenBlockLesen);
   const [faelligkeitenHoehe, setFaelligkeitenHoehe] = useState(gespeicherteHoeheLesen);
+  // true = Hoehe selbst per Ziehgriff gewaehlt (bleibt), false = automatisch (wird bei jeder
+  // Fenstergroessen-Aenderung neu berechnet, damit der Kalender nie zusammengedrueckt wird).
+  const [hoeheSelbstGewaehlt, setHoeheSelbstGewaehlt] = useState(() => gespeicherteHoeheLesen() != null);
   const [ziehtGerade, setZiehtGerade] = useState(false);
   const [nachfassOffen, setNachfassOffen] = useState(false);
   const layoutRef = useRef(null);
@@ -219,6 +222,7 @@ export default function Cockpit() {
       document.body.style.userSelect = '';
       setZiehtGerade(false);
       setFaelligkeitenHoehe(letzteHoehe);
+      setHoeheSelbstGewaehlt(true);
       localStorage.setItem(HOEHE_SPEICHER_SCHLUESSEL, String(letzteHoehe));
     }
     window.addEventListener('mousemove', bewegen);
@@ -226,22 +230,33 @@ export default function Cockpit() {
   }, []);
 
   // Ohne gespeicherte Hoehe bekommt die Uebersicht allen Platz, den der Kalender nicht braucht:
-  // Uebersicht kurz auf die Mindesthoehe setzen, dann messen, wie viel Luft die Kalender-Karte
-  // (flex:1) unter ihrem Inhalt hat, und genau diese Luft der Uebersicht geben. Gemessen wird in
+  // Uebersicht kurz auf die Mindesthoehe setzen, dann messen, wie viel Platz der Kalender-Bereich
+  // (flex:1) mehr hat, als Kartenkopf + Monatsraster brauchen, und genau diese Luft der
+  // Uebersicht geben. (Die Kalender-Karte selbst fuellt ihren Bereich ganz aus, damit nur die
+  // Tagesliste scrollt -- darum wird ihr Inhalt gemessen, nicht die Karte.) Gemessen wird in
   // gerenderten Pixeln und ueber den Massstab der Uebersicht in CSS-Pixel umgerechnet -- so
   // stimmt es auch unter dem Zoom-Ausgleich (AuthGate.jsx).
   useLayoutEffect(() => {
     if (faelligkeitenHoehe != null || !offene || !layoutRef.current || !kalenderRef.current) return;
     const layout = layoutRef.current;
     const wrapper = kalenderRef.current;
-    const karte = wrapper.firstElementChild;
-    if (!karte) return;
+    const kopf = wrapper.querySelector('.kalender-kopf');
+    const monat = wrapper.querySelector('.kalender');
+    if (!kopf || !monat) return;
     layout.style.setProperty('--faelligkeiten-hoehe', `${HOEHE_MIN}px`);
     const massstab = layout.getBoundingClientRect().height / HOEHE_MIN || 1;
-    const luft = (wrapper.getBoundingClientRect().height - karte.getBoundingClientRect().height) / massstab;
+    const bedarf = kopf.getBoundingClientRect().height + monat.getBoundingClientRect().height + 2; // + Kartenrahmen
+    const luft = (wrapper.getBoundingClientRect().height - bedarf) / massstab;
     const ABSTAND_UNTER_KALENDER = 4; // kleiner Puffer gegen Rundungen, damit kein Scrollbalken erscheint
     setFaelligkeitenHoehe(Math.max(HOEHE_MIN, Math.round(HOEHE_MIN + luft - ABSTAND_UNTER_KALENDER)));
   }, [faelligkeitenHoehe, offene]);
+
+  useEffect(() => {
+    if (hoeheSelbstGewaehlt) return undefined;
+    function neuBerechnen() { setFaelligkeitenHoehe(null); }
+    window.addEventListener('resize', neuBerechnen);
+    return () => window.removeEventListener('resize', neuBerechnen);
+  }, [hoeheSelbstGewaehlt]);
 
   const laden = useCallback(() => {
     api.pendenzen.offene().then(setOffene).catch((e) => setFehler(e.message));

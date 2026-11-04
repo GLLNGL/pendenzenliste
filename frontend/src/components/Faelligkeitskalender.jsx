@@ -1,11 +1,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
-import PendenzListeNachKunde from './PendenzListeNachKunde.jsx';
-import { OFFENE_STATUS } from '../constants.js';
+import { OFFENE_STATUS, statusSlug } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { aufAenderungHoeren } from '../events.js';
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const WOCHENTAG_LANG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+function sortiertNachMandant(liste) {
+  return [...liste].sort((a, b) => (a.mandant_name || '').localeCompare(b.mandant_name || '', 'de-CH')
+    || (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH'));
+}
 const MONATSNAMEN = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
@@ -46,7 +51,7 @@ function baueRaster(jahr, monatIndex) {
 // Ersetzt die fruehere "Naechste 7 Tage"-Liste: ein Monatskalender, dessen Tage fett
 // erscheinen, sobald eine offene Pendenz an diesem Tag faellig ist. Anklicken zeigt die
 // Pendenzen des Tages darunter -- ueberfaellig/heute/morgen bleiben eigene Listen im Cockpit.
-export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
+export default function Faelligkeitskalender({ onOeffnen }) {
   const heuteISO = heutigesDatumISO();
   const jetzt = useMemo(() => new Date(), []);
   const [ansicht, setAnsicht] = useState({ jahr: jetzt.getFullYear(), monatIndex: jetzt.getMonth() });
@@ -161,17 +166,32 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
           </div>
         </div>
 
+        {/* Schlichte Tagesliste: eine Zeile pro Pendenz (Mandant · nächster Schritt · Status),
+            Klick öffnet sie. Scrollt für sich allein -- der Kalender daneben bleibt stehen. */}
         <div className="kalender-tagesliste">
           {ausgewaehlterTag ? (
             <>
-              <div className="kalender-tagesliste-titel">{formatiereDatum(ausgewaehlterTag)}</div>
-              <PendenzListeNachKunde
-                pendenzen={ausgewaehlteListe}
-                onOeffnen={onOeffnen}
-                onStatusAendern={onStatusAendern}
-                leerText="Keine Pendenzen an diesem Tag."
-                ohneAbhaken
-              />
+              <div className="kalender-tagesliste-titel">
+                {WOCHENTAG_LANG[new Date(`${ausgewaehlterTag}T00:00:00`).getDay()]}, {formatiereDatum(ausgewaehlterTag)}
+                <span className="kalender-tagesliste-anzahl">
+                  {ausgewaehlteListe.length} Pendenz{ausgewaehlteListe.length === 1 ? '' : 'en'}
+                </span>
+              </div>
+              {ausgewaehlteListe.length === 0 && <div className="leer-hinweis">Keine Pendenzen an diesem Tag.</div>}
+              <ul className="tagesliste">
+                {sortiertNachMandant(ausgewaehlteListe).map((p) => (
+                  <li key={p.id}>
+                    <button type="button" className="tagesliste-eintrag" onClick={() => onOeffnen(p)} title={p.titel}>
+                      <span className="tagesliste-mandant">{p.mandant_name || 'Intern'}</span>
+                      <span className="tagesliste-titel">
+                        {p.eltern_titel && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
+                        {p.titel}
+                      </span>
+                      <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </>
           ) : (
             <div className="leer-hinweis">Tag anklicken, um die Pendenzen dieses Tages zu sehen.</div>
