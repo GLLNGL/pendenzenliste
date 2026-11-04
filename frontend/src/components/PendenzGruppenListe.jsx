@@ -93,13 +93,17 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
               // vor dem ersten Schritt eine Projekt-Titelzeile eingefuegt.
               const kopfInListe = istSchritt && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
               const vorgaenger = gruppe.items[index - 1];
+              const nachfolger = gruppe.items[index + 1];
               const brauchtTitelzeile = istSchritt && !kopfInListe
                 && vorgaenger?.uebergeordnete_pendenz_id !== p.uebergeordnete_pendenz_id;
+              // Letzter Schritt eines Projekts: dort endet die Fuehrungslinie (└ statt ├).
+              const letzterSchritt = istSchritt && nachfolger?.uebergeordnete_pendenz_id !== p.uebergeordnete_pendenz_id;
               const zeilen = [];
               if (brauchtTitelzeile) {
                 zeilen.push(
                   <li key={`projekt-${p.uebergeordnete_pendenz_id}`} className="tagesliste-projektzeile">
-                    {p.eltern_titel}<span className="tagesliste-projekt"> Projekt</span>
+                    <span className="tagesliste-projekt-name">{p.eltern_titel}</span>
+                    <span className="tagesliste-projekt">Projekt</span>
                   </li>,
                 );
               }
@@ -107,14 +111,14 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                 <li key={p.id}>
                   <button
                     type="button"
-                    className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${istSchritt ? 'schritt' : ''}`}
+                    className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${istSchritt ? 'schritt' : ''} ${letzterSchritt ? 'letzter' : ''}`}
                     onClick={() => onWaehlen(p)}
                     title={p.eltern_titel ? `${p.eltern_titel} – ${p.titel}` : p.titel}
                   >
                     <span className="tagesliste-titel">
                       {p.titel}
                       {istProjekt && (
-                        <span className="tagesliste-projekt"> Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
+                        <span className="tagesliste-projekt">Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
                       )}
                     </span>
                     {datumFeld && (

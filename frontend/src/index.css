@@ -1830,22 +1830,77 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
   color: var(--text-muted);
 }
 
-/* Projekt-Kopf in vollstaendigen Listen: Fortschritt der Schritte; Schritte darunter eingerueckt. */
-.tagesliste-projekt { color: var(--text-faint); font-size: var(--fs-label); font-weight: var(--fw-mittel); }
-.tagesliste-eintrag.projekt .tagesliste-titel { font-weight: var(--fw-mittel); }
-/* Projekt-Schritte als Aufzaehlung: eingerueckt, mit Aufzaehlungsstrich vor dem Titel. */
-.tagesliste-eintrag.schritt .tagesliste-titel { padding-left: 32px; position: relative; }
-.tagesliste-eintrag.schritt .tagesliste-titel::before {
-  content: '–';
-  position: absolute;
-  left: 20px;
-  color: var(--text-faint);
-}
+/* ---------- Projekte: Haupt-Projekt klar von seinen Schritten unterschieden ----------
+   Projekt-Kopf (bzw. Projekt-Titelzeile, wenn der Kopf nicht in der Liste steht): getoenter
+   Hintergrund, halbfett, Ordner-Symbol und Badge "PROJEKT x/y". Schritte: weiter eingerueckt,
+   kleiner und grau, mit Fuehrungslinie und Abzweig wie in einer Baumansicht (├ / └). */
+.tagesliste-eintrag.projekt,
+.tagesliste-projektzeile { background: var(--surface-3); }
+.tagesliste-eintrag.projekt:hover { background: var(--neutral-bg); }
 
-/* Projekt-Titelzeile ueber Schritten, deren Projekt-Kopf nicht in der Liste steht. */
-.tagesliste-projektzeile {
-  padding: 5px 14px 2px 17px;
-  font-size: var(--fs-liste-klein);
-  font-weight: var(--fw-mittel);
+.tagesliste-eintrag.projekt .tagesliste-titel,
+.tagesliste-projektzeile .tagesliste-projekt-name {
+  font-weight: var(--fw-halbfett);
   color: var(--text);
 }
+
+.tagesliste-eintrag.projekt .tagesliste-titel::before,
+.tagesliste-projektzeile .tagesliste-projekt-name::before {
+  content: '▣';
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: var(--fw-normal);
+}
+
+/* Badge "PROJEKT 0/2" */
+.tagesliste-projekt {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: var(--fw-halbfett);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+/* Projekt-Titelzeile (nicht anklickbar) im selben Raster wie die Eintraege. */
+.tagesliste-projektzeile {
+  padding: 5px 14px 5px 17px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-liste-klein);
+}
+
+/* Schritte: Fuehrungslinie links (senkrecht vom Projekt herunter) und Abzweig vor dem Titel --
+   an der ganzen Zeile, damit die Linie nahtlos von Zeile zu Zeile laeuft (der Titel selbst
+   schneidet ueberlangen Text ab und wuerde die Linie mit abschneiden). */
+.tagesliste-eintrag { position: relative; }
+.tagesliste-eintrag.schritt { padding-top: 3px; padding-bottom: 3px; }
+.tagesliste-eintrag.schritt .tagesliste-titel {
+  padding-left: 30px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.tagesliste-eintrag.schritt::before {
+  content: '';
+  position: absolute;
+  left: 28px;
+  top: 0;
+  bottom: -1px;
+  border-left: 1px solid var(--text-faint);
+}
+.tagesliste-eintrag.schritt::after {
+  content: '';
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  width: 11px;
+  border-top: 1px solid var(--text-faint);
+}
+/* Letzter Schritt eines Projekts: Linie endet beim Abzweig (└ statt ├). */
+.tagesliste-eintrag.schritt.letzter::before { bottom: 50%; }
