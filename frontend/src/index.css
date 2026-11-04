@@ -224,7 +224,7 @@ a { color: var(--accent); text-decoration: none; }
 .uebersicht-layout { display: flex; align-items: stretch; --faelligkeiten-hoehe: calc(30vh / var(--app-zoom)); }
 
 .uebersicht-kategorien {
-  width: 200px;
+  width: 240px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -247,6 +247,7 @@ a { color: var(--accent); text-decoration: none; }
   text-align: left;
   font-size: var(--fs-text);
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .uebersicht-kategorie:hover { background: var(--surface-hover); }
@@ -271,7 +272,7 @@ a { color: var(--accent); text-decoration: none; }
 /* ---------- Pendenz-Vorschau (dritte Spalte: Fälligkeiten-Block und Kalender) ---------- */
 
 .pendenz-vorschau-spalte {
-  width: 420px;
+  width: 380px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   background: var(--surface-2);
@@ -594,10 +595,10 @@ a { color: var(--accent); text-decoration: none; }
    optisch als ruhige, gleichmaessige Reihe zusammen statt eine davon unnoetig breit wirken zu
    lassen. */
 .pendenz-tabelle col.col-check { width: 30px; }
-.pendenz-tabelle col.col-mandant { width: 110px; }
-.pendenz-tabelle col.col-aufwand { width: 64px; }
-.pendenz-tabelle col.col-status { width: 120px; }
-.pendenz-tabelle col.col-faellig { width: 120px; }
+.pendenz-tabelle col.col-mandant { width: 118px; }
+.pendenz-tabelle col.col-aufwand { width: 80px; }
+.pendenz-tabelle col.col-status { width: 128px; }
+.pendenz-tabelle col.col-faellig { width: 124px; }
 
 .pendenz-tabelle thead th {
   text-align: left;
@@ -702,7 +703,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .zeile-einklapp-toggle:hover { color: var(--text); }
 
-.zeile-hinweis { color: var(--text-muted); font-size: var(--fs-klein); margin-top: 2px; }
+.zeile-hinweis { color: var(--text-muted); font-size: var(--fs-klein); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .pz-td-mandant {
   color: var(--text-muted);
@@ -898,7 +899,7 @@ a { color: var(--accent); text-decoration: none; }
   flex-direction: column;
   background: var(--surface);
   border-radius: 8px;
-  width: 480px;
+  width: 560px;
   max-width: 92vw;
   max-height: calc(82vh / var(--app-zoom));
   overflow: hidden;
