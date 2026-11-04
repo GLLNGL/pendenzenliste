@@ -29,6 +29,8 @@
   --fs-abschnitt: 15px; /* Kartenkoepfe, Abschnittstitel, Mandant-Gruppen */
   --fs-text: 13.5px;    /* Fliesstext, Listenzeilen, Formularfelder */
   --fs-klein: 12.5px;   /* Sekundaertext: Mandant/Bearbeiter, Daten, Hinweise */
+  --fs-liste: 13px;     /* Zeilen in Pendenzen-Listen und Tabellen (kompakter als Fliesstext) */
+  --fs-liste-klein: 12px; /* Teilaufgaben und Nebenspalten in Listen */
   --fs-label: 11px;     /* Beschriftungen in Grossbuchstaben, Zaehler */
   --fw-normal: 400;
   --fw-mittel: 500;
@@ -239,7 +241,7 @@ a { color: var(--accent); text-decoration: none; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px 8px 7px;
+  padding: 6px 10px 6px 7px;
   border: none;
   border-left: 3px solid transparent;
   border-radius: var(--radius);
@@ -610,9 +612,11 @@ a { color: var(--accent); text-decoration: none; }
 .pendenz-zeile { cursor: pointer; }
 
 .pendenz-zeile td {
-  padding: 9px 10px;
+  padding: 6px 10px;
   border-top: 1px solid var(--border);
   vertical-align: middle;
+  font-size: var(--fs-liste);
+  line-height: 1.35;
 }
 
 .pendenz-zeile:first-child td { border-top: none; }
@@ -622,7 +626,7 @@ a { color: var(--accent); text-decoration: none; }
 /* Teilaufgaben: eingerueckt, leicht abgesetzter Hintergrund, feinere Trennlinie -- ruhiger als
    die Hauptzeile. Tragen bewusst keinen eigenen Farbstreifen (siehe .zeile-rail), ihre
    Prioritaet ergibt sich aus der Hauptpendenz. */
-.pendenz-zeile.pz-kind td { border-top: 1px dashed var(--border); background: var(--surface-2); font-size: var(--fs-klein); }
+.pendenz-zeile.pz-kind td { border-top: 1px dashed var(--border); background: var(--surface-2); font-size: var(--fs-liste-klein); padding-top: 4px; padding-bottom: 4px; }
 
 /* Zeile, deren Vorschau gerade rechts angezeigt wird -- als eigene Regel mit hoeherer
    Spezifitaet fuer pz-haupt UND pz-kind, sonst gewinnt sonst je nach Quellreihenfolge die
@@ -707,7 +711,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .pz-td-mandant {
   color: var(--text-muted);
-  font-size: var(--fs-klein);
+  font-size: var(--fs-liste-klein);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -746,14 +750,14 @@ a { color: var(--accent); text-decoration: none; }
 .pz-td-aufwand {
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
-  font-size: var(--fs-klein);
+  font-size: var(--fs-liste-klein);
   white-space: nowrap;
 }
 
 .pz-td-faellig {
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
-  font-size: var(--fs-klein);
+  font-size: var(--fs-liste-klein);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -1154,8 +1158,8 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 14px;
-  font-size: var(--fs-text);
+  padding: 6px 14px;
+  font-size: var(--fs-liste);
   font-weight: var(--fw-fett);
   color: var(--text);
   background: var(--neutral-bg);
@@ -1183,9 +1187,9 @@ table.tabelle th {
 }
 
 table.tabelle td {
-  padding: 10px 14px;
+  padding: 7px 14px;
   border-bottom: 1px solid var(--border);
-  font-size: var(--fs-text);
+  font-size: var(--fs-liste);
   vertical-align: middle;
 }
 
@@ -1224,9 +1228,9 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border);
-  font-size: var(--fs-klein);
+  font-size: var(--fs-liste-klein);
 }
 
 .teilaufgabe-zeile:last-child { border-bottom: none; }
