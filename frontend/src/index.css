@@ -30,7 +30,7 @@
   --fs-text: 13.5px;    /* Fliesstext, Listenzeilen, Formularfelder */
   --fs-klein: 12.5px;   /* Sekundaertext: Mandant/Bearbeiter, Daten, Hinweise */
   --fs-liste: 13px;     /* Zeilen in Pendenzen-Listen und Tabellen (kompakter als Fliesstext) */
-  --fs-zeilentitel: 14px; /* Nächster Schritt einer Pendenz in Listen -- grösser als Teilaufgaben/Nebenspalten */
+  --fs-zeilentitel: 13px; /* Nächster Schritt einer Pendenz in Listen -- etwas grösser als Teilaufgaben/Nebenspalten */
   --fs-liste-klein: 12px; /* Teilaufgaben und Nebenspalten in Listen */
   --fs-label: 11px;     /* Beschriftungen in Grossbuchstaben, Zaehler */
   --fw-normal: 400;
@@ -472,13 +472,7 @@ a { color: var(--accent); text-decoration: none; }
 /* Links der Monat, rechts die Pendenzen des angeklickten Tages. */
 .kalender-layout { display: flex; align-items: stretch; }
 
-.kalender { width: 264px; flex-shrink: 0; padding: 8px 12px; }
-
-.kalender-tagesliste {
-  flex: 1;
-  min-width: 0;
-  border-left: 1px solid var(--border);
-}
+.kalender { flex-shrink: 0; padding: 6px 12px 6px; }
 
 .kalender-tagesliste-titel {
   padding: 10px 14px;
@@ -490,28 +484,46 @@ a { color: var(--accent); text-decoration: none; }
 
 .kalender-tagesliste > .leer-hinweis { padding: 40px 20px; }
 
+/* Monatsnavigation im Kartenkopf statt als eigene Zeile im Kalender. */
+.kalender-kopf { gap: 12px; padding-top: 7px; padding-bottom: 7px; }
+.kalender-kopf > span { display: inline-flex; align-items: center; gap: 8px; }
+
 .kalender-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 4px;
+  font-weight: var(--fw-normal);
+  white-space: nowrap;
 }
 
 .kalender-monat {
-  font-weight: 600;
-  font-size: var(--fs-text);
-  min-width: 130px;
+  font-weight: var(--fw-halbfett);
+  font-size: var(--fs-liste);
+  min-width: 112px;
   text-align: center;
 }
 
-.kalender-heute { margin-left: auto; }
+.kalender-nav-knopf {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  font-size: var(--fs-text);
+  color: var(--text-muted);
+}
+
+.kalender-nav-knopf:hover { background: var(--surface-hover); color: var(--text); }
+
+.kalender-heute { margin-left: 6px; padding: 2px 8px; }
 
 .kalender-wochentage {
   display: grid;
-  grid-template-columns: 16px repeat(7, 1fr);
-  gap: 2px;
-  font-size: var(--fs-label);
-  font-weight: 600;
+  grid-template-columns: 16px repeat(7, 28px);
+  font-size: 10px;
+  font-weight: var(--fw-halbfett);
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -521,9 +533,8 @@ a { color: var(--accent); text-decoration: none; }
 
 .kalender-raster {
   display: grid;
-  grid-template-columns: 16px repeat(7, 1fr);
-  gap: 0;
-  margin-bottom: 4px;
+  grid-template-columns: 16px repeat(7, 28px);
+  grid-auto-rows: 23px;
 }
 
 /* Kalenderwoche des Montags dieser Zeile -- klein und kursiv wie im iPhone-Kalender, keine
@@ -539,21 +550,21 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 .kalender-tag {
+  position: relative;
   border: none;
   background: none;
   padding: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
   font-size: var(--fs-liste-klein);
 }
 
 /* Die Tageszahl selbst ist der Kreis (wie im iPhone-Kalender) -- Punkt fuer "hat Pendenzen"
    sitzt knapp darunter. */
 .kalender-tag-zahl {
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -575,11 +586,17 @@ a { color: var(--accent); text-decoration: none; }
 .kalender-tag.heute.ausgewaehlt .kalender-tag-zahl { box-shadow: inset 0 0 0 2px var(--surface); }
 
 .kalender-tag-punkt {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: var(--accent);
 }
+
+.kalender-tag.heute .kalender-tag-punkt { background: #fff; }
 
 /* Wide-content-Container (Regel: eigenes Scrollen statt die Seite breiter zu machen). */
 .pendenz-tabelle-wrap { overflow-x: auto; }
@@ -642,7 +659,7 @@ a { color: var(--accent); text-decoration: none; }
 
 /* Hierarchie in der Liste: der naechste Schritt einer Pendenz ist der wichtigste Text der Zeile
    -- groesser und kraeftiger als Teilaufgaben, Mandant/Bearbeiter, Aufwand und Datum. */
-.pendenz-zeile.pz-haupt .zeile-titel-text { font-size: var(--fs-zeilentitel); font-weight: var(--fw-halbfett); }
+.pendenz-zeile.pz-haupt .zeile-titel-text { font-size: var(--fs-zeilentitel); font-weight: var(--fw-normal); }
 .pendenz-zeile.pz-kind .zeile-titel-text { color: var(--text-muted); }
 
 .pendenz-zeile.erledigt .zeile-titel-text { text-decoration: line-through; color: var(--text-faint); }
@@ -680,7 +697,7 @@ a { color: var(--accent); text-decoration: none; }
 .pz-td-titel { min-width: 0; }
 
 .zeile-titel {
-  font-weight: var(--fw-mittel);
+  font-weight: var(--fw-normal);
   display: flex;
   align-items: center;
   min-width: 0;

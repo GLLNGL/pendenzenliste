@@ -1,7 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
 import PendenzListeNachKunde from './PendenzListeNachKunde.jsx';
-import PendenzVorschau from './PendenzVorschau.jsx';
 import { OFFENE_STATUS } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { aufAenderungHoeren } from '../events.js';
@@ -53,7 +52,6 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
   const [ansicht, setAnsicht] = useState({ jahr: jetzt.getFullYear(), monatIndex: jetzt.getMonth() });
   const [pendenzenNachTag, setPendenzenNachTag] = useState(new Map());
   const [ausgewaehlterTag, setAusgewaehlterTag] = useState(null);
-  const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const [fehler, setFehler] = useState(null);
 
   const tage = useMemo(() => baueRaster(ansicht.jahr, ansicht.monatIndex), [ansicht]);
@@ -103,30 +101,24 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
 
   const gesamtAnzahl = [...pendenzenNachTag.values()].reduce((summe, liste) => summe + liste.length, 0);
   const ausgewaehlteListe = ausgewaehlterTag ? (pendenzenNachTag.get(ausgewaehlterTag) || []) : [];
-  // Frischen Datensatz nachschlagen statt das alte vorschauPendenz-Objekt weiterzuverwenden --
-  // sonst zeigt die Vorschau nach einer Aenderung (z.B. im Bearbeiten-Fenster gespeichert)
-  // weiter den veralteten Stand. Ist die Pendenz nicht mehr am aktuellen Tag, blendet sie sich
-  // aus, ohne dass dafuer ein Effekt noetig ist.
-  const angezeigtePendenz = vorschauPendenz
-    ? ausgewaehlteListe.find((p) => p.id === vorschauPendenz.id) ?? null
-    : null;
 
+  // Kompakter Mini-Kalender: Monatsnavigation im Kartenkopf (keine eigene Zeile), rechts daneben
+  // nur die Liste des angeklickten Tages -- ein Klick auf eine Pendenz oeffnet sie direkt (keine
+  // zusaetzliche Vorschau-Spalte, damit die Tagesliste die ganze Breite bekommt).
   return (
     <div className="karte karte-kalender">
-      <div className="karte-kopf">
-        <span>Weitere Pendenzen</span>
-        <span className="zaehler-pille">{gesamtAnzahl}</span>
+      <div className="karte-kopf kalender-kopf">
+        <span>Kalender <span className="zaehler-pille">{gesamtAnzahl}</span></span>
+        <div className="kalender-nav">
+          <button type="button" className="kalender-nav-knopf" onClick={() => monatWechseln(-1)} aria-label="Vorheriger Monat">‹</button>
+          <span className="kalender-monat">{MONATSNAMEN[ansicht.monatIndex]} {ansicht.jahr}</span>
+          <button type="button" className="kalender-nav-knopf" onClick={() => monatWechseln(1)} aria-label="Nächster Monat">›</button>
+          <button type="button" className="btn-klein kalender-heute" onClick={zuHeute}>Heute</button>
+        </div>
       </div>
 
       <div className="kalender-layout">
         <div className="kalender">
-          <div className="kalender-nav">
-            <button type="button" className="btn-klein" onClick={() => monatWechseln(-1)} aria-label="Vorheriger Monat">‹</button>
-            <span className="kalender-monat">{MONATSNAMEN[ansicht.monatIndex]} {ansicht.jahr}</span>
-            <button type="button" className="btn-klein" onClick={() => monatWechseln(1)} aria-label="Nächster Monat">›</button>
-            <button type="button" className="btn-klein kalender-heute" onClick={zuHeute}>Heute</button>
-          </div>
-
           {fehler && <div className="hinweis-fehler">{fehler}</div>}
 
           {/* Leere Zelle statt "KW"-Beschriftung -- wie im iPhone-Kalender braucht die
@@ -179,16 +171,12 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern }) {
                 onStatusAendern={onStatusAendern}
                 leerText="Keine Pendenzen an diesem Tag."
                 ohneAbhaken
-                onVorschau={setVorschauPendenz}
-                vorschauId={angezeigtePendenz?.id}
               />
             </>
           ) : (
             <div className="leer-hinweis">Tag anklicken, um die Pendenzen dieses Tages zu sehen.</div>
           )}
         </div>
-
-        <PendenzVorschau pendenz={angezeigtePendenz} onOeffnen={onOeffnen} onStatusAendern={onStatusAendern} />
       </div>
     </div>
   );

@@ -239,7 +239,7 @@ export default function Cockpit() {
     layout.style.setProperty('--faelligkeiten-hoehe', `${HOEHE_MIN}px`);
     const massstab = layout.getBoundingClientRect().height / HOEHE_MIN || 1;
     const luft = (wrapper.getBoundingClientRect().height - karte.getBoundingClientRect().height) / massstab;
-    const ABSTAND_UNTER_KALENDER = 24; // Rand der Karte, damit nichts angeschnitten wirkt
+    const ABSTAND_UNTER_KALENDER = 4; // kleiner Puffer gegen Rundungen, damit kein Scrollbalken erscheint
     setFaelligkeitenHoehe(Math.max(HOEHE_MIN, Math.round(HOEHE_MIN + luft - ABSTAND_UNTER_KALENDER)));
   }, [faelligkeitenHoehe, offene]);
 
