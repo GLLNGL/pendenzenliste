@@ -491,7 +491,7 @@ a { color: var(--accent); text-decoration: none; }
 .pendenz-tabelle col.col-mandant { width: 110px; }
 .pendenz-tabelle col.col-aufwand { width: 64px; }
 .pendenz-tabelle col.col-status { width: 120px; }
-.pendenz-tabelle col.col-faellig { width: 100px; }
+.pendenz-tabelle col.col-faellig { width: 120px; }
 
 .pendenz-tabelle thead th {
   text-align: left;
@@ -534,9 +534,9 @@ a { color: var(--accent); text-decoration: none; }
 
 /* Prioritaet als schmaler Farbstreifen an der ersten Zelle statt als eigener Chip -- faellt bei
    vielen Zeilen sofort auf, ohne mit Status und Mandant um Aufmerksamkeit zu konkurrieren. */
-.zeile-rail.prio-hoch { border-left: 3px solid var(--danger); }
-.zeile-rail.prio-mittel { border-left: 3px solid var(--warning); }
-.zeile-rail.prio-tief { border-left: 3px solid var(--text-faint); }
+.zeile-rail.prio-a { border-left: 3px solid var(--danger); }
+.zeile-rail.prio-b { border-left: 3px solid var(--warning); }
+.zeile-rail.prio-c { border-left: 3px solid var(--text-faint); }
 
 .pz-td-check { text-align: center; }
 
@@ -653,10 +653,23 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text-muted);
   font-size: 12.5px;
   white-space: nowrap;
+  overflow: hidden;
 }
 
 .pz-td-faellig.ueberfaellig { color: var(--danger); font-weight: 600; }
 .pz-td-faellig.heute { color: var(--accent); font-weight: 600; }
+
+/* Kennzeichen "harte Frist" (Behörden-/Zahlungsfrist) direkt neben dem Datum. */
+.zeile-harte-frist {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 10.5px;
+}
 
 .badge {
   font-size: 11px;
@@ -666,9 +679,9 @@ a { color: var(--accent); text-decoration: none; }
   white-space: nowrap;
 }
 
-.badge-hoch { background: var(--danger-bg); color: var(--danger); }
-.badge-mittel { background: var(--warning-bg); color: var(--warning); }
-.badge-tief { background: var(--neutral-bg); color: var(--text-muted); }
+.badge-a { background: var(--danger-bg); color: var(--danger); }
+.badge-b { background: var(--warning-bg); color: var(--warning); }
+.badge-c { background: var(--neutral-bg); color: var(--text-muted); }
 
 .status-select {
   border: 1px solid var(--border);
@@ -687,8 +700,8 @@ a { color: var(--accent); text-decoration: none; }
 
 .status-offen { color: var(--text-muted); }
 .status-in-arbeit { color: var(--accent); }
-.status-warte-auf-kunde { color: var(--warning); }
-.status-warte-intern { color: #6d4fc4; }
+.status-warten-auf { color: var(--warning); }
+.status-spaeter { color: #6d4fc4; }
 .status-erledigt { color: var(--success); }
 
 .leer-hinweis { padding: 24px 14px; color: var(--text-faint); font-size: 13px; text-align: center; }
@@ -819,6 +832,27 @@ a { color: var(--accent); text-decoration: none; }
 
 .feld-hinweis { font-size: 11.5px; color: var(--text-faint); margin: -1px 0 0; }
 
+/* Zwischentitel innerhalb eines Formulars (z.B. "Mandats-Eckdaten"). */
+.feld-gruppe-titel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+/* Mehrere Eingaben nebeneinander innerhalb EINES Feldes (z.B. Tag + Monat). */
+.feld-inline { display: flex; gap: 6px; }
+.feld-inline input { width: 70px; flex: 0 0 auto; }
+.feld-inline select { flex: 1 1 auto; min-width: 0; }
+
+/* Checkbox direkt unter einem Feld (z.B. "Harte Frist" unter dem Fristdatum). */
+.feld label.feld-checkbox { display: flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+.feld label.feld-checkbox input { width: auto; padding: 0; }
+
 .feld input, .feld select, .feld textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -937,6 +971,41 @@ code {
 
 .mandant-karte { margin-bottom: 16px; }
 
+/* Mandanten-Seite nicht ueber die ganze Fensterbreite aufziehen -- sonst liegen Titel und die
+   Spalten rechts (Bearbeiter/Aufwand/Status/Faellig) weit auseinander. */
+.mandanten-seite { max-width: 1200px; }
+
+.mandant-kopf-klickbar { cursor: pointer; }
+.mandant-kopf-klickbar:hover { background: var(--surface-hover); }
+.mandant-kopf.eingeklappt { border-bottom: none; }
+
+.mandant-einklapp-toggle {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 12px;
+  padding: 0 8px 0 0;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mandant-einklapp-toggle:hover { color: var(--text); }
+
+.zaehler-pille.ueberfaellig { background: var(--danger); color: #fff; }
+
+.kunde-gruppen-werkzeuge {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kunde-gruppe-titel-klickbar { cursor: pointer; }
+.kunde-gruppe-titel-klickbar:hover { background: var(--surface-3); }
+.kunde-gruppe-titel.eingeklappt { border-bottom: none; }
+.kunde-gruppe-titel .mandant-einklapp-toggle { padding-right: 0; }
+
 .mandant-kopf {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
@@ -987,6 +1056,8 @@ code {
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-top: 1px;
 }
 

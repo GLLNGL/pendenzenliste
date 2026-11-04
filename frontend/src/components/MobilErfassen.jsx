@@ -27,7 +27,7 @@ export default function MobilErfassen() {
         titel: titel.trim(),
         beschreibung: bemerkung.trim() || null,
         faelligkeit: heutigesDatumISO(),
-        prioritaet: 'Mittel',
+        prioritaet: 'B',
         status: 'Offen',
         // Landet im "Eingang" (Desktop-Ansicht) statt sofort in Cockpit/Alle Pendenzen --
         // wird dort einem Mandanten/einer echten Faelligkeit zugeordnet.

@@ -5,11 +5,11 @@ import PendenzModal from '../components/PendenzModal.jsx';
 import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
-import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN } from '../constants.js';
+import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, BLOECKE } from '../constants.js';
 
 // status: 'offen' = alle offenen Status (Standard, erledigte ausgeblendet),
 // 'alle' = ohne Status-Einschraenkung, sonst ein einzelner Status-Wert.
-const LEERE_FILTER = { status: 'offen', mandantId: '', prioritaet: '', von: '', bis: '', q: '', sort: 'faelligkeit_asc' };
+const LEERE_FILTER = { status: 'offen', mandantId: '', prioritaet: '', block: '', von: '', bis: '', q: '', sort: 'faelligkeit_asc' };
 
 // Uebersetzt die Filter-Auswahl in den fuer die API passenden status-Parameter.
 function statusParameter(status) {
@@ -63,7 +63,7 @@ export default function AllePendenzen() {
       <div className="filter-leiste">
         <input
           type="text"
-          placeholder="Suche Titel/Beschreibung…"
+          placeholder="Suche nächster Schritt/Beschreibung…"
           value={filter.q}
           onChange={(e) => filterFeld('q', e.target.value)}
         />
@@ -79,7 +79,11 @@ export default function AllePendenzen() {
         </select>
         <select value={filter.prioritaet} onChange={(e) => filterFeld('prioritaet', e.target.value)}>
           <option value="">Alle Prioritäten</option>
-          {PRIORITAETEN.map((p) => <option key={p} value={p}>{p}</option>)}
+          {PRIORITAETEN.map((p) => <option key={p} value={p}>Priorität {p}</option>)}
+        </select>
+        <select value={filter.block} onChange={(e) => filterFeld('block', e.target.value)}>
+          <option value="">Alle Blöcke</option>
+          {BLOECKE.map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
         <input type="date" value={filter.von} onChange={(e) => filterFeld('von', e.target.value)} title="Fällig von" />
         <input type="date" value={filter.bis} onChange={(e) => filterFeld('bis', e.target.value)} title="Fällig bis" />
@@ -102,6 +106,7 @@ export default function AllePendenzen() {
         <div className="uebersicht-layout">
           <div className="uebersicht-liste uebersicht-liste-voll">
             <PendenzListeNachKunde
+              speicherSchluessel="alle-pendenzen-eingeklappt"
               pendenzen={pendenzen}
               onOeffnen={setAktivePendenz}
               onStatusAendern={statusAendern}

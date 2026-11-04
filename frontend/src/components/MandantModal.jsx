@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { meldeMandantenAenderung } from '../events.js';
+import { MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
+
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
 export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
   const [formular, setFormular] = useState(() => ({
@@ -10,6 +13,12 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
     geschaeftsfuehrungEmail: mandant?.geschaeftsfuehrung_email ?? '',
     aktiv: mandant?.aktiv ?? 1,
     notizen: mandant?.notizen ?? '',
+    // Mandats-Eckdaten -- Grundlage fuer die wiederkehrenden Pendenzen (Vorlauf je Mandant).
+    mwstPeriode: mandant?.mwst_periode ?? '',
+    lohnzahltag: mandant?.lohnzahltag ?? '',
+    zahlungslaufRhythmus: mandant?.zahlungslauf_rhythmus ?? '',
+    abschlussWunschTag: mandant?.abschluss_wunsch_tag ?? '',
+    abschlussWunschMonat: mandant?.abschluss_wunsch_monat ?? '',
   }));
   const [fehler, setFehler] = useState(null);
   const [speichertGerade, setSpeichertGerade] = useState(false);
@@ -34,6 +43,10 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
   async function speichern(e) {
     e.preventDefault();
     if (!formular.name.trim()) { setFehler('Name ist erforderlich'); return; }
+    if ((formular.abschlussWunschTag === '') !== (formular.abschlussWunschMonat === '')) {
+      setFehler('Abschluss-Wunschtermin: bitte Tag und Monat angeben (oder beides leer lassen).');
+      return;
+    }
     setSpeichertGerade(true);
     setFehler(null);
     try {
@@ -44,6 +57,11 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
         geschaeftsfuehrungEmail: formular.geschaeftsfuehrungEmail.trim() || null,
         aktiv: formular.aktiv ? 1 : 0,
         notizen: formular.notizen.trim() || null,
+        mwstPeriode: formular.mwstPeriode || null,
+        lohnzahltag: formular.lohnzahltag,
+        zahlungslaufRhythmus: formular.zahlungslaufRhythmus || null,
+        abschlussWunschTag: formular.abschlussWunschTag,
+        abschlussWunschMonat: formular.abschlussWunschMonat,
       };
       const ergebnis = mandant
         ? await api.mandanten.aktualisieren(mandant.id, payload)
@@ -99,6 +117,63 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
               />
               <p className="feld-hinweis">Optional, nur für grundsätzliche Fragen – muss beim Versand manuell ausgewählt werden.</p>
             </div>
+
+            <div className="feld-gruppe-titel">Mandats-Eckdaten</div>
+            <div className="feld-reihe">
+              <div className="feld">
+                <label htmlFor="mandant-mwst">MWST-Periode</label>
+                <select id="mandant-mwst" value={formular.mwstPeriode} onChange={(e) => feldAendern('mwstPeriode', e.target.value)}>
+                  <option value="">– nicht erfasst –</option>
+                  {MWST_PERIODEN.map((p) => <option key={p} value={p}>{p === 'keine' ? 'Keine (nicht MWST-pflichtig)' : p}</option>)}
+                </select>
+              </div>
+              <div className="feld">
+                <label htmlFor="mandant-lohnzahltag">Lohnzahltag (Tag im Monat)</label>
+                <input
+                  id="mandant-lohnzahltag"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formular.lohnzahltag}
+                  onChange={(e) => feldAendern('lohnzahltag', e.target.value)}
+                  placeholder="z.B. 25"
+                />
+              </div>
+            </div>
+            <div className="feld-reihe">
+              <div className="feld">
+                <label htmlFor="mandant-zahlungslauf">Rhythmus Zahlungslauf</label>
+                <select id="mandant-zahlungslauf" value={formular.zahlungslaufRhythmus} onChange={(e) => feldAendern('zahlungslaufRhythmus', e.target.value)}>
+                  <option value="">– nicht erfasst –</option>
+                  {ZAHLUNGSLAUF_RHYTHMEN.map((r) => <option key={r.wert} value={r.wert}>{r.label}</option>)}
+                </select>
+              </div>
+              <div className="feld">
+                <label htmlFor="mandant-abschluss-tag">Abschluss-Wunschtermin</label>
+                <div className="feld-inline">
+                  <input
+                    id="mandant-abschluss-tag"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={formular.abschlussWunschTag}
+                    onChange={(e) => feldAendern('abschlussWunschTag', e.target.value)}
+                    placeholder="Tag"
+                    aria-label="Abschluss-Wunschtermin Tag"
+                  />
+                  <select
+                    value={formular.abschlussWunschMonat}
+                    onChange={(e) => feldAendern('abschlussWunschMonat', e.target.value)}
+                    aria-label="Abschluss-Wunschtermin Monat"
+                  >
+                    <option value="">Monat</option>
+                    {MONATE.map((m, idx) => <option key={m} value={idx + 1}>{m}</option>)}
+                  </select>
+                </div>
+                <p className="feld-hinweis">Jährlich wiederkehrend, z.B. 30. Juni.</p>
+              </div>
+            </div>
+
             <div className="feld">
               <label htmlFor="mandant-notizen">Notizen</label>
               <textarea id="mandant-notizen" value={formular.notizen} onChange={(e) => feldAendern('notizen', e.target.value)} />

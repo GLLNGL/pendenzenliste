@@ -4,7 +4,7 @@
 // nur hier drin aendert sich, WIE die Daten geholt werden.
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './lib/supabaseClient.js';
-import { STATUS_WERTE, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN } from './constants.js';
+import { STATUS_WERTE, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
 import { naechstePendenzen, heutigesDatumUTC } from './lib/recurrence.js';
 import { heutigesDatumISO } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
@@ -30,8 +30,31 @@ async function sendMailAufrufen(body) {
   return data;
 }
 
+// Verletzte Datenbank-Regeln (Check-Constraints in supabase/schema.sql) als verstaendliche
+// Meldung statt der rohen Postgres-Fehlermeldung anzeigen.
+const CONSTRAINT_MELDUNGEN = {
+  pendenzen_warten_auf_pflicht: 'Status «Warten auf» braucht eine Person und ein Nachfassdatum.',
+  pendenzen_prioritaet_check: 'Ungültige Priorität (erlaubt: A, B, C).',
+  pendenzen_status_check: 'Ungültiger Status.',
+  pendenzen_aufwand_minuten_check: 'Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten).',
+  pendenzen_block_check: 'Ungültiger Block.',
+};
+
 function pruefeFehler(error) {
-  if (error) throw new Error(error.message);
+  if (!error) return;
+  const treffer = Object.keys(CONSTRAINT_MELDUNGEN).find((name) => error.message?.includes(name));
+  throw new Error(treffer ? CONSTRAINT_MELDUNGEN[treffer] : error.message);
+}
+
+// Leere Formularwerte ('' oder undefined) als null speichern, Zahlen als Zahl.
+function zahlOderNull(wert) {
+  return wert === '' || wert == null ? null : Number(wert);
+}
+
+function pruefeWartenAuf(status, person, nachfassdatum) {
+  if (status === 'Warten auf' && (!person || !String(person).trim() || !nachfassdatum)) {
+    throw new Error('Status «Warten auf» braucht eine Person und ein Nachfassdatum.');
+  }
 }
 
 // PostgREST-".or(...)"-Syntax verwendet Komma/Klammern als Trenner -- in freiem Suchtext
@@ -48,7 +71,7 @@ async function aktuelleMitarbeiterId() {
   return data?.id ?? null;
 }
 
-const PRIORITAET_RANG = { Hoch: 0, Mittel: 1, Tief: 2 };
+const PRIORITAET_RANG = { A: 0, B: 1, C: 2 };
 
 function sortiereListe(liste, sort) {
   if (sort !== 'prioritaet') return liste;
@@ -74,6 +97,10 @@ async function pendenzenListe(query = {}) {
     const werte = String(query.prioritaet).split(',').filter((p) => PRIORITAETEN.includes(p));
     if (werte.length) q = q.in('prioritaet', werte);
   }
+  if (query.block) {
+    const werte = String(query.block).split(',').filter((b) => BLOECKE.includes(b));
+    if (werte.length) q = q.in('block', werte);
+  }
   if (query.mandantId === 'keiner') q = q.is('mandant_id', null);
   else if (query.mandantId) q = q.eq('mandant_id', Number(query.mandantId));
   if (query.von) q = q.gte('faelligkeit', query.von);
@@ -96,8 +123,32 @@ async function pendenzenListe(query = {}) {
 }
 
 function pendenzPayloadValidieren(payload, { neuer }) {
-  if (neuer && (!payload.titel || !String(payload.titel).trim())) throw new Error('Titel ist erforderlich');
-  if (neuer && !payload.faelligkeit) throw new Error('Faelligkeitsdatum ist erforderlich');
+  if (neuer && (!payload.titel || !String(payload.titel).trim())) throw new Error('Nächster Schritt ist erforderlich');
+  if (neuer && !payload.faelligkeit) throw new Error('Frist ist erforderlich');
+  if (payload.aufwandMinuten != null && payload.aufwandMinuten !== '' && !AUFWAND_MINUTEN.includes(Number(payload.aufwandMinuten))) {
+    throw new Error('Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten)');
+  }
+  if (payload.block !== undefined && payload.block !== null && !BLOECKE.includes(payload.block)) throw new Error('Ungültiger Block');
+}
+
+// Mandats-Eckdaten der Kundenliste (Etappe 1) -- nur Felder uebernehmen, die im Aufruf
+// vorkommen, damit ein Teil-Update (z.B. nur "aktiv") die anderen nicht leert.
+function mandatsEckdaten(daten) {
+  const patch = {};
+  if (daten.mwstPeriode !== undefined) {
+    if (daten.mwstPeriode && !MWST_PERIODEN.includes(daten.mwstPeriode)) throw new Error('Ungültige MWST-Periode');
+    patch.mwst_periode = daten.mwstPeriode || null;
+  }
+  if (daten.lohnzahltag !== undefined) patch.lohnzahltag = zahlOderNull(daten.lohnzahltag);
+  if (daten.zahlungslaufRhythmus !== undefined) {
+    if (daten.zahlungslaufRhythmus && !ZAHLUNGSLAUF_RHYTHMEN.some((r) => r.wert === daten.zahlungslaufRhythmus)) {
+      throw new Error('Ungültiger Rhythmus Zahlungslauf');
+    }
+    patch.zahlungslauf_rhythmus = daten.zahlungslaufRhythmus || null;
+  }
+  if (daten.abschlussWunschTag !== undefined) patch.abschluss_wunsch_tag = zahlOderNull(daten.abschlussWunschTag);
+  if (daten.abschlussWunschMonat !== undefined) patch.abschluss_wunsch_monat = zahlOderNull(daten.abschlussWunschMonat);
+  return patch;
 }
 
 const api = {
@@ -194,8 +245,11 @@ const api = {
       if (!daten.name || !String(daten.name).trim()) throw new Error('Name ist erforderlich');
       const { data, error } = await supabase.from('mandanten').insert({
         name: daten.name.trim(), kuerzel: daten.kuerzel || null, email: daten.email || null,
-        geschaeftsfuehrung_email: daten.geschaeftsfuehrung_email || null,
+        // camelCase wie alle anderen Felder -- MandantModal schickt "geschaeftsfuehrungEmail";
+        // frueher wurde hier "geschaeftsfuehrung_email" gelesen und der Wert darum nie gespeichert.
+        geschaeftsfuehrung_email: daten.geschaeftsfuehrungEmail || null,
         aktiv: daten.aktiv === undefined ? true : !!daten.aktiv, notizen: daten.notizen || null,
+        ...mandatsEckdaten(daten),
       }).select().single();
       pruefeFehler(error);
       return data;
@@ -205,9 +259,10 @@ const api = {
       if (daten.name !== undefined) patch.name = daten.name.trim();
       if (daten.kuerzel !== undefined) patch.kuerzel = daten.kuerzel || null;
       if (daten.email !== undefined) patch.email = daten.email || null;
-      if (daten.geschaeftsfuehrung_email !== undefined) patch.geschaeftsfuehrung_email = daten.geschaeftsfuehrung_email || null;
+      if (daten.geschaeftsfuehrungEmail !== undefined) patch.geschaeftsfuehrung_email = daten.geschaeftsfuehrungEmail || null;
       if (daten.aktiv !== undefined) patch.aktiv = !!daten.aktiv;
       if (daten.notizen !== undefined) patch.notizen = daten.notizen || null;
+      Object.assign(patch, mandatsEckdaten(daten));
       const { data, error } = await supabase.from('mandanten').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
       return data;
@@ -281,21 +336,28 @@ const api = {
     },
     erstellen: async (daten) => {
       pendenzPayloadValidieren(daten, { neuer: true });
-      if (!PRIORITAETEN.includes(daten.prioritaet || 'Mittel')) throw new Error('Ungueltige Prioritaet');
-      if (!STATUS_WERTE.includes(daten.status || 'Offen')) throw new Error('Ungueltiger Status');
+      if (!PRIORITAETEN.includes(daten.prioritaet || 'B')) throw new Error('Ungültige Priorität');
+      const status = daten.status || 'Offen';
+      if (!STATUS_WERTE.includes(status)) throw new Error('Ungültiger Status');
+      const wartet = status === 'Warten auf';
+      pruefeWartenAuf(status, daten.wartenAufPerson, daten.wiedervorlage);
       const { data, error } = await supabase.from('pendenzen').insert({
         titel: daten.titel.trim(),
         mandant_id: daten.mandantId ?? null,
         bearbeiter_id: daten.bearbeiterId ?? null,
         beschreibung: daten.beschreibung || null,
         faelligkeit: daten.faelligkeit,
-        prioritaet: daten.prioritaet || 'Mittel',
-        status: daten.status || 'Offen',
-        aufwand_stunden: daten.aufwandStunden ?? null,
-        warte_seit: daten.status === 'Warte auf Kunde' ? (daten.warteSeit || heutigesDatumISO()) : (daten.warteSeit || null),
-        wiedervorlage: daten.wiedervorlage || null,
+        harte_frist: !!daten.harteFrist,
+        prioritaet: daten.prioritaet || 'B',
+        status,
+        aufwand_minuten: zahlOderNull(daten.aufwandMinuten),
+        block: daten.block || 'Sonstiges',
+        warten_auf_person: wartet ? daten.wartenAufPerson.trim() : null,
+        warte_seit: wartet ? (daten.warteSeit || heutigesDatumISO()) : null,
+        wiedervorlage: wartet ? daten.wiedervorlage : null,
         bearbeitungstag: daten.bearbeitungstag || null,
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
+        reihenfolge: daten.reihenfolge ?? null,
         // Mobil-Erfassen (siehe MobilErfassen.jsx) uebergibt explizit geplant:false -- so eine
         // Notiz landet im Eingang statt sofort in Cockpit/Alle Pendenzen aufzutauchen.
         geplant: daten.geplant === undefined ? true : !!daten.geplant,
@@ -304,28 +366,41 @@ const api = {
       return data;
     },
     aktualisieren: async (id, daten) => {
+      pendenzPayloadValidieren(daten, { neuer: false });
       const patch = {};
       if (daten.titel !== undefined) {
-        if (!String(daten.titel).trim()) throw new Error('Titel ist erforderlich');
+        if (!String(daten.titel).trim()) throw new Error('Nächster Schritt ist erforderlich');
         patch.titel = daten.titel.trim();
       }
       if (daten.status !== undefined) {
-        if (!STATUS_WERTE.includes(daten.status)) throw new Error('Ungueltiger Status');
+        if (!STATUS_WERTE.includes(daten.status)) throw new Error('Ungültiger Status');
         patch.status = daten.status;
         patch.erledigt_am = daten.status === 'Erledigt' ? (daten.erledigtAm || heutigesDatumISO()) : null;
-        if (daten.status === 'Warte auf Kunde' && !daten.warteSeit) patch.warte_seit = heutigesDatumISO();
+        if (daten.status === 'Warten auf') {
+          pruefeWartenAuf(daten.status, daten.wartenAufPerson, daten.wiedervorlage);
+          patch.warten_auf_person = daten.wartenAufPerson.trim();
+          patch.wiedervorlage = daten.wiedervorlage;
+          patch.warte_seit = daten.warteSeit || heutigesDatumISO();
+        } else {
+          // Wer "Warten auf" verlaesst (z.B. Antwort erhalten), verliert Person/Nachfassdatum --
+          // sonst taucht beim naechsten Wechsel zurueck ein altes Datum sofort in "Nachfassen"
+          // auf (siehe Bugfix v4).
+          patch.warten_auf_person = null;
+          patch.wiedervorlage = null;
+          patch.warte_seit = null;
+        }
       }
       if (daten.prioritaet !== undefined) {
-        if (!PRIORITAETEN.includes(daten.prioritaet)) throw new Error('Ungueltige Prioritaet');
+        if (!PRIORITAETEN.includes(daten.prioritaet)) throw new Error('Ungültige Priorität');
         patch.prioritaet = daten.prioritaet;
       }
       if (daten.mandantId !== undefined) patch.mandant_id = daten.mandantId;
       if (daten.bearbeiterId !== undefined) patch.bearbeiter_id = daten.bearbeiterId;
       if (daten.beschreibung !== undefined) patch.beschreibung = daten.beschreibung || null;
       if (daten.faelligkeit !== undefined) patch.faelligkeit = daten.faelligkeit;
-      if (daten.aufwandStunden !== undefined) patch.aufwand_stunden = daten.aufwandStunden;
-      if (daten.warteSeit !== undefined && patch.warte_seit === undefined) patch.warte_seit = daten.warteSeit || null;
-      if (daten.wiedervorlage !== undefined) patch.wiedervorlage = daten.wiedervorlage || null;
+      if (daten.harteFrist !== undefined) patch.harte_frist = !!daten.harteFrist;
+      if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
+      if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
       if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
       // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
       // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
@@ -335,19 +410,25 @@ const api = {
       pruefeFehler(error);
       return data;
     },
+    // Schnell-Statuswechsel (Dropdown in Liste/Vorschau, Abhaken). "Warten auf" geht hier nur,
+    // wenn Person + Nachfassdatum schon hinterlegt sind -- sonst oeffnen die Listen dafuer das
+    // Bearbeiten-Fenster (siehe statusWechselBrauchtFormular).
     statusAendern: async (id, status) => {
-      if (!STATUS_WERTE.includes(status)) throw new Error('Ungueltiger Status');
+      if (!STATUS_WERTE.includes(status)) throw new Error('Ungültiger Status');
       const patch = { status, erledigt_am: status === 'Erledigt' ? heutigesDatumISO() : null };
-      if (status === 'Warte auf Kunde') {
-        const { data: bestehend } = await supabase.from('pendenzen').select('warte_seit').eq('id', id).single();
-        if (!bestehend?.warte_seit) patch.warte_seit = heutigesDatumISO();
+      if (status === 'Warten auf') {
+        const { data: bestehend } = await supabase.from('pendenzen')
+          .select('warte_seit, warten_auf_person, wiedervorlage').eq('id', id).single();
+        pruefeWartenAuf(status, bestehend?.warten_auf_person, bestehend?.wiedervorlage);
+        if (!bestehend.warte_seit) patch.warte_seit = heutigesDatumISO();
       } else {
-        // Verlaesst die Pendenz "Warte auf Kunde" (z.B. Kunde hat geantwortet), muss auch die
-        // Wiedervorlage geloescht werden -- sonst bleibt ein altes Nachfassen-Datum im
-        // Hintergrund gespeichert und taucht beim naechsten Wechsel zurueck auf "Warte auf
-        // Kunde" faelschlich sofort mit dem alten (laengst vergangenen) Datum wieder auf.
+        // Verlaesst die Pendenz "Warten auf" (z.B. Antwort erhalten), muessen Person und
+        // Nachfassdatum geloescht werden -- sonst bleibt ein altes Nachfassdatum im Hintergrund
+        // gespeichert und taucht beim naechsten Wechsel zurueck auf "Warten auf" faelschlich
+        // sofort mit dem alten (laengst vergangenen) Datum wieder auf.
         patch.warte_seit = null;
         patch.wiedervorlage = null;
+        patch.warten_auf_person = null;
       }
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
       pruefeFehler(error);

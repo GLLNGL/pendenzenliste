@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { formatiereDatum } from '../format.js';
+import { formatiereAufwand } from '../constants.js';
 import Badge from '../components/Badge.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import { gruppiereNachMandant } from '../lib/gruppierung.js';
@@ -63,7 +64,7 @@ export default function Archiv() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Titel</th>
+                <th>Nächster Schritt</th>
                 <th>Priorität</th>
                 <th>Fällig gewesen</th>
                 <th>Erledigt am</th>
@@ -78,7 +79,7 @@ export default function Archiv() {
                   <td><Badge prioritaet={p.prioritaet} /></td>
                   <td>{formatiereDatum(p.faelligkeit)}</td>
                   <td>{formatiereDatum(p.erledigt_am)}</td>
-                  <td>{p.aufwand_stunden ?? '–'}</td>
+                  <td>{formatiereAufwand(p.aufwand_minuten) || '–'}</td>
                 </tr>
               ))}
             </tbody>

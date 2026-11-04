@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { STATUS_WERTE, PRIORITAETEN } from '../constants.js';
+import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand } from '../constants.js';
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
 import api from '../api.js';
 import { meldeAenderung } from '../events.js';
@@ -12,9 +12,12 @@ function leeresFormular(vorgabe) {
     bearbeiterId: '',
     beschreibung: '',
     faelligkeit: heutigesDatumISO(),
-    prioritaet: 'Mittel',
+    harteFrist: false,
+    prioritaet: 'B',
     status: 'Offen',
-    aufwandStunden: '',
+    aufwandMinuten: '',
+    block: 'Sonstiges',
+    wartenAufPerson: '',
     warteSeit: '',
     wiedervorlage: '',
     bearbeitungstag: '',
@@ -29,9 +32,14 @@ function ausPendenz(pendenz) {
     bearbeiterId: pendenz.bearbeiter_id ?? '',
     beschreibung: pendenz.beschreibung ?? '',
     faelligkeit: pendenz.faelligkeit,
+    harteFrist: !!pendenz.harte_frist,
     prioritaet: pendenz.prioritaet,
+    // Kann von einer Liste vorausgewaehlt sein (z.B. "Warten auf" im Status-Dropdown gewaehlt,
+    // Person/Nachfassdatum fehlen noch -- siehe statusWechselBrauchtFormular).
     status: pendenz.status,
-    aufwandStunden: pendenz.aufwand_stunden ?? '',
+    aufwandMinuten: pendenz.aufwand_minuten ?? '',
+    block: pendenz.block || 'Sonstiges',
+    wartenAufPerson: pendenz.warten_auf_person ?? '',
     warteSeit: pendenz.warte_seit ?? '',
     wiedervorlage: pendenz.wiedervorlage ?? '',
     bearbeitungstag: pendenz.bearbeitungstag ?? '',
@@ -85,7 +93,8 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       titel: neueTeilaufgabe.titel.trim(),
       faelligkeit: neueTeilaufgabe.faelligkeit,
       mandantId: formular.mandantId === '' ? null : Number(formular.mandantId),
-      prioritaet: 'Mittel',
+      prioritaet: formular.prioritaet,
+      block: formular.block,
       status: 'Offen',
       uebergeordnetePendenzId: pendenz.id,
     });
@@ -189,8 +198,13 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
   async function speichern(e) {
     e.preventDefault();
-    if (!formular.titel.trim()) { setFehler('Titel ist erforderlich'); return; }
-    if (!formular.faelligkeit) { setFehler('Faelligkeitsdatum ist erforderlich'); return; }
+    if (!formular.titel.trim()) { setFehler('Nächster Schritt ist erforderlich'); return; }
+    if (!formular.faelligkeit) { setFehler('Frist ist erforderlich'); return; }
+    const wartet = formular.status === 'Warten auf';
+    if (wartet && (!formular.wartenAufPerson.trim() || !formular.wiedervorlage)) {
+      setFehler('Status «Warten auf» braucht eine Person und ein Nachfassdatum.');
+      return;
+    }
 
     const payload = {
       titel: formular.titel.trim(),
@@ -198,16 +212,19 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       bearbeiterId: formular.bearbeiterId === '' ? null : Number(formular.bearbeiterId),
       beschreibung: formular.beschreibung.trim() || null,
       faelligkeit: formular.faelligkeit,
+      harteFrist: formular.harteFrist,
       prioritaet: formular.prioritaet,
       status: formular.status,
-      aufwandStunden: formular.aufwandStunden === '' ? null : Number(formular.aufwandStunden),
-      // Ausserhalb von "Warte auf Kunde" IMMER auf null zuruecksetzen (nicht nur wenn leer) --
-      // sonst bleibt ein frueher gesetztes Wiedervorlage-Datum im Hintergrund gespeichert (das
-      // Feld ist dann nur ausgeblendet, formular.wiedervorlage aber weiterhin befuellt) und
-      // taucht beim naechsten Wechsel zurueck auf "Warte auf Kunde" faelschlich sofort wieder
-      // mit dem alten Datum in "Nachfassen" auf.
-      warteSeit: formular.status === 'Warte auf Kunde' ? (formular.warteSeit || heutigesDatumISO()) : null,
-      wiedervorlage: formular.status === 'Warte auf Kunde' ? (formular.wiedervorlage || null) : null,
+      aufwandMinuten: formular.aufwandMinuten === '' ? null : Number(formular.aufwandMinuten),
+      block: formular.block,
+      // Ausserhalb von "Warten auf" IMMER auf null zuruecksetzen (nicht nur wenn leer) -- sonst
+      // bleibt ein frueher gesetztes Nachfassdatum im Hintergrund gespeichert (das Feld ist dann
+      // nur ausgeblendet, formular.wiedervorlage aber weiterhin befuellt) und taucht beim
+      // naechsten Wechsel zurueck auf "Warten auf" faelschlich sofort wieder mit dem alten
+      // Datum in "Nachfassen" auf.
+      wartenAufPerson: wartet ? formular.wartenAufPerson.trim() : null,
+      warteSeit: wartet ? (formular.warteSeit || heutigesDatumISO()) : null,
+      wiedervorlage: wartet ? formular.wiedervorlage : null,
       bearbeitungstag: formular.bearbeitungstag || null,
     };
 
@@ -250,21 +267,21 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
         <form onSubmit={speichern}>
           <div className="modal-koerper">
             <div className="feld">
-              <label htmlFor="titel">Titel *</label>
+              <label htmlFor="titel">Nächster Schritt *</label>
               <input
                 id="titel"
                 ref={titelRef}
                 type="text"
                 value={formular.titel}
                 onChange={(e) => feldAendern('titel', e.target.value)}
-                placeholder="z.B. MWST-Abrechnung Q3 einreichen"
+                placeholder="Verb + Objekt, z.B. «MWST-Abrechnung Q3 in Abacus abstimmen»"
                 required
               />
             </div>
 
             <div className="feld-reihe">
               <div className="feld">
-                <label htmlFor="faelligkeit">Faelligkeit *</label>
+                <label htmlFor="faelligkeit">Frist *</label>
                 <input
                   id="faelligkeit"
                   type="date"
@@ -272,6 +289,10 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   onChange={(e) => feldAendern('faelligkeit', e.target.value)}
                   required
                 />
+                <label className="feld-checkbox">
+                  <input type="checkbox" checked={formular.harteFrist} onChange={(e) => feldAendern('harteFrist', e.target.checked)} />
+                  Harte Frist (Behörde/Zahlung)
+                </label>
               </div>
               <div className="feld">
                 <label htmlFor="bearbeitungstag">Bearbeiten am (geplant)</label>
@@ -297,15 +318,51 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
             <div className="feld-reihe">
               <div className="feld">
-                <label htmlFor="prioritaet">Prioritaet</label>
+                <label htmlFor="prioritaet">Priorität</label>
                 <select id="prioritaet" value={formular.prioritaet} onChange={(e) => feldAendern('prioritaet', e.target.value)}>
-                  {PRIORITAETEN.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {PRIORITAETEN.map((p) => <option key={p} value={p}>{PRIORITAET_BESCHREIBUNG[p]}</option>)}
                 </select>
               </div>
               <div className="feld">
                 <label htmlFor="status">Status</label>
                 <select id="status" value={formular.status} onChange={(e) => feldAendern('status', e.target.value)}>
                   {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {formular.status === 'Warten auf' && (
+              <div className="feld-reihe">
+                <div className="feld">
+                  <label htmlFor="wartenAufPerson">Warten auf (Person) *</label>
+                  <input
+                    id="wartenAufPerson"
+                    type="text"
+                    value={formular.wartenAufPerson}
+                    onChange={(e) => feldAendern('wartenAufPerson', e.target.value)}
+                    placeholder="z.B. Kunde Hr. Muster, Steueramt"
+                    required
+                  />
+                </div>
+                <div className="feld">
+                  <label htmlFor="wiedervorlage">Nachfassdatum *</label>
+                  <input id="wiedervorlage" type="date" value={formular.wiedervorlage} onChange={(e) => feldAendern('wiedervorlage', e.target.value)} required />
+                </div>
+              </div>
+            )}
+
+            <div className="feld-reihe">
+              <div className="feld">
+                <label htmlFor="block">Block</label>
+                <select id="block" value={formular.block} onChange={(e) => feldAendern('block', e.target.value)}>
+                  {BLOECKE.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div className="feld">
+                <label htmlFor="aufwand">Aufwand</label>
+                <select id="aufwand" value={formular.aufwandMinuten} onChange={(e) => feldAendern('aufwandMinuten', e.target.value)}>
+                  <option value="">– nicht geschätzt –</option>
+                  {AUFWAND_MINUTEN.map((m) => <option key={m} value={m}>{formatiereAufwand(m)}</option>)}
                 </select>
               </div>
             </div>
@@ -320,35 +377,17 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
               </select>
             </div>
 
-            {formular.status === 'Warte auf Kunde' && (
-              <div className="feld-reihe">
-                <div className="feld">
-                  <label htmlFor="warteSeit">Warte seit</label>
-                  <input id="warteSeit" type="date" value={formular.warteSeit} onChange={(e) => feldAendern('warteSeit', e.target.value)} />
-                </div>
-                <div className="feld">
-                  <label htmlFor="wiedervorlage">Wiedervorlage (Nachfassen)</label>
-                  <input id="wiedervorlage" type="date" value={formular.wiedervorlage} onChange={(e) => feldAendern('wiedervorlage', e.target.value)} />
-                </div>
-              </div>
-            )}
-
             <div className="feld">
               <label htmlFor="beschreibung">Beschreibung</label>
               <textarea id="beschreibung" value={formular.beschreibung} onChange={(e) => feldAendern('beschreibung', e.target.value)} />
             </div>
 
-            <div className="feld">
-              <label htmlFor="aufwand">Aufwandschaetzung (Stunden)</label>
-              <input
-                id="aufwand"
-                type="number"
-                step="0.25"
-                min="0"
-                value={formular.aufwandStunden}
-                onChange={(e) => feldAendern('aufwandStunden', e.target.value)}
-              />
-            </div>
+            {pendenz?.zuletzt_geaendert_am && (
+              <p className="feld-hinweis">
+                Erstellt {formatiereZeitstempel(pendenz.erstellt_am)} · zuletzt geändert {formatiereZeitstempel(pendenz.zuletzt_geaendert_am)}
+                {pendenz.erledigt_am ? ` · erledigt ${formatiereDatum(pendenz.erledigt_am)}` : ''}
+              </p>
+            )}
 
             {pendenz && (
               <div className="feld">

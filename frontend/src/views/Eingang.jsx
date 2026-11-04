@@ -27,7 +27,7 @@ function Schnellerfassung({ onErfasst }) {
         titel: titel.trim(),
         beschreibung: bemerkung.trim() || null,
         faelligkeit: heutigesDatumISO(),
-        prioritaet: 'Mittel',
+        prioritaet: 'B',
         status: 'Offen',
         geplant: false,
       });

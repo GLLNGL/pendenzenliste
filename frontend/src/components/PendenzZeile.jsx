@@ -1,7 +1,7 @@
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
-import { STATUS_WERTE, statusSlug } from '../constants.js';
+import { STATUS_WERTE, statusSlug, formatiereAufwand, statusWechselBrauchtFormular } from '../constants.js';
 
-const PRIO_SLUG = { Hoch: 'hoch', Mittel: 'mittel', Tief: 'tief' };
+const PRIO_SLUG = { A: 'a', B: 'b', C: 'c' };
 
 // Eine Tabellenzeile (<tr>) -- fuer Haupt- wie fuer Teilpendenzen. Die Prioritaet wird nicht
 // als eigene Chip-Spalte gefuehrt, sondern als schmaler Farbstreifen an der ersten Zelle: bei
@@ -25,7 +25,7 @@ export default function PendenzZeile({
     ? Math.round((teilaufgabenErledigt / teilaufgabenGesamt) * 100)
     : 0;
 
-  const prioSlug = PRIO_SLUG[pendenz.prioritaet] || 'tief';
+  const prioSlug = PRIO_SLUG[pendenz.prioritaet] || 'c';
   const railKlasse = !eingezogen ? `zeile-rail prio-${prioSlug}` : '';
   const mandantText = ohneMandantSpalte
     ? (pendenz.bearbeiter_name || '')
@@ -34,6 +34,11 @@ export default function PendenzZeile({
   function abhaken(e) {
     e.stopPropagation();
     onStatusAendern(pendenz, erledigt ? 'Offen' : 'Erledigt');
+  }
+
+  function statusGewaehlt(neuerStatus) {
+    if (statusWechselBrauchtFormular(pendenz, neuerStatus)) onOeffnen({ ...pendenz, status: neuerStatus });
+    else onStatusAendern(pendenz, neuerStatus);
   }
 
   return (
@@ -101,7 +106,7 @@ export default function PendenzZeile({
 
       <td className="pz-td-mandant">{mandantText}</td>
 
-      <td className="pz-td-aufwand">{pendenz.aufwand_stunden != null ? `${pendenz.aufwand_stunden} Std.` : ''}</td>
+      <td className="pz-td-aufwand">{formatiereAufwand(pendenz.aufwand_minuten)}</td>
 
       <td className="pz-td-status">
         {eingezogen ? (
@@ -113,7 +118,7 @@ export default function PendenzZeile({
             className={`status-select status-${statusSlug(pendenz.status)}`}
             value={pendenz.status}
             onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onStatusAendern(pendenz, e.target.value)}
+            onChange={(e) => statusGewaehlt(e.target.value)}
           >
             {STATUS_WERTE.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -124,9 +129,13 @@ export default function PendenzZeile({
 
       <td className={`pz-td-faellig ${ueberfaellig ? 'ueberfaellig' : ''} ${istHeute ? 'heute' : ''}`}>
         {formatiereDatum(pendenz.faelligkeit)}
+        {pendenz.harte_frist && <span className="zeile-harte-frist" title="Harte Frist (Behörde/Zahlung)">!</span>}
         {!eingezogen && pendenz.bearbeitungstag && (
-          <div className={`zeile-bearbeitungstag ${bearbeitungAktuell ? 'aktuell' : ''}`}>
-            → bearbeiten {formatiereDatum(pendenz.bearbeitungstag)}
+          <div
+            className={`zeile-bearbeitungstag ${bearbeitungAktuell ? 'aktuell' : ''}`}
+            title={`Bearbeiten am ${formatiereDatum(pendenz.bearbeitungstag)}`}
+          >
+            bearb. {formatiereDatum(pendenz.bearbeitungstag)}
           </div>
         )}
       </td>
