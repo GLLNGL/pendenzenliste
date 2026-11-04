@@ -193,6 +193,7 @@ const api = {
   },
 
   mitarbeitende: {
+    aktuelleId: aktuelleMitarbeiterId,
     liste: async (aktiv) => {
       let q = supabase.from('mitarbeitende').select('*').order('name');
       if (aktiv !== undefined) q = q.eq('aktiv', aktiv);
@@ -301,11 +302,41 @@ const api = {
       pruefeFehler(error);
       return count ?? 0;
     },
+    // Schritte eines Projekts in ihrer Reihenfolge (Projekt-Logik, Etappe 2).
     teilaufgaben: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
-        .eq('uebergeordnete_pendenz_id', id).order('faelligkeit');
+        .eq('uebergeordnete_pendenz_id', id)
+        .order('reihenfolge', { ascending: true, nullsFirst: false }).order('id');
       pruefeFehler(error);
       return data;
+    },
+    // Zwei Schritte eines Projekts vertauschen. Der Datenbank-Trigger fuehrt danach automatisch
+    // nach, welcher Schritt aktiv ("Offen") ist.
+    reihenfolgeTauschen: async (a, b) => {
+      const { error: fehlerA } = await supabase.from('pendenzen').update({ reihenfolge: b.reihenfolge }).eq('id', a.id);
+      pruefeFehler(fehlerA);
+      const { error: fehlerB } = await supabase.from('pendenzen').update({ reihenfolge: a.reihenfolge }).eq('id', b.id);
+      pruefeFehler(fehlerB);
+    },
+    // Fuer das WIP-Limit: Pendenzen einer Person, die gerade "In Arbeit" sind. Projekt-Koepfe
+    // (Hauptaufgaben mit Schritten) zaehlen nicht -- dort zaehlt der Schritt selbst.
+    inArbeitVon: async (bearbeiterId, ausserId) => {
+      let q = supabase.from('pendenzen_angereichert').select('id, titel, mandant_name')
+        .eq('status', 'In Arbeit').eq('geplant', true).eq('teilaufgaben_gesamt', 0);
+      q = bearbeiterId == null ? q.is('bearbeiter_id', null) : q.eq('bearbeiter_id', bearbeiterId);
+      if (ausserId != null) q = q.neq('id', ausserId);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    // Triage im Eingang: "keine Aktion noetig" bzw. "in unter 2 Minuten sofort erledigt" --
+    // beides wird als erledigt abgelegt (nichts geloescht) und mit einer Notiz begruendet.
+    triageAblegen: async (id, art) => {
+      const text = art === 'sofort'
+        ? 'Triage: in unter 2 Minuten sofort erledigt.'
+        : 'Triage: keine Aktion nötig – abgelegt.';
+      await api.pendenzen.notizErstellen(id, text);
+      return api.pendenzen.aktualisieren(id, { status: 'Erledigt' });
     },
     emails: async (id) => {
       const { data, error } = await supabase.from('pendenz_emails').select('id, an, betreff, gesendet_am')
@@ -408,6 +439,11 @@ const api = {
 
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
+      // Schritte, die schon waehrend des Einplanens aus dem Eingang angelegt wurden, werden
+      // zusammen mit ihrem Projekt sichtbar.
+      const { error: fehlerSchritte } = await supabase.from('pendenzen').update({ geplant: true })
+        .eq('uebergeordnete_pendenz_id', id).eq('geplant', false);
+      pruefeFehler(fehlerSchritte);
       return data;
     },
     // Schnell-Statuswechsel (Dropdown in Liste/Vorschau, Abhaken). "Warten auf" geht hier nur,
@@ -422,6 +458,12 @@ const api = {
         pruefeWartenAuf(status, bestehend?.warten_auf_person, bestehend?.wiedervorlage);
         if (!bestehend.warte_seit) patch.warte_seit = heutigesDatumISO();
       } else {
+        if (status === 'In Arbeit') {
+          // Wer etwas in Arbeit nimmt, ist dafuer zustaendig -- ohne Bearbeiter/in wird die
+          // Pendenz der angemeldeten Person zugewiesen (zaehlt dann zu deren WIP-Limit).
+          const { data: bestehend } = await supabase.from('pendenzen').select('bearbeiter_id').eq('id', id).single();
+          if (bestehend && bestehend.bearbeiter_id == null) patch.bearbeiter_id = await aktuelleMitarbeiterId();
+        }
         // Verlaesst die Pendenz "Warten auf" (z.B. Antwort erhalten), muessen Person und
         // Nachfassdatum geloescht werden -- sonst bleibt ein altes Nachfassdatum im Hintergrund
         // gespeichert und taucht beim naechsten Wechsel zurueck auf "Warten auf" faelschlich

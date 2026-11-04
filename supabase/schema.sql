@@ -334,115 +334,135 @@ create trigger trg_pendenzen_reihenfolge
   for each row execute procedure public.pendenzen_reihenfolge_vergeben();
 
 -- --------------------------------------------------------------------------
--- Status-Kaskade Haupt-/Teilaufgabe -- Portierung von
--- backend/src/routes/pendenzen.js (leiteHauptaufgabenStatusAb / kaskadiereAnTeilaufgaben /
--- synchronisiereVerknuepfteAufgaben). Verhalten bewusst 1:1 uebernommen, inkl. der
--- bestehenden Eigenheit, dass JEDES Speichern einer Hauptaufgabe (nicht nur ein echter
--- Statuswechsel) ihre Teilaufgaben auf Offen/Erledigt zurueckstellt -- so verhaelt sich die
--- App heute schon, das ist keine neue Verschaerfung durch die Migration.
--- (Wird in Etappe 2 durch die Projekt-Logik "nur naechster Schritt offen" ersetzt.)
+-- Projekt-Logik (Etappe 2) -- ersetzt die fruehere Status-Kaskade Haupt-/Teilaufgabe.
+--
+-- Ein Projekt = Hauptaufgabe mit Teilaufgaben ("Schritten"), geordnet nach "reihenfolge".
+-- Regeln:
+--   * Nur der erste noch nicht erledigte Schritt ist aktiv: steht er auf "Später", wird er
+--     "Offen". Alle weiteren Schritte, die noch "Offen" sind, werden "Später". Schritte, die
+--     jemand bewusst auf "In Arbeit"/"Warten auf" gesetzt hat, bleiben unangetastet.
+--   * Status der Hauptaufgabe wird abgeleitet: alle Schritte erledigt -> Erledigt, ein Schritt
+--     in Arbeit -> In Arbeit, sonst Offen.
+--   * Wird die Hauptaufgabe selbst auf Erledigt gesetzt, werden alle Schritte erledigt; wird sie
+--     wieder geoeffnet, beginnen die Schritte von vorne (erster Offen, Rest Später).
+--   * Anders als frueher setzt ein gewoehnliches Speichern der Hauptaufgabe (Titel, Frist ...)
+--     die Schritte NICHT mehr zurueck -- der Trigger reagiert nur noch auf Status,
+--     Reihenfolge und Projektzugehoerigkeit.
+--
+-- Bestehende Projekte werden erst bei ihrer naechsten Aenderung nachgefuehrt (Freigabe
+-- Etappe 1: bestehende Status nicht ungefragt umstellen).
+--
+-- pg_trigger_depth() > 1: Aenderungen, die diese Logik selbst ausloest (Schritte umstellen,
+-- Hauptaufgabe ableiten), loesen sie nicht erneut aus -- sonst Endlosschleife.
 -- --------------------------------------------------------------------------
 
-create or replace function public.pendenzen_status_kaskade()
-returns trigger as $$
+create or replace function public.projekt_nachfuehren(p_projekt bigint)
+returns void as $$
 declare
-  teilaufgaben_gesamt    integer;
-  teilaufgaben_erledigt  integer;
-  teilaufgaben_offen     integer;
-  abgeleiteter_status    text;
-  ziel_status            text;
+  aktiver_schritt     bigint;
+  schritte_gesamt     integer;
+  schritte_erledigt   integer;
+  schritte_in_arbeit  integer;
+  abgeleiteter_status text;
 begin
-  if new.uebergeordnete_pendenz_id is not null then
-    -- Diese Zeile ist eine Teilaufgabe: Status der Hauptaufgabe aus allen Teilaufgaben ableiten.
-    select count(*), count(*) filter (where status = 'Erledigt'), count(*) filter (where status = 'Offen')
-      into teilaufgaben_gesamt, teilaufgaben_erledigt, teilaufgaben_offen
-      from public.pendenzen
-      where uebergeordnete_pendenz_id = new.uebergeordnete_pendenz_id;
+  select id into aktiver_schritt
+    from public.pendenzen
+    where uebergeordnete_pendenz_id = p_projekt and status <> 'Erledigt'
+    order by reihenfolge nulls last, id
+    limit 1;
 
-    if teilaufgaben_gesamt > 0 then
-      abgeleiteter_status := case
-        when teilaufgaben_erledigt = teilaufgaben_gesamt then 'Erledigt'
-        when teilaufgaben_offen = teilaufgaben_gesamt then 'Offen'
-        else 'In Arbeit'
-      end;
+  if aktiver_schritt is not null then
+    update public.pendenzen set status = 'Offen'
+      where id = aktiver_schritt and status = 'Später';
+    update public.pendenzen set status = 'Später'
+      where uebergeordnete_pendenz_id = p_projekt and id <> aktiver_schritt and status = 'Offen';
+  end if;
 
-      update public.pendenzen
-        set status = abgeleiteter_status,
-            erledigt_am = case when abgeleiteter_status = 'Erledigt' then current_date else null end
-        where id = new.uebergeordnete_pendenz_id
-          and status is distinct from abgeleiteter_status;
+  select count(*), count(*) filter (where status = 'Erledigt'), count(*) filter (where status = 'In Arbeit')
+    into schritte_gesamt, schritte_erledigt, schritte_in_arbeit
+    from public.pendenzen
+    where uebergeordnete_pendenz_id = p_projekt;
+
+  if schritte_gesamt = 0 then
+    return;
+  end if;
+
+  abgeleiteter_status := case
+    when schritte_erledigt = schritte_gesamt then 'Erledigt'
+    when schritte_in_arbeit > 0 then 'In Arbeit'
+    else 'Offen'
+  end;
+
+  update public.pendenzen
+    set status = abgeleiteter_status,
+        erledigt_am = case when abgeleiteter_status = 'Erledigt' then coalesce(erledigt_am, current_date) else null end,
+        warten_auf_person = null, wiedervorlage = null, warte_seit = null
+    where id = p_projekt and status is distinct from abgeleiteter_status;
+end;
+$$ language plpgsql;
+
+create or replace function public.pendenzen_projekt_logik()
+returns trigger as $$
+begin
+  if pg_trigger_depth() > 1 then
+    return null;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.uebergeordnete_pendenz_id is not null then
+      perform public.projekt_nachfuehren(old.uebergeordnete_pendenz_id);
     end if;
-  elsif pg_trigger_depth() <= 1 then
-    -- Diese Zeile ist eine Hauptaufgabe UND die Aenderung kam direkt von aussen (nicht aus der
-    -- Bottom-up-Ableitung oben) -- nur dann top-down an die Teilaufgaben weitergeben.
-    -- pg_trigger_depth() <= 1 verhindert eine sonst entstehende Endlosschleife: aendert man eine
-    -- einzelne Teilaufgabe, leitet der Zweig oben daraus einen neuen Hauptaufgaben-Status ab und
-    -- speichert ihn -- OHNE diese Tiefenpruefung wuerde genau dieses Speichern hier erneut den
-    -- Top-down-Zweig ausloesen und ALLE Teilaufgaben (auch die gerade erst geaenderte) sofort
-    -- wieder zurueck auf Offen/Erledigt setzen, die eigene Aenderung also augenblicklich
-    -- rueckgaengig machen. Bei einer direkt am Menschen ausgeloesten Aenderung der Hauptaufgabe
-    -- selbst (Tiefe 1) bleibt das bisherige Kaskadenverhalten unveraendert.
-    ziel_status := case when new.status = 'Erledigt' then 'Erledigt' else 'Offen' end;
-    update public.pendenzen
-      set status = ziel_status,
-          erledigt_am = case when ziel_status = 'Erledigt' then current_date else null end
-      where uebergeordnete_pendenz_id = new.id;
+    return null;
+  end if;
+
+  if new.uebergeordnete_pendenz_id is not null then
+    -- Ein Schritt wurde angelegt/geaendert/verschoben.
+    perform public.projekt_nachfuehren(new.uebergeordnete_pendenz_id);
+    if tg_op = 'UPDATE' and old.uebergeordnete_pendenz_id is not null
+       and old.uebergeordnete_pendenz_id <> new.uebergeordnete_pendenz_id then
+      perform public.projekt_nachfuehren(old.uebergeordnete_pendenz_id);
+    end if;
+  elsif tg_op = 'UPDATE' and new.status is distinct from old.status
+        and exists (select 1 from public.pendenzen where uebergeordnete_pendenz_id = new.id) then
+    -- Die Hauptaufgabe selbst hat den Status gewechselt.
+    if new.status = 'Erledigt' then
+      update public.pendenzen
+        set status = 'Erledigt', erledigt_am = coalesce(erledigt_am, current_date),
+            warten_auf_person = null, wiedervorlage = null, warte_seit = null
+        where uebergeordnete_pendenz_id = new.id and status <> 'Erledigt';
+    elsif old.status = 'Erledigt' then
+      update public.pendenzen
+        set status = 'Später', erledigt_am = null
+        where uebergeordnete_pendenz_id = new.id;
+      perform public.projekt_nachfuehren(new.id);
+    end if;
   end if;
 
   return null; -- AFTER-Trigger, Rueckgabewert wird ignoriert.
 end;
 $$ language plpgsql;
 
+-- Triggernamen bewusst wie bisher (trg_pendenzen_status_*), damit der Migrationsblock oben
+-- und pruefung-etappe1.sql weiter stimmen.
 drop trigger if exists trg_pendenzen_status_insert on public.pendenzen;
 create trigger trg_pendenzen_status_insert
   after insert on public.pendenzen
-  for each row execute procedure public.pendenzen_status_kaskade();
+  for each row execute procedure public.pendenzen_projekt_logik();
 
 drop trigger if exists trg_pendenzen_status_update on public.pendenzen;
 create trigger trg_pendenzen_status_update
-  after update of status, titel, beschreibung, faelligkeit, prioritaet, mandant_id, bearbeiter_id, aufwand_stunden, warte_seit, wiedervorlage
+  after update of status, reihenfolge, uebergeordnete_pendenz_id
   on public.pendenzen
-  for each row execute procedure public.pendenzen_status_kaskade();
-
--- Wird eine Teilaufgabe geloescht, kann sich der abgeleitete Status der Hauptaufgabe aendern
--- (z.B. sind jetzt alle verbleibenden Teilaufgaben erledigt) -- Pendant zu
--- leiteHauptaufgabenStatusAb(...) im DELETE-Handler von routes/pendenzen.js.
-create or replace function public.pendenzen_status_nach_loeschen()
-returns trigger as $$
-declare
-  teilaufgaben_gesamt    integer;
-  teilaufgaben_erledigt  integer;
-  teilaufgaben_offen     integer;
-  abgeleiteter_status    text;
-begin
-  if old.uebergeordnete_pendenz_id is not null then
-    select count(*), count(*) filter (where status = 'Erledigt'), count(*) filter (where status = 'Offen')
-      into teilaufgaben_gesamt, teilaufgaben_erledigt, teilaufgaben_offen
-      from public.pendenzen
-      where uebergeordnete_pendenz_id = old.uebergeordnete_pendenz_id;
-
-    if teilaufgaben_gesamt > 0 then
-      abgeleiteter_status := case
-        when teilaufgaben_erledigt = teilaufgaben_gesamt then 'Erledigt'
-        when teilaufgaben_offen = teilaufgaben_gesamt then 'Offen'
-        else 'In Arbeit'
-      end;
-
-      update public.pendenzen
-        set status = abgeleiteter_status,
-            erledigt_am = case when abgeleiteter_status = 'Erledigt' then current_date else null end
-        where id = old.uebergeordnete_pendenz_id
-          and status is distinct from abgeleiteter_status;
-    end if;
-  end if;
-  return null;
-end;
-$$ language plpgsql;
+  for each row execute procedure public.pendenzen_projekt_logik();
 
 drop trigger if exists trg_pendenzen_status_delete on public.pendenzen;
 create trigger trg_pendenzen_status_delete
   after delete on public.pendenzen
-  for each row execute procedure public.pendenzen_status_nach_loeschen();
+  for each row execute procedure public.pendenzen_projekt_logik();
+
+-- Fruehere Kaskaden-Funktionen werden von keinem Trigger mehr verwendet.
+drop function if exists public.pendenzen_status_kaskade();
+drop function if exists public.pendenzen_status_nach_loeschen();
 
 -- ==========================================================================
 -- pendenz_emails / pendenz_notizen

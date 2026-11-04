@@ -74,7 +74,7 @@ export default function AllePendenzen() {
         </select>
         <select value={filter.mandantId} onChange={(e) => filterFeld('mandantId', e.target.value)}>
           <option value="">Alle Mandanten</option>
-          <option value="keiner">Kein Mandant (intern)</option>
+          <option value="keiner">Intern (eigenes Büro)</option>
           {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
         <select value={filter.prioritaet} onChange={(e) => filterFeld('prioritaet', e.target.value)}>

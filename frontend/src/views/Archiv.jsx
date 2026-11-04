@@ -39,7 +39,7 @@ export default function Archiv() {
       <div className="filter-leiste">
         <select value={filter.mandantId} onChange={(e) => filterFeld('mandantId', e.target.value)}>
           <option value="">Alle Mandanten</option>
-          <option value="keiner">Kein Mandant (intern)</option>
+          <option value="keiner">Intern (eigenes Büro)</option>
           {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
         <input type="date" value={filter.erledigtVon} onChange={(e) => filterFeld('erledigtVon', e.target.value)} title="Erledigt von" />
@@ -56,7 +56,7 @@ export default function Archiv() {
       {gruppiereNachMandant(pendenzen).map((gruppe) => (
         <div className="karte mandant-karte" key={gruppe.mandantId ?? 'kein-mandant'}>
           <div className="kunde-gruppe-titel">
-            <span>{gruppe.mandantName || 'Kein Mandant (intern)'}</span>
+            <span>{gruppe.mandantName || 'Intern (eigenes Büro)'}</span>
             {gruppe.mandantKuerzel && <span className="mandant-kuerzel">{gruppe.mandantKuerzel}</span>}
             <span className="zaehler-pille">{gruppe.items.length}</span>
           </div>

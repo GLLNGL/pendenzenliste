@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand } from '../constants.js';
+import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand, statusSlug } from '../constants.js';
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
 import api from '../api.js';
 import { meldeAenderung } from '../events.js';
 import { ladeICSHerunter } from '../lib/ics.js';
+import { blockVorschlag, prioritaetVorschlag } from '../lib/vorschlaege.js';
+import { inArbeitErlaubt } from '../lib/wip.js';
+import { useAuth } from '../AuthContext.jsx';
+
+// Mandant-Auswahl: '' = noch nicht gewaehlt (Pflicht), 'intern' = bewusst kein Mandant
+// (eigenes Buero), sonst die Mandanten-ID.
+const INTERN = 'intern';
 
 function leeresFormular(vorgabe) {
   return {
@@ -28,7 +35,9 @@ function leeresFormular(vorgabe) {
 function ausPendenz(pendenz) {
   return {
     titel: pendenz.titel,
-    mandantId: pendenz.mandant_id ?? '',
+    // Eine Notiz aus dem Eingang hat noch keinen Mandanten -- dort muss er beim Einplanen erst
+    // gewaehlt werden. Eine bereits eingeplante Pendenz ohne Mandant war bewusst "intern".
+    mandantId: pendenz.mandant_id ?? (pendenz.geplant === false ? '' : INTERN),
     bearbeiterId: pendenz.bearbeiter_id ?? '',
     beschreibung: pendenz.beschreibung ?? '',
     faelligkeit: pendenz.faelligkeit,
@@ -46,11 +55,22 @@ function ausPendenz(pendenz) {
   };
 }
 
+function mandantFuerSpeichern(wert) {
+  return wert === '' || wert === INTERN ? null : Number(wert);
+}
+
 // Ein Modal fuer Schnellerfassung (pendenz=null) und vollstaendiges Bearbeiten (pendenz gesetzt).
-export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, onSchliessen, onGespeichert, onGeloescht }) {
+// projektModus: aus der Eingang-Triage "Mehrere Schritte" geoeffnet -- zeigt den Hinweis zur
+// Projekt-Logik bei den Schritten.
+export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, projektModus = false, onSchliessen, onGespeichert, onGeloescht }) {
+  const { benutzer } = useAuth();
   const [formular, setFormular] = useState(() => (pendenz ? ausPendenz(pendenz) : leeresFormular(vorgabe)));
   const [speichertGerade, setSpeichertGerade] = useState(false);
   const [fehler, setFehler] = useState(null);
+  // Block wird aus dem naechsten Schritt vorgeschlagen, solange niemand ihn bewusst gewaehlt hat
+  // (bei bestehenden Pendenzen gilt ein anderer Block als "Sonstiges" als bewusst gewaehlt).
+  const [blockManuell, setBlockManuell] = useState(() => !!pendenz && pendenz.block && pendenz.block !== 'Sonstiges');
+  const [blockVorgeschlagen, setBlockVorgeschlagen] = useState(false);
   const titelRef = useRef(null);
 
   const istHauptaufgabe = !!pendenz && !pendenz.uebergeordnete_pendenz_id;
@@ -63,6 +83,9 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
   const ausgewaehlterBearbeiter = mitarbeitende.find((m) => m.id === Number(formular.bearbeiterId)) || null;
   const [teilaufgaben, setTeilaufgaben] = useState([]);
   const [neueTeilaufgabe, setNeueTeilaufgabe] = useState({ titel: '', faelligkeit: formular.faelligkeit });
+  const istProjekt = teilaufgaben.length > 0;
+
+  const prioVorschlag = prioritaetVorschlag(formular, heutigesDatumISO());
 
   const ladeTeilaufgaben = useCallback(() => {
     if (!istHauptaufgabe) return;
@@ -75,32 +98,57 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
   }, [ladeTeilaufgaben]);
 
   async function teilaufgabeStatusAendern(teilaufgabe, neuerStatus) {
-    await api.pendenzen.statusAendern(teilaufgabe.id, neuerStatus);
-    meldeAenderung();
-    ladeTeilaufgaben();
+    try {
+      await api.pendenzen.statusAendern(teilaufgabe.id, neuerStatus);
+      meldeAenderung();
+      ladeTeilaufgaben();
+    } catch (err) {
+      setFehler(err.message);
+    }
   }
 
   async function teilaufgabeLoeschen(teilaufgabe) {
+    if (!window.confirm(`Schritt "${teilaufgabe.titel}" wirklich löschen?`)) return;
     await api.pendenzen.loeschen(teilaufgabe.id);
     meldeAenderung();
     ladeTeilaufgaben();
   }
 
-  async function teilaufgabeHinzufuegen(e) {
-    e.preventDefault();
+  async function teilaufgabeVerschieben(index, richtung) {
+    const ziel = index + richtung;
+    if (ziel < 0 || ziel >= teilaufgaben.length) return;
+    try {
+      await api.pendenzen.reihenfolgeTauschen(teilaufgaben[index], teilaufgaben[ziel]);
+      meldeAenderung();
+      ladeTeilaufgaben();
+    } catch (err) {
+      setFehler(err.message);
+    }
+  }
+
+  async function teilaufgabeHinzufuegen() {
     if (!neueTeilaufgabe.titel.trim() || !neueTeilaufgabe.faelligkeit) return;
-    await api.pendenzen.erstellen({
-      titel: neueTeilaufgabe.titel.trim(),
-      faelligkeit: neueTeilaufgabe.faelligkeit,
-      mandantId: formular.mandantId === '' ? null : Number(formular.mandantId),
-      prioritaet: formular.prioritaet,
-      block: formular.block,
-      status: 'Offen',
-      uebergeordnetePendenzId: pendenz.id,
-    });
-    meldeAenderung();
-    setNeueTeilaufgabe({ titel: '', faelligkeit: formular.faelligkeit });
-    ladeTeilaufgaben();
+    try {
+      await api.pendenzen.erstellen({
+        titel: neueTeilaufgabe.titel.trim(),
+        faelligkeit: neueTeilaufgabe.faelligkeit,
+        mandantId: mandantFuerSpeichern(formular.mandantId),
+        bearbeiterId: formular.bearbeiterId === '' ? null : Number(formular.bearbeiterId),
+        prioritaet: formular.prioritaet,
+        block: formular.block,
+        // Nur der erste offene Schritt bleibt "Offen" -- den Rest stellt der Datenbank-Trigger
+        // automatisch auf "Später" (Projekt-Logik).
+        status: 'Offen',
+        uebergeordnetePendenzId: pendenz.id,
+        // Solange das Projekt noch im Eingang liegt, bleiben auch seine Schritte dort.
+        geplant: pendenz.geplant !== false,
+      });
+      meldeAenderung();
+      setNeueTeilaufgabe({ titel: '', faelligkeit: formular.faelligkeit });
+      ladeTeilaufgaben();
+    } catch (err) {
+      setFehler(err.message);
+    }
   }
 
   useEffect(() => {
@@ -122,7 +170,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
     // kann -- ohne Mandant (interne Pendenz) bleibt nur der Titel.
     betreff: pendenz ? (pendenz.mandant_name ? `${pendenz.mandant_name}: ${pendenz.titel}` : pendenz.titel) : '',
     text: pendenz
-      ? `Guten Tag\n\nBetrifft "${pendenz.titel}" (faellig am ${formatiereDatum(pendenz.faelligkeit)}).\n\nFreundliche Gruesse`
+      ? `Guten Tag\n\nBetrifft "${pendenz.titel}" (fällig am ${formatiereDatum(pendenz.faelligkeit)}).\n\nFreundliche Grüsse`
       : '',
   }));
   const [emailSendetGerade, setEmailSendetGerade] = useState(false);
@@ -152,8 +200,9 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
   useEffect(ladeNotizen, [ladeNotizen]);
 
-  async function notizHinzufuegen(e) {
-    e.preventDefault();
+  // Kein eigenes <form> (laege sonst verschachtelt im Pendenz-Formular -- ungueltiges HTML, und
+  // Enter haette das falsche Formular abgeschickt).
+  async function notizHinzufuegen() {
     if (!neueNotiz.trim() || !pendenz) return;
     setNotizSpeichertGerade(true);
     try {
@@ -196,20 +245,58 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
     setFormular((f) => ({ ...f, [name]: wert }));
   }
 
+  function titelAendern(wert) {
+    if (blockManuell) { feldAendern('titel', wert); return; }
+    const vorschlag = blockVorschlag(wert);
+    // Passt kein Stichwort mehr, faellt ein zuvor nur VORGESCHLAGENER Block auf "Sonstiges"
+    // zurueck; ein von Anfang an gesetzter Block (z.B. aus einer Vorgabe) bleibt stehen.
+    setFormular((f) => ({ ...f, titel: wert, block: vorschlag || (blockVorgeschlagen ? 'Sonstiges' : f.block) }));
+    setBlockVorgeschlagen(!!vorschlag);
+  }
+
+  function blockAendern(wert) {
+    setBlockManuell(true);
+    setBlockVorgeschlagen(false);
+    feldAendern('block', wert);
+  }
+
+  // Pflichtfelder beim Erfassen/Einplanen: Mandant, naechster Schritt, Frist, Aufwand,
+  // Prioritaet. Ein Projekt-Kopf braucht keinen eigenen Aufwand -- der steckt in den Schritten.
+  function pflichtfelderPruefen() {
+    const fehlend = [];
+    if (formular.mandantId === '') fehlend.push('Mandant (oder «Intern»)');
+    if (!formular.titel.trim()) fehlend.push('nächster Schritt');
+    if (!formular.faelligkeit) fehlend.push('Frist');
+    if (formular.aufwandMinuten === '' && !istProjekt) fehlend.push('Aufwand');
+    if (!formular.prioritaet) fehlend.push('Priorität');
+    if (fehlend.length) return `Bitte noch ausfüllen: ${fehlend.join(', ')}.`;
+    if (formular.status === 'Warten auf' && (!formular.wartenAufPerson.trim() || !formular.wiedervorlage)) {
+      return 'Status «Warten auf» braucht eine Person und ein Nachfassdatum.';
+    }
+    return null;
+  }
+
   async function speichern(e) {
     e.preventDefault();
-    if (!formular.titel.trim()) { setFehler('Nächster Schritt ist erforderlich'); return; }
-    if (!formular.faelligkeit) { setFehler('Frist ist erforderlich'); return; }
+    const pflichtFehler = pflichtfelderPruefen();
+    if (pflichtFehler) { setFehler(pflichtFehler); return; }
+
     const wartet = formular.status === 'Warten auf';
-    if (wartet && (!formular.wartenAufPerson.trim() || !formular.wiedervorlage)) {
-      setFehler('Status «Warten auf» braucht eine Person und ein Nachfassdatum.');
+    let bearbeiterId = formular.bearbeiterId === '' ? null : Number(formular.bearbeiterId);
+    const wirdInArbeit = formular.status === 'In Arbeit' && pendenz?.status !== 'In Arbeit';
+    if (formular.status === 'In Arbeit' && bearbeiterId == null && benutzer?.id) bearbeiterId = benutzer.id;
+
+    setSpeichertGerade(true);
+    setFehler(null);
+    if (wirdInArbeit && !istProjekt && !(await inArbeitErlaubt(pendenz, bearbeiterId))) {
+      setSpeichertGerade(false);
       return;
     }
 
     const payload = {
       titel: formular.titel.trim(),
-      mandantId: formular.mandantId === '' ? null : Number(formular.mandantId),
-      bearbeiterId: formular.bearbeiterId === '' ? null : Number(formular.bearbeiterId),
+      mandantId: mandantFuerSpeichern(formular.mandantId),
+      bearbeiterId,
       beschreibung: formular.beschreibung.trim() || null,
       faelligkeit: formular.faelligkeit,
       harteFrist: formular.harteFrist,
@@ -228,8 +315,6 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       bearbeitungstag: formular.bearbeitungstag || null,
     };
 
-    setSpeichertGerade(true);
-    setFehler(null);
     try {
       const ergebnis = pendenz
         ? await api.pendenzen.aktualisieren(pendenz.id, payload)
@@ -244,7 +329,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
   async function loeschen() {
     if (!pendenz) return;
-    if (!window.confirm(`"${pendenz.titel}" wirklich loeschen?`)) return;
+    if (!window.confirm(`"${pendenz.titel}" wirklich löschen?`)) return;
     setSpeichertGerade(true);
     try {
       await api.pendenzen.loeschen(pendenz.id);
@@ -264,7 +349,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
         </div>
 
-        <form onSubmit={speichern}>
+        <form onSubmit={speichern} noValidate>
           <div className="modal-koerper">
             <div className="feld">
               <label htmlFor="titel">Nächster Schritt *</label>
@@ -273,10 +358,21 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                 ref={titelRef}
                 type="text"
                 value={formular.titel}
-                onChange={(e) => feldAendern('titel', e.target.value)}
+                onChange={(e) => titelAendern(e.target.value)}
                 placeholder="Verb + Objekt, z.B. «MWST-Abrechnung Q3 in Abacus abstimmen»"
-                required
               />
+              <p className="feld-hinweis">Ein konkreter Schritt, kein Thema – was tust du als Nächstes?</p>
+            </div>
+
+            <div className="feld">
+              <label htmlFor="mandant">Mandant *</label>
+              <select id="mandant" value={formular.mandantId} onChange={(e) => feldAendern('mandantId', e.target.value)}>
+                <option value="">– bitte wählen –</option>
+                <option value={INTERN}>Intern (eigenes Büro)</option>
+                {mandanten.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="feld-reihe">
@@ -287,7 +383,6 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   type="date"
                   value={formular.faelligkeit}
                   onChange={(e) => feldAendern('faelligkeit', e.target.value)}
-                  required
                 />
                 <label className="feld-checkbox">
                   <input type="checkbox" checked={formular.harteFrist} onChange={(e) => feldAendern('harteFrist', e.target.checked)} />
@@ -302,31 +397,42 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   value={formular.bearbeitungstag}
                   onChange={(e) => feldAendern('bearbeitungstag', e.target.value)}
                 />
-                <p className="feld-hinweis">Wann du als Nächstes daran arbeitest – unabhängig von der Fälligkeit.</p>
+                <p className="feld-hinweis">Wann du als Nächstes daran arbeitest – unabhängig von der Frist.</p>
               </div>
-            </div>
-
-            <div className="feld">
-              <label htmlFor="mandant">Mandant</label>
-              <select id="mandant" value={formular.mandantId} onChange={(e) => feldAendern('mandantId', e.target.value)}>
-                <option value="">Kein Mandant (intern)</option>
-                {mandanten.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
             </div>
 
             <div className="feld-reihe">
               <div className="feld">
-                <label htmlFor="prioritaet">Priorität</label>
+                <label htmlFor="prioritaet">Priorität *</label>
                 <select id="prioritaet" value={formular.prioritaet} onChange={(e) => feldAendern('prioritaet', e.target.value)}>
                   {PRIORITAETEN.map((p) => <option key={p} value={p}>{PRIORITAET_BESCHREIBUNG[p]}</option>)}
                 </select>
+                {prioVorschlag && prioVorschlag !== formular.prioritaet && (
+                  <button type="button" className="feld-vorschlag" onClick={() => feldAendern('prioritaet', prioVorschlag)}>
+                    Vorschlag: {prioVorschlag} – harte Frist in ≤ 5 Arbeitstagen übernehmen
+                  </button>
+                )}
               </div>
+              <div className="feld">
+                <label htmlFor="aufwand">Aufwand{istProjekt ? '' : ' *'}</label>
+                <select id="aufwand" value={formular.aufwandMinuten} onChange={(e) => feldAendern('aufwandMinuten', e.target.value)}>
+                  <option value="">{istProjekt ? '– steckt in den Schritten –' : '– bitte wählen –'}</option>
+                  {AUFWAND_MINUTEN.map((m) => <option key={m} value={m}>{formatiereAufwand(m)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="feld-reihe">
               <div className="feld">
                 <label htmlFor="status">Status</label>
                 <select id="status" value={formular.status} onChange={(e) => feldAendern('status', e.target.value)}>
                   {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="feld">
+                <label htmlFor="block">Block{blockVorgeschlagen ? ' (vorgeschlagen)' : ''}</label>
+                <select id="block" value={formular.block} onChange={(e) => blockAendern(e.target.value)}>
+                  {BLOECKE.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
             </div>
@@ -341,31 +447,14 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                     value={formular.wartenAufPerson}
                     onChange={(e) => feldAendern('wartenAufPerson', e.target.value)}
                     placeholder="z.B. Kunde Hr. Muster, Steueramt"
-                    required
                   />
                 </div>
                 <div className="feld">
                   <label htmlFor="wiedervorlage">Nachfassdatum *</label>
-                  <input id="wiedervorlage" type="date" value={formular.wiedervorlage} onChange={(e) => feldAendern('wiedervorlage', e.target.value)} required />
+                  <input id="wiedervorlage" type="date" value={formular.wiedervorlage} onChange={(e) => feldAendern('wiedervorlage', e.target.value)} />
                 </div>
               </div>
             )}
-
-            <div className="feld-reihe">
-              <div className="feld">
-                <label htmlFor="block">Block</label>
-                <select id="block" value={formular.block} onChange={(e) => feldAendern('block', e.target.value)}>
-                  {BLOECKE.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div className="feld">
-                <label htmlFor="aufwand">Aufwand</label>
-                <select id="aufwand" value={formular.aufwandMinuten} onChange={(e) => feldAendern('aufwandMinuten', e.target.value)}>
-                  <option value="">– nicht geschätzt –</option>
-                  {AUFWAND_MINUTEN.map((m) => <option key={m} value={m}>{formatiereAufwand(m)}</option>)}
-                </select>
-              </div>
-            </div>
 
             <div className="feld">
               <label htmlFor="bearbeiter">Bearbeiter/in</label>
@@ -447,23 +536,20 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                     )}
                     <input
                       type="email"
-                      placeholder="Empfaenger-E-Mail"
+                      placeholder="Empfänger-E-Mail"
                       value={emailFormular.an}
                       onChange={(e) => setEmailFormular((f) => ({ ...f, an: e.target.value }))}
-                      required
                     />
                     <input
                       type="text"
                       placeholder="Betreff"
                       value={emailFormular.betreff}
                       onChange={(e) => setEmailFormular((f) => ({ ...f, betreff: e.target.value }))}
-                      required
                     />
                     <textarea
                       value={emailFormular.text}
                       onChange={(e) => setEmailFormular((f) => ({ ...f, text: e.target.value }))}
                       rows={5}
-                      required
                     />
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-muted)' }}>
                       <input type="checkbox" checked={mitKalenderanhang} onChange={(e) => setMitKalenderanhang(e.target.checked)} />
@@ -472,7 +558,12 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                     {emailFehler && <div className="hinweis-fehler">{emailFehler}</div>}
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       <button type="button" className="btn" onClick={() => setEmailOffen(false)}>Abbrechen</button>
-                      <button type="button" className="btn btn-primary" onClick={emailSenden} disabled={emailSendetGerade}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={emailSenden}
+                        disabled={emailSendetGerade || !emailFormular.an.trim() || !emailFormular.betreff.trim() || !emailFormular.text.trim()}
+                      >
                         {emailSendetGerade ? 'Sende…' : 'Senden'}
                       </button>
                     </div>
@@ -484,13 +575,19 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
             {istHauptaufgabe && (
               <div className="feld">
                 <label>
-                  Teilaufgaben
+                  Schritte (Projekt)
                   {teilaufgaben.length > 0 && (
                     <span className="teilaufgaben-zaehler">
                       {teilaufgaben.filter((t) => t.status === 'Erledigt').length}/{teilaufgaben.length} erledigt
                     </span>
                   )}
                 </label>
+                {(projektModus || teilaufgaben.length > 0) && (
+                  <p className="feld-hinweis">
+                    Schritte in der richtigen Reihenfolge erfassen – nur der erste offene ist aktiv, die weiteren
+                    stehen auf «Später» und rücken automatisch nach, sobald einer erledigt ist.
+                  </p>
+                )}
                 <div className="teilaufgaben-liste">
                   {teilaufgaben.map((t, idx) => {
                     const erledigt = t.status === 'Erledigt';
@@ -505,20 +602,24 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                           {erledigt ? '✓' : ''}
                         </button>
                         <span className="teilaufgabe-titel" title={t.titel}><span className="zeile-id">{pendenz.id}.{idx + 1}</span>{t.titel}</span>
+                        {!erledigt && <span className={`zeile-status-tag status-${statusSlug(t.status)}`}>{t.status}</span>}
                         <span className="teilaufgabe-datum">{formatiereDatum(t.faelligkeit)}</span>
+                        <button type="button" className="teilaufgabe-verschieben" title="Nach oben" aria-label="Schritt nach oben" disabled={idx === 0} onClick={() => teilaufgabeVerschieben(idx, -1)}>↑</button>
+                        <button type="button" className="teilaufgabe-verschieben" title="Nach unten" aria-label="Schritt nach unten" disabled={idx === teilaufgaben.length - 1} onClick={() => teilaufgabeVerschieben(idx, 1)}>↓</button>
                         <button type="button" className="teilaufgabe-kalender" title="In Kalender speichern (.ics)" aria-label="In Kalender speichern" onClick={() => ladeICSHerunter(t)}>📅</button>
-                        <button type="button" className="teilaufgabe-loeschen" aria-label="Teilaufgabe loeschen" onClick={() => teilaufgabeLoeschen(t)}>×</button>
+                        <button type="button" className="teilaufgabe-loeschen" aria-label="Schritt löschen" onClick={() => teilaufgabeLoeschen(t)}>×</button>
                       </div>
                     );
                   })}
-                  {teilaufgaben.length === 0 && <div className="teilaufgaben-leer">Noch keine Teilaufgaben.</div>}
+                  {teilaufgaben.length === 0 && <div className="teilaufgaben-leer">Noch keine Schritte – eine einzelne Pendenz braucht keine.</div>}
                 </div>
                 <div className="teilaufgabe-neu">
                   <input
                     type="text"
-                    placeholder="Neue Teilaufgabe…"
+                    placeholder="Neuer Schritt (Verb + Objekt)…"
                     value={neueTeilaufgabe.titel}
                     onChange={(e) => setNeueTeilaufgabe((n) => ({ ...n, titel: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); teilaufgabeHinzufuegen(); } }}
                   />
                   <div className="teilaufgabe-neu-zeile2">
                     <input
@@ -533,7 +634,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
             )}
 
             {!pendenz && (
-              <p className="teilaufgaben-hinweis">Teilaufgaben können hinzugefügt werden, sobald die Pendenz gespeichert ist.</p>
+              <p className="teilaufgaben-hinweis">Schritte (Projekt) können hinzugefügt werden, sobald die Pendenz gespeichert ist.</p>
             )}
 
             {pendenz && (
@@ -552,17 +653,17 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   ))}
                   {notizen.length === 0 && <div className="teilaufgaben-leer">Noch keine Einträge – dokumentiere hier, was bereits erledigt wurde.</div>}
                 </div>
-                <form className="notiz-neu" onSubmit={notizHinzufuegen}>
+                <div className="notiz-neu">
                   <textarea
                     placeholder="z.B. Lohnausweise erstellt, warte auf Rückmeldung Kunde…"
                     value={neueNotiz}
                     onChange={(e) => setNeueNotiz(e.target.value)}
                     rows={2}
                   />
-                  <button type="submit" className="btn-klein" disabled={!neueNotiz.trim() || notizSpeichertGerade}>
+                  <button type="button" className="btn-klein" onClick={notizHinzufuegen} disabled={!neueNotiz.trim() || notizSpeichertGerade}>
                     + Eintrag hinzufügen
                   </button>
-                </form>
+                </div>
               </div>
             )}
 
@@ -573,14 +674,14 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
             <div>
               {pendenz && (
                 <button type="button" className="btn btn-gefahr" onClick={loeschen} disabled={speichertGerade}>
-                  Loeschen
+                  Löschen
                 </button>
               )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn" onClick={onSchliessen}>Abbrechen</button>
               <button type="submit" className="btn btn-primary" disabled={speichertGerade}>
-                {pendenz ? 'Speichern' : 'Erfassen'}
+                {pendenz ? (pendenz.geplant === false ? 'Einplanen' : 'Speichern') : 'Erfassen'}
               </button>
             </div>
           </div>

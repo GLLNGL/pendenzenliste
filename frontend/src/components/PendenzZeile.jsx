@@ -1,5 +1,6 @@
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
-import { STATUS_WERTE, statusSlug, formatiereAufwand, statusWechselBrauchtFormular } from '../constants.js';
+import { STATUS_WERTE, statusSlug, formatiereAufwand } from '../constants.js';
+import { statusWechseln } from '../lib/wip.js';
 
 const PRIO_SLUG = { A: 'a', B: 'b', C: 'c' };
 
@@ -37,8 +38,7 @@ export default function PendenzZeile({
   }
 
   function statusGewaehlt(neuerStatus) {
-    if (statusWechselBrauchtFormular(pendenz, neuerStatus)) onOeffnen({ ...pendenz, status: neuerStatus });
-    else onStatusAendern(pendenz, neuerStatus);
+    statusWechseln(pendenz, neuerStatus, { onOeffnen, onStatusAendern });
   }
 
   return (

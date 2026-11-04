@@ -124,7 +124,7 @@ export default function RegelModal({ regel, mandanten, faelligkeitTypen, rhythme
               <div className="feld">
                 <label htmlFor="regel-mandant">Mandant</label>
                 <select id="regel-mandant" value={mandantId} onChange={(e) => setMandantId(e.target.value)}>
-                  <option value="">Kein Mandant (intern)</option>
+                  <option value="">Intern (eigenes Büro)</option>
                   {mandanten.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>

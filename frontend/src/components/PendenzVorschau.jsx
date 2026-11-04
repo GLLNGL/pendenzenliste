@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import { formatiereDatum, formatiereZeitstempel } from '../format.js';
-import { STATUS_WERTE, statusSlug, formatiereAufwand, statusWechselBrauchtFormular } from '../constants.js';
+import { STATUS_WERTE, statusSlug, formatiereAufwand } from '../constants.js';
+import { statusWechseln } from '../lib/wip.js';
 import { aufAenderungHoeren } from '../events.js';
 import Badge from './Badge.jsx';
 
@@ -85,9 +86,7 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
               className={`status-select status-${statusSlug(pendenz.status)}`}
               value={pendenz.status}
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) => (statusWechselBrauchtFormular(pendenz, e.target.value)
-                ? onOeffnen({ ...pendenz, status: e.target.value })
-                : onStatusAendern(pendenz, e.target.value))}
+              onChange={(e) => statusWechseln(pendenz, e.target.value, { onOeffnen, onStatusAendern })}
             >
               {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -157,6 +156,7 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
                       {erledigt ? '✓' : ''}
                     </button>
                     <span className="teilaufgabe-titel" title={t.titel}><span className="zeile-id">{pendenz.id}.{idx + 1}</span>{t.titel}</span>
+                    {!erledigt && <span className={`zeile-status-tag status-${statusSlug(t.status)}`}>{t.status}</span>}
                     <span className="teilaufgabe-datum">{formatiereDatum(t.faelligkeit)}</span>
                   </div>
                 );

@@ -103,7 +103,7 @@ export default function PendenzListeNachKunde({
               >
                 {istEingeklappt ? '▸' : '▾'}
               </button>
-              <span>{gruppe.mandantName || 'Kein Mandant (intern)'}</span>
+              <span>{gruppe.mandantName || 'Intern (eigenes Büro)'}</span>
               {gruppe.mandantKuerzel && <span className="mandant-kuerzel">{gruppe.mandantKuerzel}</span>}
               <span className="zaehler-pille">{gruppe.items.length}</span>
             </div>
