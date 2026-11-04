@@ -4,6 +4,7 @@ import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import Faelligkeitskalender from '../components/Faelligkeitskalender.jsx';
+import NachfassMails from '../components/NachfassMails.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
@@ -12,7 +13,7 @@ import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { berechneCockpit } from '../lib/cockpit.js';
 import { WIP_LIMIT } from '../lib/wip.js';
 
-const REIHENFOLGE = ['faellig', 'inArbeit', 'nachfassen', 'heuteBearbeiten', 'unveraendert'];
+const REIHENFOLGE = ['faellig', 'inArbeit', 'nachfassen', 'wochenziele', 'heuteBearbeiten', 'unveraendert'];
 
 const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-faelligkeiten-hoehe';
 const BLOCK_SPEICHER_SCHLUESSEL = 'cockpit-block-filter';
@@ -127,6 +128,11 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
 
         <div className="uebersicht-liste">
           {aktuelle.hinweis && aktuelle.items.length > 0 && <div className="uebersicht-hinweis">{aktuelle.hinweis}</div>}
+          {aktuelle.aktion && aktuelle.items.length > 0 && (
+            <div className="uebersicht-aktion">
+              <button type="button" className="btn btn-primary" onClick={aktuelle.aktion.onClick}>{aktuelle.aktion.label}</button>
+            </div>
+          )}
           <PendenzListeNachKunde
             speicherSchluessel="cockpit-eingeklappt"
             pendenzen={aktuelle.items}
@@ -154,6 +160,7 @@ export default function Cockpit() {
   const [block, setBlock] = useState(gespeichertenBlockLesen);
   const [faelligkeitenHoehe, setFaelligkeitenHoehe] = useState(gespeicherteHoeheLesen);
   const [ziehtGerade, setZiehtGerade] = useState(false);
+  const [nachfassOffen, setNachfassOffen] = useState(false);
   const layoutRef = useRef(null);
   const kalenderRef = useRef(null);
   const mandanten = useMandanten();
@@ -255,7 +262,11 @@ export default function Cockpit() {
   const bloecke = [
     { key: 'faellig', titel: 'Fällig ≤ 5 Arbeitstage', klasse: 'ueberfaellig', items: daten.faellig, leer: 'In den nächsten 5 Arbeitstagen ist nichts fällig.' },
     { key: 'inArbeit', titel: 'In Arbeit', klasse: daten.inArbeitAnzahl > WIP_LIMIT ? 'ueberfaellig' : 'bearbeiten', items: daten.inArbeit, leer: 'Nichts in Arbeit – Tagesstart: Top 3 der fälligen Pendenzen auf «In Arbeit» setzen.' },
-    { key: 'nachfassen', titel: 'Nachfassen', klasse: 'nachfassen', items: daten.nachfassen, leer: 'Nichts zum Nachfassen.' },
+    {
+      key: 'nachfassen', titel: 'Nachfassen', klasse: 'nachfassen', items: daten.nachfassen, leer: 'Nichts zum Nachfassen.',
+      aktion: { label: `✉ Erinnerungs-Mails vorbereiten (${daten.nachfassen.length})`, onClick: () => setNachfassOffen(true) },
+    },
+    { key: 'wochenziele', titel: 'Wochenziele', klasse: 'bearbeiten', items: daten.wochenziele, leer: 'Keine Wochenziele markiert – im Wochenrückblick die 3–5 wichtigsten Ergebnisse festlegen.' },
     { key: 'heuteBearbeiten', titel: 'Heute bearbeiten', klasse: 'bearbeiten', items: daten.heuteBearbeiten, leer: 'Nichts zum Bearbeiten geplant.' },
     {
       key: 'unveraendert', titel: 'Unverändert > 14 Tage', items: daten.unveraendert, leer: 'Keine liegengebliebenen Pendenzen.',
@@ -311,6 +322,8 @@ export default function Cockpit() {
           onGeloescht={() => { setAktivePendenz(null); laden(); }}
         />
       )}
+
+      {nachfassOffen && <NachfassMails pendenzen={daten.nachfassen} onSchliessen={() => setNachfassOffen(false)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Cockpit-Bereiche (Etappe 3) aus der Liste aller offenen, eingeplanten Pendenzen -- reine
 // Funktion ohne Datenbank/React, damit sie sich mit `npm test` pruefen laesst.
 import { plusArbeitstage } from './vorschlaege.js';
+import { montagDerWoche } from './wochenrueckblick.js';
 
 const PRIORITAET_RANG = { A: 0, B: 1, C: 2 };
 const UNVERAENDERT_TAGE = 14;
@@ -67,6 +68,11 @@ function berechneCockpit(pendenzen, { heute, jetzt, ichId, fokusstunden = 15, bl
       && p.zuletzt_geaendert_am && new Date(p.zuletzt_geaendert_am) < stichtag)
     .sort((a, b) => (a.zuletzt_geaendert_am < b.zuletzt_geaendert_am ? -1 : 1));
 
+  // Wochenziele der laufenden Woche (im Wochenrückblick markiert, Etappe 5).
+  const wochenziele = gefiltert
+    .filter((p) => p.wochenziel_woche && p.wochenziel_woche === montagDerWoche(heute))
+    .sort(nachFristDannPrio);
+
   // Zusätzlich (bestehend): heute geplanter Bearbeitungstag.
   const heuteBearbeiten = gefiltert
     .filter((p) => p.bearbeitungstag && p.bearbeitungstag <= heute)
@@ -87,7 +93,7 @@ function berechneCockpit(pendenzen, { heute, jetzt, ichId, fokusstunden = 15, bl
   const anteil = fokusMinuten > 0 ? minuten / fokusMinuten : 0;
 
   return {
-    faellig, inArbeit, inArbeitAnzahl, nachfassen, unveraendert, heuteBearbeiten,
+    faellig, inArbeit, inArbeitAnzahl, nachfassen, unveraendert, heuteBearbeiten, wochenziele,
     auslastung: {
       wocheVon: woche.von,
       wocheBis: woche.bis,

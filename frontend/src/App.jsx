@@ -7,6 +7,7 @@ import AllePendenzen from './views/AllePendenzen.jsx';
 import Mandanten from './views/Mandanten.jsx';
 import Regeln from './views/Regeln.jsx';
 import Archiv from './views/Archiv.jsx';
+import Wochenrueckblick from './views/Wochenrueckblick.jsx';
 import Team from './views/Team.jsx';
 import Einstellungen from './views/Einstellungen.jsx';
 import { useIstHandy } from './hooks.js';
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/pendenzen" element={<AllePendenzen />} />
         <Route path="/mandanten" element={<Mandanten />} />
         <Route path="/regeln" element={<Regeln />} />
+        <Route path="/wochenrueckblick" element={<Wochenrueckblick />} />
         <Route path="/archiv" element={<Archiv />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />

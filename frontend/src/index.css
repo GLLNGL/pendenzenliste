@@ -1524,3 +1524,74 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
 .mobil-erfassen-erfolg { color: var(--success); font-size: 13px; font-weight: 600; }
 
 .mobil-kalender .karte-kalender { max-width: none; }
+
+/* ---------- Etappe 5: Nachfassen und Wochenrückblick ---------- */
+
+.modal.modal-breit { width: 720px; }
+
+/* Knopf über einer Bereichsliste im Cockpit (z.B. "Erinnerungs-Mails vorbereiten"). */
+.uebersicht-aktion { margin: 8px 10px 0; }
+
+.nachfass-entwurf {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.nachfass-entwurf.erledigt { opacity: 0.75; }
+.nachfass-entwurf input,
+.nachfass-entwurf textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  background: var(--surface);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nachfass-kopf { display: flex; flex-direction: column; gap: 2px; }
+.nachfass-meta { font-size: 11.5px; color: var(--text-muted); }
+.nachfass-aktionen { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.nachfass-datum { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--text-muted); }
+.nachfass-datum input { width: auto; }
+.nachfass-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; }
+.nachfass-knoepfe a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+.wochenrueckblick { max-width: 1300px; }
+
+.rueckblick-raster {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(380px, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.rueckblick-gruppe { padding: 4px 14px 10px; }
+.rueckblick-punkt { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.rueckblick-punkt:last-child { border-bottom: none; }
+.rueckblick-punkt label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.rueckblick-punkt.erledigt label span { color: var(--text-faint); text-decoration: line-through; }
+.rueckblick-hilfe { margin: 3px 0 0 24px; font-size: 11.5px; color: var(--text-muted); }
+
+.text-ok { color: var(--success); font-weight: 600; }
+.text-warnung { color: var(--danger); font-weight: 600; }
+.zaehler-pille.zaehler-ok { background: var(--success); color: #fff; }
+
+.wochenziel-liste { padding: 6px 4px; max-height: 420px; overflow-y: auto; }
+.wochenziel-zeile { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius); font-size: 12.5px; }
+.wochenziel-zeile:hover { background: var(--surface-hover); }
+.wochenziel-zeile.markiert { background: var(--warning-bg); }
+.wochenziel-stern { background: none; border: none; font-size: 16px; line-height: 1; color: var(--warning); padding: 0 2px; cursor: pointer; }
+.wochenziel-titel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wochenziel-frist { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.rueckblick-fragen { max-width: 900px; margin-bottom: 12px; }
+.rueckblick-verlauf { max-width: 900px; }
+.rueckblick-verlauf-eintrag { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 12.5px; }
+.rueckblick-verlauf-eintrag p { margin: 3px 0; }
+.rueckblick-verlauf-datum { font-weight: 600; color: var(--text-muted); }

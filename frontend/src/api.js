@@ -357,6 +357,18 @@ const api = {
       pruefeFehler(error);
       return data;
     },
+    // Nachfassen (Etappe 5): nach einer Erinnerung das naechste Nachfassdatum setzen und im
+    // Fortschritt vermerken, dass nachgefasst wurde. Status bleibt "Warten auf".
+    nachgefasst: async (id, neuesNachfassdatum, wie) => {
+      const { error } = await supabase.from('pendenzen').update({ wiedervorlage: neuesNachfassdatum }).eq('id', id);
+      pruefeFehler(error);
+      await api.pendenzen.notizErstellen(id, `Nachgefasst (${wie}). Nächstes Nachfassen am ${neuesNachfassdatum.split('-').reverse().join('.')}.`);
+    },
+    // Wochenziel markieren (Montag der Zielwoche) bzw. aufheben (null).
+    wochenzielSetzen: async (id, woche) => {
+      const { error } = await supabase.from('pendenzen').update({ wochenziel_woche: woche }).eq('id', id);
+      pruefeFehler(error);
+    },
     // Triage im Eingang: "keine Aktion noetig" bzw. "in unter 2 Minuten sofort erledigt" --
     // beides wird als erledigt abgelegt (nichts geloescht) und mit einer Notiz begruendet.
     triageAblegen: async (id, art) => {
@@ -507,6 +519,39 @@ const api = {
     loeschen: async (id) => {
       const { error } = await supabase.from('pendenzen').delete().eq('id', id);
       pruefeFehler(error);
+    },
+  },
+
+  // Wochenrueckblick (Etappe 5): ein Eintrag pro Person und Woche (woche = Montag).
+  wochenrueckblick: {
+    holen: async (woche) => {
+      const mitarbeiterId = await aktuelleMitarbeiterId();
+      const { data, error } = await supabase.from('wochenrueckblicke').select('*')
+        .eq('mitarbeiter_id', mitarbeiterId).eq('woche', woche).maybeSingle();
+      pruefeFehler(error);
+      return data ?? { mitarbeiter_id: mitarbeiterId, woche, checkliste: {}, liegen_geblieben: '', anders_machen: '' };
+    },
+    speichern: async (woche, daten) => {
+      const mitarbeiterId = await aktuelleMitarbeiterId();
+      if (!mitarbeiterId) throw new Error('Kein Profil für die angemeldete Person gefunden.');
+      const zeile = { mitarbeiter_id: mitarbeiterId, woche };
+      if (daten.checkliste !== undefined) zeile.checkliste = daten.checkliste;
+      if (daten.liegenGeblieben !== undefined) zeile.liegen_geblieben = daten.liegenGeblieben || null;
+      if (daten.andersMachen !== undefined) zeile.anders_machen = daten.andersMachen || null;
+      const { data, error } = await supabase.from('wochenrueckblicke')
+        .upsert(zeile, { onConflict: 'mitarbeiter_id,woche' }).select().single();
+      pruefeFehler(error);
+      return data;
+    },
+    // Fruehere Wochen mit beantworteten Fragen, neueste zuerst.
+    verlauf: async (vorWoche, anzahl = 12) => {
+      const mitarbeiterId = await aktuelleMitarbeiterId();
+      const { data, error } = await supabase.from('wochenrueckblicke')
+        .select('woche, liegen_geblieben, anders_machen, aktualisiert_am')
+        .eq('mitarbeiter_id', mitarbeiterId).lt('woche', vorWoche)
+        .order('woche', { ascending: false }).limit(anzahl);
+      pruefeFehler(error);
+      return data.filter((r) => r.liegen_geblieben || r.anders_machen);
     },
   },
 

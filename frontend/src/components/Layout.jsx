@@ -14,6 +14,7 @@ const NAV_EINTRAEGE = [
   { pfad: '/pendenzen', label: 'Alle Pendenzen' },
   { pfad: '/mandanten', label: 'Mandanten' },
   { pfad: '/regeln', label: 'Wiederkehrende' },
+  { pfad: '/wochenrueckblick', label: 'Wochenrückblick' },
   { pfad: '/archiv', label: 'Archiv' },
   { pfad: '/team', label: 'Team' },
   { pfad: '/einstellungen', label: 'Einstellungen' },
