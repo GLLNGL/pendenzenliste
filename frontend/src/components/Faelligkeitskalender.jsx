@@ -1,26 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
 import PendenzVorschau from './PendenzVorschau.jsx';
-import { OFFENE_STATUS, statusSlug } from '../constants.js';
+import PendenzGruppenListe from './PendenzGruppenListe.jsx';
+import { OFFENE_STATUS } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { aufAenderungHoeren } from '../events.js';
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const WOCHENTAG_LANG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
-// Pendenzen eines Tages pro Mandant gruppiert (alphabetisch, "Intern" zuletzt), innerhalb einer
-// Gruppe nach Projekt bzw. Titel -- Schritte desselben Projekts stehen so beieinander.
-function gruppiertNachMandant(liste) {
-  const gruppen = new Map();
-  for (const p of liste) {
-    const schluessel = p.mandant_id ?? 'intern';
-    if (!gruppen.has(schluessel)) gruppen.set(schluessel, { schluessel, name: p.mandant_name || 'Intern (eigenes Büro)', items: [] });
-    gruppen.get(schluessel).items.push(p);
-  }
-  return [...gruppen.values()]
-    .sort((a, b) => (a.schluessel === 'intern') - (b.schluessel === 'intern') || a.name.localeCompare(b.name, 'de-CH'))
-    .map((g) => ({ ...g, items: g.items.sort((a, b) => (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH')) }));
-}
 const MONATSNAMEN = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
@@ -194,33 +182,12 @@ export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, mitVo
                   {ausgewaehlteListe.length} Pendenz{ausgewaehlteListe.length === 1 ? '' : 'en'}
                 </span>
               </div>
-              {ausgewaehlteListe.length === 0 && <div className="leer-hinweis">Keine Pendenzen an diesem Tag.</div>}
-              {gruppiertNachMandant(ausgewaehlteListe).map((gruppe) => (
-                <div key={gruppe.schluessel} className="tagesliste-gruppe">
-                  <div className="tagesliste-gruppe-titel">
-                    {gruppe.name}
-                    <span className="tagesliste-gruppe-anzahl">{gruppe.items.length}</span>
-                  </div>
-                  <ul className="tagesliste">
-                    {gruppe.items.map((p) => (
-                      <li key={p.id}>
-                        <button
-                          type="button"
-                          className={`tagesliste-eintrag ${angezeigtePendenz?.id === p.id ? 'aktiv' : ''}`}
-                          onClick={() => (mitVorschau ? setVorschauPendenz(p) : onOeffnen(p))}
-                          title={p.titel}
-                        >
-                          <span className="tagesliste-titel">
-                            {p.eltern_titel && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
-                            {p.titel}
-                          </span>
-                          <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              <PendenzGruppenListe
+                pendenzen={ausgewaehlteListe}
+                aktiveId={angezeigtePendenz?.id}
+                onWaehlen={(p) => (mitVorschau ? setVorschauPendenz(p) : onOeffnen(p))}
+                leerText="Keine Pendenzen an diesem Tag."
+              />
             </>
           ) : (
             <div className="leer-hinweis">Tag anklicken, um die Pendenzen dieses Tages zu sehen.</div>

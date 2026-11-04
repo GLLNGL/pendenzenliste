@@ -524,7 +524,7 @@ a { color: var(--accent); text-decoration: none; }
   align-items: baseline;
   gap: 8px;
   padding: 6px 14px 4px;
-  font-size: var(--fs-liste);
+  font-size: var(--fs-klein);
   font-weight: var(--fw-fett);
   color: var(--text);
   border-bottom: 1px solid var(--border);
@@ -534,18 +534,29 @@ a { color: var(--accent); text-decoration: none; }
 
 .tagesliste-eintrag {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* Feste Spalten fuer Frist und Status, damit sie ueber alle Gruppen hinweg untereinander
+     stehen; der naechste Schritt nimmt den Rest (mit Auslassungspunkten). */
+  grid-template-columns: minmax(0, 1fr) 86px;
   align-items: baseline;
   gap: 12px;
   width: 100%;
-  padding: 6px 14px;
+  padding: 5px 14px;
   border: none;
+  border-left: 3px solid transparent;
   border-bottom: 1px solid var(--border);
   background: none;
   text-align: left;
-  font-size: var(--fs-liste);
+  font-size: var(--fs-liste-klein);
   color: var(--text);
 }
+
+.tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 96px 86px; }
+
+/* Prioritaet A faellt als schmaler roter Strich links auf (wie frueher in der Tabelle). */
+.tagesliste-eintrag.prio-a { border-left-color: var(--danger); }
+
+.tagesliste-frist { color: var(--text-muted); white-space: nowrap; }
+.tagesliste-frist.ueberfaellig { color: var(--danger); font-weight: var(--fw-halbfett); }
 
 .tagesliste li:last-child .tagesliste-eintrag { border-bottom: none; }
 .tagesliste-eintrag:hover { background: var(--surface-hover); }
@@ -553,7 +564,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 10px; }
 .tagesliste-eltern { color: var(--text-faint); }
-.tagesliste-status { font-size: var(--fs-liste-klein); font-weight: var(--fw-mittel); white-space: nowrap; }
+.tagesliste-status { font-size: var(--fs-label); font-weight: var(--fw-mittel); white-space: nowrap; }
 
 /* Monatsnavigation im Kartenkopf statt als eigene Zeile im Kalender. */
 .kalender-kopf { gap: 12px; padding-top: 7px; padding-bottom: 7px; }

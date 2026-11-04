@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import api from '../api.js';
-import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
+import PendenzGruppenListe from '../components/PendenzGruppenListe.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import Faelligkeitskalender from '../components/Faelligkeitskalender.jsx';
@@ -154,15 +154,14 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
               <button type="button" className="btn btn-primary" onClick={aktuelle.aktion.onClick}>{aktuelle.aktion.label}</button>
             </div>
           )}
-          <PendenzListeNachKunde
-            speicherSchluessel="cockpit-eingeklappt"
+          {/* Gleiches schlichtes Layout wie im Kalender: pro Mandant gruppiert, eine Zeile pro
+              Pendenz (nächster Schritt, Frist, Status); Details und Status rechts in der Vorschau. */}
+          <PendenzGruppenListe
             pendenzen={aktuelle.items}
-            onOeffnen={onOeffnen}
-            onStatusAendern={onStatusAendern}
+            aktiveId={angezeigtePendenz?.id}
+            onWaehlen={setVorschauPendenz}
+            mitFrist
             leerText={aktuelle.leer}
-            ohneAbhaken
-            onVorschau={setVorschauPendenz}
-            vorschauId={angezeigtePendenz?.id}
           />
         </div>
 
