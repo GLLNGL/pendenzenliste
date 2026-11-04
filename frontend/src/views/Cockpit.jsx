@@ -64,6 +64,7 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
 
         <div className="uebersicht-liste">
           <PendenzListeNachKunde
+            speicherSchluessel="cockpit-eingeklappt"
             pendenzen={aktuelle.items}
             onOeffnen={onOeffnen}
             onStatusAendern={onStatusAendern}

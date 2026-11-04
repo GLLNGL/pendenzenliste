@@ -7,7 +7,19 @@ import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { OFFENE_STATUS } from '../constants.js';
 
+const EINGEKLAPPT_SCHLUESSEL = 'mandanten-eingeklappt';
+
+function eingeklapptLesen() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(EINGEKLAPPT_SCHLUESSEL));
+    return new Set(Array.isArray(liste) ? liste : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export default function Mandanten() {
+  const [eingeklappt, setEingeklappt] = useState(eingeklapptLesen);
   const [uebersicht, setUebersicht] = useState([]);
   const [offenePendenzen, setOffenePendenzen] = useState([]);
   const [fehler, setFehler] = useState(null);
@@ -38,17 +50,30 @@ export default function Mandanten() {
     meldeAenderung();
   }
 
+  function eingeklapptSetzen(neu) {
+    setEingeklappt(neu);
+    try { localStorage.setItem(EINGEKLAPPT_SCHLUESSEL, JSON.stringify([...neu])); } catch { /* ohne Speicher weiter nutzbar */ }
+  }
+
+  function toggleMandant(id) {
+    const neu = new Set(eingeklappt);
+    if (neu.has(id)) neu.delete(id); else neu.add(id);
+    eingeklapptSetzen(neu);
+  }
+
   if (fehler) return <div className="fehleranzeige">Fehler beim Laden: {fehler}</div>;
 
   const sichtbareMandanten = uebersicht.filter((m) => zeigeInaktive || m.aktiv);
 
   return (
-    <div>
+    <div className="mandanten-seite">
       <h1 className="seiten-titel">Mandanten</h1>
       <p className="seiten-untertitel">Offene Pendenzen pro Mandant, gruppiert nach Status.</p>
 
       <div className="filter-leiste">
         <button type="button" className="btn" onClick={() => setNeuerMandantOffen(true)}>+ Neuer Mandant</button>
+        <button type="button" className="btn" onClick={() => eingeklapptSetzen(new Set(sichtbareMandanten.map((m) => m.id)))}>Alle einklappen</button>
+        <button type="button" className="btn" onClick={() => eingeklapptSetzen(new Set())}>Alle ausklappen</button>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-muted)' }}>
           <input type="checkbox" checked={zeigeInaktive} onChange={(e) => setZeigeInaktive(e.target.checked)} />
           Inaktive Mandanten anzeigen
@@ -57,21 +82,43 @@ export default function Mandanten() {
 
       {sichtbareMandanten.map((mandant) => {
         const pendenzenDesMandanten = offenePendenzen.filter((p) => p.mandant_id === mandant.id);
+        const istEingeklappt = eingeklappt.has(mandant.id);
         return (
           <div className="karte mandant-karte" key={mandant.id}>
-            <div className="mandant-kopf">
+            <div
+              className={`mandant-kopf mandant-kopf-klickbar ${istEingeklappt ? 'eingeklappt' : ''}`}
+              onClick={() => toggleMandant(mandant.id)}
+            >
               <div>
+                <button
+                  type="button"
+                  className="mandant-einklapp-toggle"
+                  aria-expanded={!istEingeklappt}
+                  aria-label={istEingeklappt ? 'Mandant ausklappen' : 'Mandant einklappen'}
+                  onClick={(e) => { e.stopPropagation(); toggleMandant(mandant.id); }}
+                >
+                  {istEingeklappt ? '▸' : '▾'}
+                </button>
                 <span className="mandant-name">{mandant.name}</span>
                 {mandant.kuerzel && <span className="mandant-kuerzel">{mandant.kuerzel}</span>}
                 {!mandant.aktiv && <span className="tag-inaktiv" style={{ marginLeft: 8 }}>INAKTIV</span>}
               </div>
               <div className="mandant-zaehler">
+                {mandant.ueberfaellige_pendenzen > 0 && (
+                  <span className="zaehler-pille ueberfaellig">{mandant.ueberfaellige_pendenzen} überfällig</span>
+                )}
                 <span className="zaehler-pille">{mandant.offenTotal} offen</span>
-                <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(mandant)}>Bearbeiten</button>
+                <button
+                  type="button"
+                  className="btn-klein"
+                  onClick={(e) => { e.stopPropagation(); setBearbeiteterMandant(mandant); }}
+                >
+                  Bearbeiten
+                </button>
               </div>
             </div>
 
-            {(() => {
+            {!istEingeklappt && (() => {
               let ersteGruppeGezeigt = false;
               return OFFENE_STATUS.map((status) => {
                 const gruppe = pendenzenDesMandanten.filter((p) => p.status === status);
