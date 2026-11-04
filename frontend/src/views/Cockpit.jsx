@@ -15,16 +15,39 @@ import { WIP_LIMIT } from '../lib/wip.js';
 
 const REIHENFOLGE = ['faellig', 'inArbeit', 'nachfassen', 'wochenziele', 'heuteBearbeiten', 'unveraendert'];
 
-// v2: mit dem kompakteren Kalender startet die Uebersicht neu mit dem ganzen freien Platz --
-// eine frueher gespeicherte (meist kleine) Hoehe wird darum bewusst nicht mehr gelesen.
-const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-uebersicht-hoehe-v2';
+// Regler zwischen Uebersicht und Kalender: er stellt die Groesse des Kalenders ein (als Faktor
+// seiner Originalgroesse), die Uebersicht fuellt per Flexbox immer den Rest. Kleiner gezogen wird
+// der Kalender als Ganzes verkleinert (CSS-Zoom, "Zoom-out") statt abgeschnitten.
+const KALENDER_ZOOM_SCHLUESSEL = 'cockpit-kalender-zoom';
 const BLOCK_SPEICHER_SCHLUESSEL = 'cockpit-block-filter';
-const HOEHE_MIN = 140; // Mindesthoehe der Faelligkeiten-Liste
-const KALENDER_MIN = 200; // Mindesthoehe der Kalender-Karte beim Ziehen
+const KALENDER_ZOOM_MIN = 0.6; // kleinste Kalendergroesse (60 % der Originalgroesse)
 
-function gespeicherteHoeheLesen() {
-  const wert = Number(localStorage.getItem(HOEHE_SPEICHER_SCHLUESSEL));
-  return Number.isFinite(wert) && wert > 0 ? wert : null;
+function gespeichertenZoomLesen() {
+  try {
+    const wert = Number(localStorage.getItem(KALENDER_ZOOM_SCHLUESSEL));
+    return Number.isFinite(wert) && wert >= KALENDER_ZOOM_MIN && wert <= 1 ? wert : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function begrenzt(wert, min, max) {
+  return Math.min(max, Math.max(min, wert));
+}
+
+// Originalgroessen in CSS-Pixeln: Kartenkopf und Monatsraster. offsetHeight liefert ungezoomte
+// Werte -- unabhaengig vom App-Zoom (AuthGate.jsx) und vom Zoom-out des Rasters selbst.
+function kalenderMasse(wrapper) {
+  const kopf = wrapper?.querySelector('.kalender-kopf');
+  const monat = wrapper?.querySelector('.kalender');
+  return kopf && monat ? { kopf: kopf.offsetHeight, monat: monat.offsetHeight, monatElement: monat } : null;
+}
+
+// Nur das Monatsraster wird verkleinert ("Zoom-out"); Kopf, Tagesliste und Detailansicht behalten
+// ihre normale Groesse. Die Hoehe des Kalender-Bereichs folgt dem verkleinerten Raster.
+function kalenderAnwenden(wrapper, masse, zoom) {
+  masse.monatElement.style.zoom = String(zoom);
+  wrapper.style.height = `${masse.kopf + masse.monat * zoom + 2}px`; // + Kartenrahmen
 }
 
 function gespeichertenBlockLesen() {
@@ -90,7 +113,7 @@ function Kennzahlen({ inArbeitAnzahl, auslastung, block, onBlockWaehlen }) {
 // Bereiche (wie Ordner in einem Mail-Programm), in der Mitte die Liste des gewaehlten
 // Bereichs -- Klick auf eine Zeile zeigt rechts die Vorschau, erst ein Klick darin oeffnet
 // wie gehabt das Bearbeiten-Fenster.
-function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern, layoutRef, hoehe }) {
+function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern }) {
   const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const aktuelle = bloecke.find((b) => b.key === aktiveKategorie) || bloecke[0];
   // Den aktuellen Datensatz aus der (frisch geladenen) Liste nachschlagen statt das alte
@@ -103,17 +126,13 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
     : null;
 
   return (
-    <div className="karte karte-kalender">
+    <div className="karte karte-kalender uebersicht-karte">
       <div className="karte-kopf">
         <span>Übersicht</span>
         <span className="zaehler-pille">{bloecke[0].items.length} fällig</span>
       </div>
 
-      <div
-        className="uebersicht-layout"
-        ref={layoutRef}
-        style={hoehe ? { '--faelligkeiten-hoehe': `${hoehe}px` } : undefined}
-      >
+      <div className="uebersicht-layout">
         <div className="uebersicht-kategorien">
           {bloecke.map((b) => (
             <button
@@ -160,103 +179,89 @@ export default function Cockpit() {
   const [aktivePendenz, setAktivePendenz] = useState(null);
   const [aktiveKategorie, setAktiveKategorie] = useState(null);
   const [block, setBlock] = useState(gespeichertenBlockLesen);
-  const [faelligkeitenHoehe, setFaelligkeitenHoehe] = useState(gespeicherteHoeheLesen);
-  // true = Hoehe selbst per Ziehgriff gewaehlt (bleibt), false = automatisch (wird bei jeder
-  // Fenstergroessen-Aenderung neu berechnet, damit der Kalender nie zusammengedrueckt wird).
-  const [hoeheSelbstGewaehlt, setHoeheSelbstGewaehlt] = useState(() => gespeicherteHoeheLesen() != null);
+  const [kalenderZoom, setKalenderZoom] = useState(gespeichertenZoomLesen);
   const [ziehtGerade, setZiehtGerade] = useState(false);
   const [nachfassOffen, setNachfassOffen] = useState(false);
-  const layoutRef = useRef(null);
   const kalenderRef = useRef(null);
+  // Aktueller Kalender-Zoom auch waehrend des Ziehens (dort ohne React-Rerender angewendet).
+  const zoomRef = useRef(kalenderZoom);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
 
-  // Ziehgriff zwischen Uebersicht und Kalender (aehnlich dem Spalten-Ziehgriff im
-  // Supabase SQL-Editor). Das eigentliche "nie ueberlaufen"-Versprechen kommt NICHT aus einer
-  // JS-Berechnung, sondern aus dem Flexbox-Layout selbst (siehe .cockpit-resizable/
-  // .cockpit-kalender-wrapper in index.css): die Kalender-Karte hat flex:1 und fuellt darum
-  // IMMER exakt den nach der Uebersicht verbleibenden Platz, egal wie hoch diese ist -- eine
-  // echte Browser-Berechnung statt einer angenaeherten. Hier wird waehrend des Ziehens nur noch
-  // geprueft, ob die Kalender-Karte dabei unter ihre Mindesthoehe faellt (reine Messung des
-  // tatsaechlichen Ergebnisses, keine Vorausberechnung).
+  // Kalendergroesse anwenden -- nach dem Laden, bei jeder Zoom-Aenderung und wenn sich das
+  // Monatsraster selbst aendert (Monate mit 5 oder 6 Wochen).
+  useLayoutEffect(() => {
+    const wrapper = kalenderRef.current;
+    const masse = kalenderMasse(wrapper);
+    if (!masse) return undefined;
+    zoomRef.current = kalenderZoom;
+    kalenderAnwenden(wrapper, masse, kalenderZoom);
+    const beobachter = new ResizeObserver(() => {
+      const neu = kalenderMasse(wrapper);
+      if (neu) kalenderAnwenden(wrapper, neu, zoomRef.current);
+    });
+    beobachter.observe(masse.monatElement);
+    return () => beobachter.disconnect();
+  }, [kalenderZoom, offene]);
+
+  // Regler zwischen Uebersicht und Kalender. Nach unten ziehen = Kalender kleiner (bis 60 % seiner
+  // Originalgroesse), nach oben = groesser (hoechstens Originalgroesse); die Uebersicht fuellt per
+  // Flexbox immer den Rest. Fluessig, weil waehrend des Ziehens nichts gemessen und kein
+  // React-Rerender ausgeloest wird: der neue Zoom wird direkt aus dem Mausweg berechnet und
+  // hoechstens einmal pro Bildschirm-Frame angewendet. Pointer-Capture haelt den Griff fest, auch
+  // wenn die Maus beim schnellen Ziehen kurz neben ihm liegt.
   const ziehenStarten = useCallback((e) => {
+    const wrapper = kalenderRef.current;
+    const masse = kalenderMasse(wrapper);
+    if (!masse) return;
     e.preventDefault();
-    if (!layoutRef.current || !kalenderRef.current) return;
+    const griff = e.currentTarget;
+    try { griff.setPointerCapture(e.pointerId); } catch { /* ohne Capture funktioniert das Ziehen trotzdem */ }
+    // Mausweg kommt in Bildschirmpixeln, die Hoehen sind CSS-Pixel unter dem App-Zoom.
+    const appZoom = parseFloat(document.documentElement.style.zoom) || 1;
     const startY = e.clientY;
-    const startHoehe = layoutRef.current.getBoundingClientRect().height;
-    let letzteHoehe = startHoehe;
-    let angefragt = false;
+    const startZoom = zoomRef.current;
+    let zielZoom = startZoom;
+    let rahmen = 0;
     setZiehtGerade(true);
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
 
-    // Waehrend des Ziehens direkt am DOM-Element setzen statt bei jeder Mausbewegung den
-    // kompletten React-Baum (inkl. der ggf. langen Pendenzliste) neu zu rendern -- das war
-    // spuerbar ruckelig. React-State wird erst beim Loslassen einmalig aktualisiert.
-    function anwenden(kandidat) {
-      angefragt = false;
-      layoutRef.current.style.setProperty('--faelligkeiten-hoehe', `${kandidat}px`);
-      const kalenderHoehe = kalenderRef.current.getBoundingClientRect().height;
-      if (kalenderHoehe < KALENDER_MIN) {
-        // Kalender-Karte waere zu klein geworden -- die Differenz ist bei einem echten
-        // Flexbox-flex:1-Element exakt (keine Naeherung), darum reicht eine einzelne
-        // Korrektur ohne Iteration.
-        const korrigiert = Math.max(HOEHE_MIN, kandidat - (KALENDER_MIN - kalenderHoehe));
-        layoutRef.current.style.setProperty('--faelligkeiten-hoehe', `${korrigiert}px`);
-        letzteHoehe = korrigiert;
-      } else {
-        letzteHoehe = kandidat;
-      }
-    }
     function bewegen(ev) {
-      const kandidat = Math.max(HOEHE_MIN, startHoehe + (ev.clientY - startY));
-      if (!angefragt) {
-        angefragt = true;
-        requestAnimationFrame(() => anwenden(kandidat));
+      const wegCss = (ev.clientY - startY) / appZoom;
+      // Der Griff folgt der Maus 1:1 -- jeder Pixel nach unten verkleinert das Raster um 1 Pixel.
+      zielZoom = begrenzt(startZoom - wegCss / masse.monat, KALENDER_ZOOM_MIN, 1);
+      if (!rahmen) {
+        rahmen = requestAnimationFrame(() => {
+          rahmen = 0;
+          zoomRef.current = zielZoom;
+          kalenderAnwenden(wrapper, masse, zielZoom);
+        });
       }
     }
     function loslassen() {
-      window.removeEventListener('mousemove', bewegen);
-      window.removeEventListener('mouseup', loslassen);
+      griff.removeEventListener('pointermove', bewegen);
+      griff.removeEventListener('pointerup', loslassen);
+      griff.removeEventListener('pointercancel', loslassen);
+      if (rahmen) cancelAnimationFrame(rahmen);
+      zoomRef.current = zielZoom;
+      kalenderAnwenden(wrapper, masse, zielZoom);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setZiehtGerade(false);
-      setFaelligkeitenHoehe(letzteHoehe);
-      setHoeheSelbstGewaehlt(true);
-      localStorage.setItem(HOEHE_SPEICHER_SCHLUESSEL, String(letzteHoehe));
+      setKalenderZoom(zielZoom);
+      try { localStorage.setItem(KALENDER_ZOOM_SCHLUESSEL, String(zielZoom)); } catch { /* ohne Speicher weiter nutzbar */ }
     }
-    window.addEventListener('mousemove', bewegen);
-    window.addEventListener('mouseup', loslassen);
+    griff.addEventListener('pointermove', bewegen);
+    griff.addEventListener('pointerup', loslassen);
+    griff.addEventListener('pointercancel', loslassen);
   }, []);
 
-  // Ohne gespeicherte Hoehe bekommt die Uebersicht allen Platz, den der Kalender nicht braucht:
-  // Uebersicht kurz auf die Mindesthoehe setzen, dann messen, wie viel Platz der Kalender-Bereich
-  // (flex:1) mehr hat, als Kartenkopf + Monatsraster brauchen, und genau diese Luft der
-  // Uebersicht geben. (Die Kalender-Karte selbst fuellt ihren Bereich ganz aus, damit nur die
-  // Tagesliste scrollt -- darum wird ihr Inhalt gemessen, nicht die Karte.) Gemessen wird in
-  // gerenderten Pixeln und ueber den Massstab der Uebersicht in CSS-Pixel umgerechnet -- so
-  // stimmt es auch unter dem Zoom-Ausgleich (AuthGate.jsx).
-  useLayoutEffect(() => {
-    if (faelligkeitenHoehe != null || !offene || !layoutRef.current || !kalenderRef.current) return;
-    const layout = layoutRef.current;
-    const wrapper = kalenderRef.current;
-    const kopf = wrapper.querySelector('.kalender-kopf');
-    const monat = wrapper.querySelector('.kalender');
-    if (!kopf || !monat) return;
-    layout.style.setProperty('--faelligkeiten-hoehe', `${HOEHE_MIN}px`);
-    const massstab = layout.getBoundingClientRect().height / HOEHE_MIN || 1;
-    const bedarf = kopf.getBoundingClientRect().height + monat.getBoundingClientRect().height + 2; // + Kartenrahmen
-    const luft = (wrapper.getBoundingClientRect().height - bedarf) / massstab;
-    const ABSTAND_UNTER_KALENDER = 4; // kleiner Puffer gegen Rundungen, damit kein Scrollbalken erscheint
-    setFaelligkeitenHoehe(Math.max(HOEHE_MIN, Math.round(HOEHE_MIN + luft - ABSTAND_UNTER_KALENDER)));
-  }, [faelligkeitenHoehe, offene]);
-
-  useEffect(() => {
-    if (hoeheSelbstGewaehlt) return undefined;
-    function neuBerechnen() { setFaelligkeitenHoehe(null); }
-    window.addEventListener('resize', neuBerechnen);
-    return () => window.removeEventListener('resize', neuBerechnen);
-  }, [hoeheSelbstGewaehlt]);
+  // Doppelklick auf den Griff: Kalender wieder in Originalgroesse.
+  function kalenderZuruecksetzen() {
+    setKalenderZoom(1);
+    try { localStorage.removeItem(KALENDER_ZOOM_SCHLUESSEL); } catch { /* ohne Speicher weiter nutzbar */ }
+  }
 
   const laden = useCallback(() => {
     api.pendenzen.offene().then(setOffene).catch((e) => setFehler(e.message));
@@ -331,14 +336,13 @@ export default function Cockpit() {
           onKategorieWaehlen={setAktiveKategorie}
           onOeffnen={setAktivePendenz}
           onStatusAendern={statusAendern}
-          layoutRef={layoutRef}
-          hoehe={faelligkeitenHoehe}
         />
 
         <div
           className={`cockpit-resize-griff ${ziehtGerade ? 'aktiv' : ''}`}
-          onMouseDown={ziehenStarten}
-          title="Höhe ziehen, um mehr oder weniger Pendenzen zu sehen"
+          onPointerDown={ziehenStarten}
+          onDoubleClick={kalenderZuruecksetzen}
+          title="Ziehen: Kalender verkleinern/vergrössern · Doppelklick: Originalgrösse"
         />
 
         <div ref={kalenderRef} className="cockpit-kalender-wrapper">

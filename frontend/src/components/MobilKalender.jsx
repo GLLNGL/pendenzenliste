@@ -23,7 +23,7 @@ export default function MobilKalender() {
       <h1 className="seiten-titel">Kalender</h1>
       <p className="seiten-untertitel">Tag antippen, um die fälligen Pendenzen zu sehen.</p>
 
-      <Faelligkeitskalender onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} />
+      <Faelligkeitskalender onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} mitVorschau={false} />
 
       {aktivePendenz && (
         <PendenzModal

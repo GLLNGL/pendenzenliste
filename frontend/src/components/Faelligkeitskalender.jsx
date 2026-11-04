@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
+import PendenzVorschau from './PendenzVorschau.jsx';
 import { OFFENE_STATUS, statusSlug } from '../constants.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { aufAenderungHoeren } from '../events.js';
@@ -7,9 +8,18 @@ import { aufAenderungHoeren } from '../events.js';
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const WOCHENTAG_LANG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
-function sortiertNachMandant(liste) {
-  return [...liste].sort((a, b) => (a.mandant_name || '').localeCompare(b.mandant_name || '', 'de-CH')
-    || (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH'));
+// Pendenzen eines Tages pro Mandant gruppiert (alphabetisch, "Intern" zuletzt), innerhalb einer
+// Gruppe nach Projekt bzw. Titel -- Schritte desselben Projekts stehen so beieinander.
+function gruppiertNachMandant(liste) {
+  const gruppen = new Map();
+  for (const p of liste) {
+    const schluessel = p.mandant_id ?? 'intern';
+    if (!gruppen.has(schluessel)) gruppen.set(schluessel, { schluessel, name: p.mandant_name || 'Intern (eigenes Büro)', items: [] });
+    gruppen.get(schluessel).items.push(p);
+  }
+  return [...gruppen.values()]
+    .sort((a, b) => (a.schluessel === 'intern') - (b.schluessel === 'intern') || a.name.localeCompare(b.name, 'de-CH'))
+    .map((g) => ({ ...g, items: g.items.sort((a, b) => (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH')) }));
 }
 const MONATSNAMEN = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -51,12 +61,13 @@ function baueRaster(jahr, monatIndex) {
 // Ersetzt die fruehere "Naechste 7 Tage"-Liste: ein Monatskalender, dessen Tage fett
 // erscheinen, sobald eine offene Pendenz an diesem Tag faellig ist. Anklicken zeigt die
 // Pendenzen des Tages darunter -- ueberfaellig/heute/morgen bleiben eigene Listen im Cockpit.
-export default function Faelligkeitskalender({ onOeffnen }) {
+export default function Faelligkeitskalender({ onOeffnen, onStatusAendern, mitVorschau = true }) {
   const heuteISO = heutigesDatumISO();
   const jetzt = useMemo(() => new Date(), []);
   const [ansicht, setAnsicht] = useState({ jahr: jetzt.getFullYear(), monatIndex: jetzt.getMonth() });
   const [pendenzenNachTag, setPendenzenNachTag] = useState(new Map());
   const [ausgewaehlterTag, setAusgewaehlterTag] = useState(null);
+  const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const [fehler, setFehler] = useState(null);
 
   const tage = useMemo(() => baueRaster(ansicht.jahr, ansicht.monatIndex), [ansicht]);
@@ -106,6 +117,12 @@ export default function Faelligkeitskalender({ onOeffnen }) {
 
   const gesamtAnzahl = [...pendenzenNachTag.values()].reduce((summe, liste) => summe + liste.length, 0);
   const ausgewaehlteListe = ausgewaehlterTag ? (pendenzenNachTag.get(ausgewaehlterTag) || []) : [];
+  // Frischen Datensatz nachschlagen statt das alte vorschauPendenz-Objekt weiterzuverwenden --
+  // sonst zeigt die Vorschau nach einer Aenderung weiter den veralteten Stand. Ist die Pendenz
+  // nicht mehr am gewaehlten Tag, blendet sie sich aus.
+  const angezeigtePendenz = vorschauPendenz
+    ? ausgewaehlteListe.find((p) => p.id === vorschauPendenz.id) ?? null
+    : null;
 
   // Kompakter Mini-Kalender: Monatsnavigation im Kartenkopf (keine eigene Zeile), rechts daneben
   // nur die Liste des angeklickten Tages -- ein Klick auf eine Pendenz oeffnet sie direkt (keine
@@ -178,25 +195,42 @@ export default function Faelligkeitskalender({ onOeffnen }) {
                 </span>
               </div>
               {ausgewaehlteListe.length === 0 && <div className="leer-hinweis">Keine Pendenzen an diesem Tag.</div>}
-              <ul className="tagesliste">
-                {sortiertNachMandant(ausgewaehlteListe).map((p) => (
-                  <li key={p.id}>
-                    <button type="button" className="tagesliste-eintrag" onClick={() => onOeffnen(p)} title={p.titel}>
-                      <span className="tagesliste-mandant">{p.mandant_name || 'Intern'}</span>
-                      <span className="tagesliste-titel">
-                        {p.eltern_titel && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
-                        {p.titel}
-                      </span>
-                      <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {gruppiertNachMandant(ausgewaehlteListe).map((gruppe) => (
+                <div key={gruppe.schluessel} className="tagesliste-gruppe">
+                  <div className="tagesliste-gruppe-titel">
+                    {gruppe.name}
+                    <span className="tagesliste-gruppe-anzahl">{gruppe.items.length}</span>
+                  </div>
+                  <ul className="tagesliste">
+                    {gruppe.items.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          className={`tagesliste-eintrag ${angezeigtePendenz?.id === p.id ? 'aktiv' : ''}`}
+                          onClick={() => (mitVorschau ? setVorschauPendenz(p) : onOeffnen(p))}
+                          title={p.titel}
+                        >
+                          <span className="tagesliste-titel">
+                            {p.eltern_titel && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
+                            {p.titel}
+                          </span>
+                          <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </>
           ) : (
             <div className="leer-hinweis">Tag anklicken, um die Pendenzen dieses Tages zu sehen.</div>
           )}
         </div>
+
+        {/* Detailansicht wie oben in der Übersicht (gleiche Komponente, gleiche Breite) --
+            Klick darauf öffnet das Bearbeiten-Fenster. Auf dem Handy (mitVorschau=false) öffnet
+            ein Tipp auf die Pendenz direkt das Bearbeiten-Fenster. */}
+        {mitVorschau && <PendenzVorschau pendenz={angezeigtePendenz} onOeffnen={onOeffnen} onStatusAendern={onStatusAendern} />}
       </div>
     </div>
   );

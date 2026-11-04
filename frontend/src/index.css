@@ -462,15 +462,24 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 500;
 }
 .cockpit-resizable { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.cockpit-resizable > .karte-kalender { flex: 0 0 auto; }
-.cockpit-resizable > .cockpit-resize-griff { flex: 0 0 auto; }
+/* Uebersicht fuellt immer den Platz, den der Kalender (feste, per Regler eingestellte Hoehe)
+   uebrig laesst -- ihre drei Spalten scrollen je fuer sich. */
+.cockpit-resizable > .uebersicht-karte { flex: 1 1 auto; min-height: 0; margin-bottom: 0; display: flex; flex-direction: column; }
+.uebersicht-karte > .uebersicht-layout { flex: 1 1 auto; min-height: 0; --faelligkeiten-hoehe: none; }
+.uebersicht-karte .uebersicht-kategorien,
+.uebersicht-karte .uebersicht-liste,
+.uebersicht-karte .pendenz-vorschau-spalte { min-height: 0; }
+.cockpit-resizable > .cockpit-resize-griff { flex: 0 0 auto; touch-action: none; }
 /* Kalender-Karte fuellt ihren Bereich ganz aus; scrollen kann nur die Tagesliste rechts -- der
    Monatskalender bleibt dabei stehen. min-height:0 auf jeder Ebene, sonst wachsen Flex-Kinder
    mit ihrem Inhalt mit (siehe Zoom-/Flexbox-Lehre in prompt v4). */
-.cockpit-kalender-wrapper { flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column; }
+/* Hoehe setzt Cockpit.jsx (Kartenkopf + Monatsraster x Zoom). */
+.cockpit-kalender-wrapper { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; }
 .cockpit-kalender-wrapper > .karte { flex: 1 1 auto; min-height: 0; margin-bottom: 0; display: flex; flex-direction: column; }
 .cockpit-kalender-wrapper .kalender-layout { flex: 1 1 auto; min-height: 0; }
 .cockpit-kalender-wrapper .kalender-tagesliste { overflow-y: auto; }
+/* Detailansicht im Kalender: gleiche Breite wie oben, Hoehe = Kalender-Bereich (scrollt selbst). */
+.cockpit-kalender-wrapper .pendenz-vorschau-spalte { max-height: none; min-height: 0; }
 /* Monatsraster in seiner natuerlichen Hoehe (nicht auf die Kartenhoehe gestreckt) -- sonst
    misst die Standardhoehen-Berechnung im Cockpit den Kalender zu gross. */
 .cockpit-kalender-wrapper .kalender { align-self: flex-start; }
@@ -507,9 +516,25 @@ a { color: var(--accent); text-decoration: none; }
 /* Schlichte Tagesliste: eine Zeile pro Pendenz -- Mandant | naechster Schritt | Status. */
 .tagesliste { list-style: none; margin: 0; padding: 0; }
 
+/* Gruppe pro Mandant -- schlichter Zwischentitel statt farbigem Gruppenkopf. */
+.tagesliste-gruppe + .tagesliste-gruppe { border-top: 6px solid var(--bg); }
+
+.tagesliste-gruppe-titel {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 14px 4px;
+  font-size: var(--fs-liste);
+  font-weight: var(--fw-fett);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.tagesliste-gruppe-anzahl { color: var(--text-muted); font-weight: var(--fw-normal); font-size: var(--fs-liste-klein); }
+
 .tagesliste-eintrag {
   display: grid;
-  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 12px;
   width: 100%;
@@ -524,11 +549,9 @@ a { color: var(--accent); text-decoration: none; }
 
 .tagesliste li:last-child .tagesliste-eintrag { border-bottom: none; }
 .tagesliste-eintrag:hover { background: var(--surface-hover); }
+.tagesliste-eintrag.aktiv { background: var(--neutral-bg); }
 
-.tagesliste-mandant,
-.tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.tagesliste-mandant { color: var(--text-muted); font-size: var(--fs-liste-klein); }
+.tagesliste-titel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 10px; }
 .tagesliste-eltern { color: var(--text-faint); }
 .tagesliste-status { font-size: var(--fs-liste-klein); font-weight: var(--fw-mittel); white-space: nowrap; }
 
