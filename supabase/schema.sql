@@ -29,6 +29,11 @@ create table if not exists public.mitarbeitende (
   aktiv         boolean not null default true
 );
 
+-- Etappe 3 (Arbeitsprozess): verfuegbare Fokusstunden pro Woche -- Grundlage fuer die
+-- Auslastungsanzeige im Cockpit (Warnung ab 70 % verplant). Pro Person, Standard 15 h.
+alter table public.mitarbeitende add column if not exists fokusstunden_woche numeric not null default 15
+  check (fokusstunden_woche > 0 and fokusstunden_woche <= 60);
+
 -- Legt bei jeder neuen Supabase-Auth-Anmeldung (nur ueber Dashboard/Admin-API erzeugt, siehe
 -- Migrationsplan Phase 2 -- keine oeffentliche Selbstregistrierung) die Verknuepfung zur
 -- passenden mitarbeitende-Zeile an: existiert bereits eine Zeile mit derselben E-Mail (z.B.
@@ -577,6 +582,8 @@ create policy team_voller_zugriff on public.pendenz_notizen
 -- konsumierbar sind.
 -- ==========================================================================
 
+-- Seit Etappe 3 vom Frontend nicht mehr verwendet (Cockpit rechnet in lib/cockpit.js);
+-- bleibt als Referenz bestehen, damit eine aeltere geoeffnete App-Version nicht bricht.
 create or replace function public.cockpit_daten()
 returns jsonb
 language sql

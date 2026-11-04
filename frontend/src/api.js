@@ -4,7 +4,7 @@
 // nur hier drin aendert sich, WIE die Daten geholt werden.
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './lib/supabaseClient.js';
-import { STATUS_WERTE, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
+import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
 import { naechstePendenzen, heutigesDatumUTC } from './lib/recurrence.js';
 import { heutigesDatumISO } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
@@ -214,6 +214,11 @@ const api = {
       if (daten.name !== undefined) patch.name = daten.name.trim();
       if (daten.email !== undefined) patch.email = daten.email || null;
       if (daten.aktiv !== undefined) patch.aktiv = !!daten.aktiv;
+      if (daten.fokusstundenWoche !== undefined) {
+        const stunden = Number(daten.fokusstundenWoche);
+        if (!(stunden > 0 && stunden <= 60)) throw new Error('Fokusstunden: bitte einen Wert zwischen 1 und 60 eingeben.');
+        patch.fokusstunden_woche = stunden;
+      }
       const { data, error } = await supabase.from('mitarbeitende').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
       return { ...data, login_aktiv: !!data.auth_user_id };
@@ -276,11 +281,10 @@ const api = {
 
   pendenzen: {
     liste: pendenzenListe,
-    cockpit: async () => {
-      const { data, error } = await supabase.rpc('cockpit_daten');
-      pruefeFehler(error);
-      return data;
-    },
+    // Cockpit (Etappe 3): alle offenen, eingeplanten Pendenzen in einer Abfrage -- die
+    // Bereiche (fällig in 5 Arbeitstagen, In Arbeit, Nachfassen, unverändert, Auslastung)
+    // berechnet lib/cockpit.js daraus im Browser. Ersetzt die frühere RPC cockpit_daten().
+    offene: () => pendenzenListe({ status: OFFENE_STATUS.join(',') }),
     holen: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*').eq('id', id).single();
       pruefeFehler(error);
