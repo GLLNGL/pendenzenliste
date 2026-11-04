@@ -9,6 +9,12 @@ test('Aufwand-Summe zählt Minuten und Pendenzen ohne Schätzung', () => {
   ]), { minuten: 150, ohne: 2 });
 });
 
+test('Projekt-Köpfe zählen nicht als «ohne Schätzung»', () => {
+  assert.deepEqual(aufwandSumme([
+    { aufwand_minuten: null, teilaufgaben_gesamt: 3 }, { aufwand_minuten: 60, uebergeordnete_pendenz_id: 1 },
+  ]), { minuten: 60, ohne: 0 });
+});
+
 test('Gesamtzeit in Stunden bzw. Minuten', () => {
   assert.equal(formatiereStunden(45), '45 Min.');
   assert.equal(formatiereStunden(60), '1 h');

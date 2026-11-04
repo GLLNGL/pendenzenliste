@@ -1,27 +1,39 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
-import PendenzListe from '../components/PendenzListe.jsx';
+import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
-import { OFFENE_STATUS } from '../constants.js';
+import { OFFENE_STATUS, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
+import { heutigesDatumISO } from '../format.js';
 
-const EINGEKLAPPT_SCHLUESSEL = 'mandanten-eingeklappt';
+const AUSWAHL_SCHLUESSEL = 'mandanten-auswahl';
+const MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'];
 
-function eingeklapptLesen() {
-  try {
-    const liste = JSON.parse(localStorage.getItem(EINGEKLAPPT_SCHLUESSEL));
-    return new Set(Array.isArray(liste) ? liste : []);
-  } catch {
-    return new Set();
-  }
+function gespeicherteAuswahlLesen() {
+  try { return localStorage.getItem(AUSWAHL_SCHLUESSEL) || 'alle'; } catch { return 'alle'; }
 }
 
+// Mandats-Eckdaten als kurze Zeile ueber der Liste (nur erfasste Angaben).
+function eckdatenText(m) {
+  const teile = [];
+  if (m.kuerzel) teile.push(`Kürzel ${m.kuerzel}`);
+  if (m.mwst_periode) teile.push(m.mwst_periode === 'keine' ? 'keine MWST' : `MWST ${m.mwst_periode}`);
+  if (m.lohnzahltag) teile.push(`Lohnzahltag ${m.lohnzahltag}.`);
+  const zahlung = ZAHLUNGSLAUF_RHYTHMEN.find((r) => r.wert === m.zahlungslauf_rhythmus);
+  if (zahlung) teile.push(`Zahlungslauf: ${zahlung.label}`);
+  if (m.abschluss_wunsch_tag && m.abschluss_wunsch_monat) teile.push(`Abschluss bis ${m.abschluss_wunsch_tag}. ${MONATE[m.abschluss_wunsch_monat - 1]}`);
+  return teile.length ? teile.join(' · ') : 'Noch keine Mandats-Eckdaten erfasst.';
+}
+
+// Gleiches Muster wie im Cockpit: links die Mandanten (statt Bereichen) mit Anzahl offener und
+// ueberfaelliger Pendenzen, in der Mitte die Pendenzen des gewaehlten Mandanten, rechts die
+// Detailansicht. "Alle Mandanten" zeigt alles, nach Mandant gruppiert und einklappbar.
 export default function Mandanten() {
-  const [eingeklappt, setEingeklappt] = useState(eingeklapptLesen);
   const [uebersicht, setUebersicht] = useState([]);
   const [offenePendenzen, setOffenePendenzen] = useState([]);
+  const [auswahl, setAuswahl] = useState(gespeicherteAuswahlLesen);
   const [fehler, setFehler] = useState(null);
   const [aktivePendenz, setAktivePendenz] = useState(null);
   const [bearbeiteterMandant, setBearbeiteterMandant] = useState(null);
@@ -46,102 +58,110 @@ export default function Mandanten() {
   }, [laden]);
 
   async function statusAendern(pendenz, neuerStatus) {
-    await api.pendenzen.statusAendern(pendenz.id, neuerStatus);
-    meldeAenderung();
+    try {
+      await api.pendenzen.statusAendern(pendenz.id, neuerStatus);
+      meldeAenderung();
+    } catch (err) {
+      window.alert(err.message);
+    }
   }
 
-  function eingeklapptSetzen(neu) {
-    setEingeklappt(neu);
-    try { localStorage.setItem(EINGEKLAPPT_SCHLUESSEL, JSON.stringify([...neu])); } catch { /* ohne Speicher weiter nutzbar */ }
-  }
-
-  function toggleMandant(id) {
-    const neu = new Set(eingeklappt);
-    if (neu.has(id)) neu.delete(id); else neu.add(id);
-    eingeklapptSetzen(neu);
+  function waehlen(wert) {
+    setAuswahl(wert);
+    try { localStorage.setItem(AUSWAHL_SCHLUESSEL, wert); } catch { /* ohne Speicher weiter nutzbar */ }
   }
 
   if (fehler) return <div className="fehleranzeige">Fehler beim Laden: {fehler}</div>;
 
   const sichtbareMandanten = uebersicht.filter((m) => zeigeInaktive || m.aktiv);
+  const interne = offenePendenzen.filter((p) => p.mandant_id == null);
+  const gewaehlt = sichtbareMandanten.find((m) => String(m.id) === auswahl) || null;
+  const aktuelleAuswahl = gewaehlt ? auswahl : (auswahl === 'intern' ? 'intern' : 'alle');
+  const liste = aktuelleAuswahl === 'alle'
+    ? offenePendenzen
+    : aktuelleAuswahl === 'intern'
+      ? interne
+      : offenePendenzen.filter((p) => p.mandant_id === gewaehlt.id);
+  // Zaehler links aus derselben Liste wie in der Mitte berechnet (Projekt-Koepfe zaehlen nicht,
+  // nur konkrete Pendenzen/Schritte) -- so stimmen Spalte, Gruppen- und Kartenkopf ueberein.
+  const heute = heutigesDatumISO();
+  const zaehler = new Map();
+  let ueberfaelligGesamt = 0;
+  let offenGesamt = 0;
+  for (const p of offenePendenzen) {
+    if (p.teilaufgaben_gesamt > 0) continue;
+    const z = zaehler.get(p.mandant_id) || { offen: 0, ueberfaellig: 0 };
+    z.offen += 1;
+    offenGesamt += 1;
+    if (p.faelligkeit < heute) { z.ueberfaellig += 1; ueberfaelligGesamt += 1; }
+    zaehler.set(p.mandant_id, z);
+  }
+  const zaehlerVon = (id) => zaehler.get(id) || { offen: 0, ueberfaellig: 0 };
+
+  const mandantenSpalte = (
+    <div className="uebersicht-kategorien mandanten-spalte">
+      <button type="button" className={`uebersicht-kategorie ${aktuelleAuswahl === 'alle' ? 'aktiv' : ''}`} onClick={() => waehlen('alle')}>
+        <span>Alle Mandanten</span>
+        <span className="mandanten-zaehler">
+          {ueberfaelligGesamt > 0 && <span className="zaehler-pille ueberfaellig" title="überfällig">{ueberfaelligGesamt}</span>}
+          <span className="zaehler-pille">{offenGesamt}</span>
+        </span>
+      </button>
+      {sichtbareMandanten.map((m) => (
+        <button
+          type="button"
+          key={m.id}
+          className={`uebersicht-kategorie ${aktuelleAuswahl === String(m.id) ? 'aktiv' : ''} ${m.aktiv ? '' : 'inaktiv'}`}
+          onClick={() => waehlen(String(m.id))}
+          title={m.aktiv ? m.name : `${m.name} (inaktiv)`}
+        >
+          <span className="mandanten-name">{m.name}</span>
+          <span className="mandanten-zaehler">
+            {zaehlerVon(m.id).ueberfaellig > 0 && <span className="zaehler-pille ueberfaellig" title="überfällig">{zaehlerVon(m.id).ueberfaellig}</span>}
+            <span className="zaehler-pille">{zaehlerVon(m.id).offen}</span>
+          </span>
+        </button>
+      ))}
+      {interne.length > 0 && (
+        <button type="button" className={`uebersicht-kategorie ${aktuelleAuswahl === 'intern' ? 'aktiv' : ''}`} onClick={() => waehlen('intern')}>
+          <span>Intern (eigenes Büro)</span>
+          <span className="mandanten-zaehler"><span className="zaehler-pille">{zaehlerVon(null).offen}</span></span>
+        </button>
+      )}
+    </div>
+  );
+
+  const eckdaten = gewaehlt && (
+    <div className="mandant-eckdaten">
+      <span>{eckdatenText(gewaehlt)}{!gewaehlt.aktiv && <strong> · inaktiv</strong>}</span>
+      <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(gewaehlt)}>Mandant bearbeiten</button>
+    </div>
+  );
 
   return (
-    <div className="mandanten-seite">
-      <h1 className="seiten-titel">Mandanten</h1>
-      <p className="seiten-untertitel">Offene Pendenzen pro Mandant, gruppiert nach Status.</p>
-
-      <div className="filter-leiste">
-        <button type="button" className="btn" onClick={() => setNeuerMandantOffen(true)}>+ Neuer Mandant</button>
-        <button type="button" className="btn" onClick={() => eingeklapptSetzen(new Set(sichtbareMandanten.map((m) => m.id)))}>Alle einklappen</button>
-        <button type="button" className="btn" onClick={() => eingeklapptSetzen(new Set())}>Alle ausklappen</button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-muted)' }}>
-          <input type="checkbox" checked={zeigeInaktive} onChange={(e) => setZeigeInaktive(e.target.checked)} />
-          Inaktive Mandanten anzeigen
-        </label>
+    <div className="arbeitsseite">
+      <div className="cockpit-kopfzeile">
+        <h1 className="seiten-titel">Mandanten</h1>
+        <span className="cockpit-kopf-hinweis">Offene Pendenzen pro Mandant – links wählen, Klick auf eine Pendenz zeigt rechts die Details.</span>
+        <span className="kopfzeile-aktionen">
+          <label className="kopfzeile-checkbox">
+            <input type="checkbox" checked={zeigeInaktive} onChange={(e) => setZeigeInaktive(e.target.checked)} />
+            Inaktive anzeigen
+          </label>
+          <button type="button" className="btn-klein" onClick={() => setNeuerMandantOffen(true)}>+ Neuer Mandant</button>
+        </span>
       </div>
 
-      {sichtbareMandanten.map((mandant) => {
-        const pendenzenDesMandanten = offenePendenzen.filter((p) => p.mandant_id === mandant.id);
-        const istEingeklappt = eingeklappt.has(mandant.id);
-        return (
-          <div className="karte mandant-karte" key={mandant.id}>
-            <div
-              className={`mandant-kopf mandant-kopf-klickbar ${istEingeklappt ? 'eingeklappt' : ''}`}
-              onClick={() => toggleMandant(mandant.id)}
-            >
-              <div>
-                <button
-                  type="button"
-                  className="mandant-einklapp-toggle"
-                  aria-expanded={!istEingeklappt}
-                  aria-label={istEingeklappt ? 'Mandant ausklappen' : 'Mandant einklappen'}
-                  onClick={(e) => { e.stopPropagation(); toggleMandant(mandant.id); }}
-                >
-                  {istEingeklappt ? '▸' : '▾'}
-                </button>
-                <span className="mandant-name">{mandant.name}</span>
-                {mandant.kuerzel && <span className="mandant-kuerzel">{mandant.kuerzel}</span>}
-                {!mandant.aktiv && <span className="tag-inaktiv" style={{ marginLeft: 8 }}>INAKTIV</span>}
-              </div>
-              <div className="mandant-zaehler">
-                {mandant.ueberfaellige_pendenzen > 0 && (
-                  <span className="zaehler-pille ueberfaellig">{mandant.ueberfaellige_pendenzen} überfällig</span>
-                )}
-                <span className="zaehler-pille">{mandant.offenTotal} offen</span>
-                <button
-                  type="button"
-                  className="btn-klein"
-                  onClick={(e) => { e.stopPropagation(); setBearbeiteterMandant(mandant); }}
-                >
-                  Bearbeiten
-                </button>
-              </div>
-            </div>
-
-            {!istEingeklappt && (() => {
-              let ersteGruppeGezeigt = false;
-              return OFFENE_STATUS.map((status) => {
-                const gruppe = pendenzenDesMandanten.filter((p) => p.status === status);
-                if (!gruppe.length) return null;
-                // Nur die erste sichtbare Statusgruppe zeigt den Tabellenkopf -- sonst
-                // wiederholt sich "Titel / Mandant / Status / Fällig" pro Mandant mehrfach.
-                const mitKopf = !ersteGruppeGezeigt;
-                ersteGruppeGezeigt = true;
-                return (
-                  <div key={status}>
-                    <div className="status-gruppe-titel">{status} ({gruppe.length})</div>
-                    <PendenzListe pendenzen={gruppe} onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} mitKopf={mitKopf} ohneMandantSpalte />
-                  </div>
-                );
-              });
-            })()}
-
-            {pendenzenDesMandanten.length === 0 && <div className="leer-hinweis">Keine offenen Pendenzen.</div>}
-          </div>
-        );
-      })}
-
-      {sichtbareMandanten.length === 0 && <div className="leer-hinweis">Keine Mandanten vorhanden.</div>}
+      <PendenzArbeitsliste
+        titel={<>Pendenzen <span className="uebersicht-kopf-bereich">· {gewaehlt ? gewaehlt.name : aktuelleAuswahl === 'intern' ? 'Intern (eigenes Büro)' : 'Alle Mandanten'}</span></>}
+        pendenzen={liste}
+        leerText="Keine offenen Pendenzen."
+        speicherSchluessel="mandanten-eingeklappt"
+        onOeffnen={setAktivePendenz}
+        onStatusAendern={statusAendern}
+        links={mandantenSpalte}
+        oben={eckdaten}
+      />
 
       {aktivePendenz && (
         <PendenzModal

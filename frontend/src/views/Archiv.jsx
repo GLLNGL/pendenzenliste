@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
-import { formatiereDatum } from '../format.js';
-import { formatiereAufwand } from '../constants.js';
-import Badge from '../components/Badge.jsx';
+import { aufAenderungHoeren, meldeAenderung } from '../events.js';
+import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
-import { gruppiereNachMandant } from '../lib/gruppierung.js';
 
 const LEERE_FILTER = { mandantId: '', erledigtVon: '', erledigtBis: '' };
 
+// Erledigte Pendenzen -- gleiches Layout wie Cockpit und Alle Pendenzen (nach Mandant gruppiert,
+// einklappbar, Detailansicht rechts), mit dem Erledigt-Datum statt der Frist. Die geschaetzte
+// Zeit im Kopf hilft beim Leistungsnachvollzug.
 export default function Archiv() {
   const [filter, setFilter] = useState(LEERE_FILTER);
   const [pendenzen, setPendenzen] = useState([]);
@@ -23,7 +24,19 @@ export default function Archiv() {
       .catch((e) => setFehler(e.message));
   }, [filter]);
 
-  useEffect(() => { laden(); }, [laden]);
+  useEffect(() => {
+    laden();
+    return aufAenderungHoeren(laden);
+  }, [laden]);
+
+  async function statusAendern(pendenz, neuerStatus) {
+    try {
+      await api.pendenzen.statusAendern(pendenz.id, neuerStatus);
+      meldeAenderung();
+    } catch (err) {
+      window.alert(err.message);
+    }
+  }
 
   function filterFeld(name, wert) {
     setFilter((f) => ({ ...f, [name]: wert }));
@@ -32,11 +45,13 @@ export default function Archiv() {
   if (fehler) return <div className="fehleranzeige">Fehler beim Laden: {fehler}</div>;
 
   return (
-    <div>
-      <h1 className="seiten-titel">Archiv</h1>
-      <p className="seiten-untertitel">Erledigte Pendenzen – für Rückfragen und Leistungsnachvollzug.</p>
+    <div className="arbeitsseite">
+      <div className="cockpit-kopfzeile">
+        <h1 className="seiten-titel">Archiv</h1>
+        <span className="cockpit-kopf-hinweis">Erledigte Pendenzen – für Rückfragen und Leistungsnachvollzug.</span>
+      </div>
 
-      <div className="filter-leiste">
+      <div className="filter-leiste filter-leiste-kompakt">
         <select value={filter.mandantId} onChange={(e) => filterFeld('mandantId', e.target.value)}>
           <option value="">Alle Mandanten</option>
           <option value="keiner">Intern (eigenes Büro)</option>
@@ -49,43 +64,15 @@ export default function Archiv() {
         )}
       </div>
 
-      {pendenzen.length === 0 && (
-        <div className="karte"><div className="leer-hinweis" style={{ padding: 24 }}>Keine erledigten Pendenzen im gewählten Zeitraum.</div></div>
-      )}
-
-      {gruppiereNachMandant(pendenzen).map((gruppe) => (
-        <div className="karte mandant-karte" key={gruppe.mandantId ?? 'kein-mandant'}>
-          <div className="kunde-gruppe-titel">
-            <span>{gruppe.mandantName || 'Intern (eigenes Büro)'}</span>
-            {gruppe.mandantKuerzel && <span className="mandant-kuerzel">{gruppe.mandantKuerzel}</span>}
-            <span className="zaehler-pille">{gruppe.items.length}</span>
-          </div>
-          <table className="tabelle">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nächster Schritt</th>
-                <th>Priorität</th>
-                <th>Fällig gewesen</th>
-                <th>Erledigt am</th>
-                <th>Aufwand</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gruppe.items.map((p) => (
-                <tr key={p.id} onClick={() => setAktivePendenz(p)} style={{ cursor: 'pointer' }}>
-                  <td className="zeile-id">{p.id}</td>
-                  <td>{p.titel}</td>
-                  <td><Badge prioritaet={p.prioritaet} /></td>
-                  <td>{formatiereDatum(p.faelligkeit)}</td>
-                  <td>{formatiereDatum(p.erledigt_am)}</td>
-                  <td>{formatiereAufwand(p.aufwand_minuten) || '–'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      <PendenzArbeitsliste
+        titel="Erledigt"
+        pendenzen={pendenzen}
+        datum="erledigt_am"
+        leerText="Keine erledigten Pendenzen im gewählten Zeitraum."
+        speicherSchluessel="archiv-eingeklappt"
+        onOeffnen={setAktivePendenz}
+        onStatusAendern={statusAendern}
+      />
 
       {aktivePendenz && (
         <PendenzModal

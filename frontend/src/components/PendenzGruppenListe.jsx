@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { aufwandSumme, formatiereAufwand, formatiereStunden, statusSlug } from '../constants.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 
-// Pendenzen pro Mandant gruppiert (alphabetisch, "Intern" zuletzt), innerhalb einer Gruppe nach
-// Projekt bzw. Titel -- Schritte desselben Projekts stehen so beieinander.
+// Reihenfolge innerhalb eines Mandanten: nach Projekt bzw. Titel, der Projekt-Kopf vor seinen
+// Schritten, die Schritte in ihrer Reihenfolge -- ein Projekt steht so als Block beieinander.
+function vergleiche(a, b) {
+  return (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH')
+    || (a.uebergeordnete_pendenz_id != null) - (b.uebergeordnete_pendenz_id != null)
+    || (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0);
+}
+
+// Pendenzen pro Mandant gruppiert (alphabetisch, "Intern" zuletzt).
 function gruppiertNachMandant(liste) {
   const gruppen = new Map();
   for (const p of liste) {
@@ -13,8 +20,10 @@ function gruppiertNachMandant(liste) {
   }
   return [...gruppen.values()]
     .sort((a, b) => (a.schluessel === 'intern') - (b.schluessel === 'intern') || a.name.localeCompare(b.name, 'de-CH'))
-    .map((g) => ({ ...g, items: g.items.sort((a, b) => (a.eltern_titel || a.titel).localeCompare(b.eltern_titel || b.titel, 'de-CH')) }));
+    .map((g) => ({ ...g, items: g.items.sort(vergleiche) }));
 }
+
+const DATUM_TITEL = { faelligkeit: 'Frist', erledigt_am: 'Erledigt am' };
 
 function eingeklapptLesen(schluessel) {
   if (!schluessel) return new Set();
@@ -37,7 +46,10 @@ function zeitText({ minuten, ohne }) {
 // Zeile pro Pendenz (naechster Schritt, optional Frist, geschaetzte Zeit, Status). Ein Klick auf
 // den Kopf klappt die Pendenzen des Mandanten ein bzw. aus (pro Liste im Browser gemerkt); ein
 // Klick auf eine Pendenz waehlt sie fuer die Detailansicht rechts.
-export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mitFrist = false, leerText, speicherSchluessel }) {
+// datum: welche Datumsspalte gezeigt wird -- 'faelligkeit' (Frist, ueberfaellig rot),
+// 'erledigt_am' (Archiv) oder keine (Kalender: das Datum ist der angeklickte Tag).
+export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mitFrist = false, datum, leerText, speicherSchluessel }) {
+  const datumFeld = datum ?? (mitFrist ? 'faelligkeit' : null);
   const [eingeklappt, setEingeklappt] = useState(() => eingeklapptLesen(speicherSchluessel));
 
   if (!pendenzen.length) return leerText ? <div className="leer-hinweis">{leerText}</div> : null;
@@ -66,33 +78,41 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
         >
           <span className="tagesliste-gruppe-pfeil" aria-hidden="true">{zu ? '▸' : '▾'}</span>
           <span className="tagesliste-gruppe-name">{gruppe.name}</span>
-          <span className="tagesliste-gruppe-anzahl">{gruppe.items.length}</span>
+          {/* Wie im Kartenkopf: Projekt-Koepfe zaehlen nicht, nur die konkreten Pendenzen/Schritte. */}
+          <span className="tagesliste-gruppe-anzahl">{gruppe.items.filter((p) => !(p.teilaufgaben_gesamt > 0)).length}</span>
           <span className="tagesliste-gruppe-zeit">{zeitText(aufwandSumme(gruppe.items))}</span>
         </button>
         {!zu && (
           <ul className="tagesliste">
             {gruppe.items.map((p) => {
-              const ueberfaellig = p.status !== 'Erledigt' && p.faelligkeit < heute;
+              const ueberfaellig = datumFeld === 'faelligkeit' && p.status !== 'Erledigt' && p.faelligkeit < heute;
+              const istProjekt = p.teilaufgaben_gesamt > 0;
+              // Schritt direkt unter seinem Projekt-Kopf: eingerueckt statt mit Projekt-Praefix.
+              const unterKopf = p.uebergeordnete_pendenz_id != null
+                && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
               return (
                 <li key={p.id}>
                   <button
                     type="button"
-                    className={`tagesliste-eintrag ${mitFrist ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''}`}
+                    className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${unterKopf ? 'schritt' : ''}`}
                     onClick={() => onWaehlen(p)}
                     title={p.titel}
                   >
                     <span className="tagesliste-titel">
-                      {p.eltern_titel && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
+                      {p.eltern_titel && !unterKopf && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
                       {p.titel}
+                      {istProjekt && (
+                        <span className="tagesliste-projekt"> Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
+                      )}
                     </span>
-                    {mitFrist && (
-                      <span className={`tagesliste-frist ${ueberfaellig ? 'ueberfaellig' : ''}`}>
-                        {formatiereDatum(p.faelligkeit)}
-                        {p.harte_frist && <span className="zeile-harte-frist" title="Harte Frist (Behörde/Zahlung)">!</span>}
+                    {datumFeld && (
+                      <span className={`tagesliste-frist ${ueberfaellig ? 'ueberfaellig' : ''}`} title={DATUM_TITEL[datumFeld]}>
+                        {formatiereDatum(p[datumFeld])}
+                        {datumFeld === 'faelligkeit' && p.harte_frist && <span className="zeile-harte-frist" title="Harte Frist (Behörde/Zahlung)">!</span>}
                       </span>
                     )}
                     <span className={`tagesliste-aufwand ${p.aufwand_minuten == null ? 'leer' : ''}`}>
-                      {p.aufwand_minuten == null ? '–' : formatiereAufwand(p.aufwand_minuten)}
+                      {p.aufwand_minuten == null ? (istProjekt ? '' : '–') : formatiereAufwand(p.aufwand_minuten)}
                     </span>
                     <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
                   </button>

@@ -53,9 +53,10 @@ function statusWechselBrauchtFormular(pendenz, neuerStatus) {
 }
 
 // Geschaetzte Gesamtzeit einer Liste: Summe der Minuten plus Anzahl Pendenzen ohne Schaetzung
-// (die in der Summe fehlen und darum separat ausgewiesen werden).
+// (die in der Summe fehlen und darum separat ausgewiesen werden). Projekt-Koepfe zaehlen nicht --
+// ihr Aufwand steckt in den Schritten.
 function aufwandSumme(pendenzen) {
-  return pendenzen.reduce((s, p) => (p.aufwand_minuten == null
+  return pendenzen.filter((p) => !(p.teilaufgaben_gesamt > 0)).reduce((s, p) => (p.aufwand_minuten == null
     ? { ...s, ohne: s.ohne + 1 }
     : { ...s, minuten: s.minuten + p.aufwand_minuten }), { minuten: 0, ohne: 0 });
 }

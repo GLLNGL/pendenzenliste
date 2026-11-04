@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import api from '../api.js';
-import PendenzGruppenListe from '../components/PendenzGruppenListe.jsx';
+import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
-import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import Faelligkeitskalender from '../components/Faelligkeitskalender.jsx';
 import NachfassMails from '../components/NachfassMails.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
-import { BLOECKE, aufwandSumme, formatiereStunden } from '../constants.js';
+import { BLOECKE } from '../constants.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { berechneCockpit } from '../lib/cockpit.js';
 import { WIP_LIMIT } from '../lib/wip.js';
@@ -108,75 +107,49 @@ function Kennzahlen({ inArbeitAnzahl, auslastung, block, onBlockWaehlen }) {
   );
 }
 
-// Ausserhalb von Cockpit definiert, damit React sie nicht bei jedem Render neu montiert (sonst
-// wuerde PendenzListe ihren Einklapp-Zustand fuer Teilaufgaben staendig verlieren). Links die
-// Bereiche (wie Ordner in einem Mail-Programm), in der Mitte die Liste des gewaehlten
-// Bereichs -- Klick auf eine Zeile zeigt rechts die Vorschau, erst ein Klick darin oeffnet
-// wie gehabt das Bearbeiten-Fenster.
+// Links die Bereiche (wie Ordner in einem Mail-Programm), in der Mitte die Liste des gewaehlten
+// Bereichs, rechts die Detailansicht -- dieselbe Arbeitskarte wie in allen anderen Ansichten.
 function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern }) {
-  const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const aktuelle = bloecke.find((b) => b.key === aktiveKategorie) || bloecke[0];
-  // Den aktuellen Datensatz aus der (frisch geladenen) Liste nachschlagen statt das alte
-  // vorschauPendenz-Objekt weiterzuverwenden -- sonst zeigt die Vorschau nach einer Aenderung
-  // (z.B. im Bearbeiten-Fenster gespeichert) weiter den veralteten Stand. Ist die Pendenz nicht
-  // mehr im aktuellen Bereich -- z.B. nach Bereichswechsel oder weil sie erledigt wurde --
-  // blendet sie sich aus, ohne dass dafuer ein Effekt noetig ist.
-  const angezeigtePendenz = vorschauPendenz
-    ? aktuelle.items.find((p) => p.id === vorschauPendenz.id) ?? null
-    : null;
-  const summe = aufwandSumme(aktuelle.items);
+
+  const bereiche = (
+    <div className="uebersicht-kategorien">
+      {bloecke.map((b) => (
+        <button
+          type="button"
+          key={b.key}
+          className={`uebersicht-kategorie ${b.klasse || ''} ${b.key === aktuelle.key ? 'aktiv' : ''}`}
+          onClick={() => onKategorieWaehlen(b.key)}
+        >
+          <span>{b.titel}</span>
+          <span className="zaehler-pille">{b.items.length}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  const oben = (
+    <>
+      {aktuelle.hinweis && aktuelle.items.length > 0 && <div className="uebersicht-hinweis">{aktuelle.hinweis}</div>}
+      {aktuelle.aktion && aktuelle.items.length > 0 && (
+        <div className="uebersicht-aktion">
+          <button type="button" className="btn btn-primary" onClick={aktuelle.aktion.onClick}>{aktuelle.aktion.label}</button>
+        </div>
+      )}
+    </>
+  );
 
   return (
-    <div className="karte karte-kalender uebersicht-karte">
-      {/* Kopf zeigt den gewaehlten Bereich mit Anzahl und geschaetzter Gesamtzeit, z.B.
-          "Heute bearbeiten · 6 Pendenzen · 4.5 h geschätzt". */}
-      <div className="karte-kopf uebersicht-kopf">
-        <span>Übersicht <span className="uebersicht-kopf-bereich">· {aktuelle.titel}</span></span>
-        <span className="uebersicht-kopf-summe">
-          {aktuelle.items.length} Pendenz{aktuelle.items.length === 1 ? '' : 'en'}
-          {' · '}
-          <strong>{formatiereStunden(summe.minuten)}</strong> geschätzt
-          {summe.ohne > 0 && <span className="uebersicht-kopf-ohne"> ({summe.ohne} ohne Schätzung)</span>}
-        </span>
-      </div>
-
-      <div className="uebersicht-layout">
-        <div className="uebersicht-kategorien">
-          {bloecke.map((b) => (
-            <button
-              type="button"
-              key={b.key}
-              className={`uebersicht-kategorie ${b.klasse || ''} ${b.key === aktuelle.key ? 'aktiv' : ''}`}
-              onClick={() => onKategorieWaehlen(b.key)}
-            >
-              <span>{b.titel}</span>
-              <span className="zaehler-pille">{b.items.length}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="uebersicht-liste">
-          {aktuelle.hinweis && aktuelle.items.length > 0 && <div className="uebersicht-hinweis">{aktuelle.hinweis}</div>}
-          {aktuelle.aktion && aktuelle.items.length > 0 && (
-            <div className="uebersicht-aktion">
-              <button type="button" className="btn btn-primary" onClick={aktuelle.aktion.onClick}>{aktuelle.aktion.label}</button>
-            </div>
-          )}
-          {/* Gleiches schlichtes Layout wie im Kalender: pro Mandant gruppiert, eine Zeile pro
-              Pendenz (nächster Schritt, Frist, Status); Details und Status rechts in der Vorschau. */}
-          <PendenzGruppenListe
-            pendenzen={aktuelle.items}
-            aktiveId={angezeigtePendenz?.id}
-            onWaehlen={setVorschauPendenz}
-            mitFrist
-            speicherSchluessel="cockpit-uebersicht-eingeklappt"
-            leerText={aktuelle.leer}
-          />
-        </div>
-
-        <PendenzVorschau pendenz={angezeigtePendenz} onOeffnen={onOeffnen} onStatusAendern={onStatusAendern} />
-      </div>
-    </div>
+    <PendenzArbeitsliste
+      titel={<>Übersicht <span className="uebersicht-kopf-bereich">· {aktuelle.titel}</span></>}
+      pendenzen={aktuelle.items}
+      leerText={aktuelle.leer}
+      speicherSchluessel="cockpit-uebersicht-eingeklappt"
+      onOeffnen={onOeffnen}
+      onStatusAendern={onStatusAendern}
+      links={bereiche}
+      oben={oben}
+    />
   );
 }
 

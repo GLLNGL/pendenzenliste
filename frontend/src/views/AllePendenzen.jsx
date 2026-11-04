@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
-import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
+import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
-import PendenzVorschau from '../components/PendenzVorschau.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, BLOECKE } from '../constants.js';
@@ -18,12 +17,14 @@ function statusParameter(status) {
   return status;
 }
 
+// Gleiches Layout wie das Cockpit: schmale Kopfzeile, Filterleiste, darunter die Arbeitskarte
+// (nach Mandant gruppiert und einklappbar, geschaetzte Zeit, Detailansicht rechts), die die
+// restliche Fensterhoehe fuellt.
 export default function AllePendenzen() {
   const [filter, setFilter] = useState(LEERE_FILTER);
   const [pendenzen, setPendenzen] = useState([]);
   const [fehler, setFehler] = useState(null);
   const [aktivePendenz, setAktivePendenz] = useState(null);
-  const [vorschauPendenz, setVorschauPendenz] = useState(null);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
 
@@ -38,8 +39,12 @@ export default function AllePendenzen() {
   }, [laden]);
 
   async function statusAendern(pendenz, neuerStatus) {
-    await api.pendenzen.statusAendern(pendenz.id, neuerStatus);
-    meldeAenderung();
+    try {
+      await api.pendenzen.statusAendern(pendenz.id, neuerStatus);
+      meldeAenderung();
+    } catch (err) {
+      window.alert(err.message);
+    }
   }
 
   function filterFeld(name, wert) {
@@ -48,19 +53,14 @@ export default function AllePendenzen() {
 
   const filterAktiv = JSON.stringify(filter) !== JSON.stringify(LEERE_FILTER);
 
-  // Wie im Cockpit: den aktuellen Datensatz aus der frisch geladenen Liste nachschlagen statt
-  // das alte vorschauPendenz-Objekt weiterzuverwenden, und automatisch ausblenden, sobald die
-  // Pendenz (z.B. durch einen Filterwechsel) nicht mehr in der Liste ist.
-  const angezeigtePendenz = vorschauPendenz
-    ? pendenzen.find((p) => p.id === vorschauPendenz.id) ?? null
-    : null;
-
   return (
-    <div>
-      <h1 className="seiten-titel">Alle Pendenzen</h1>
-      <p className="seiten-untertitel">{pendenzen.length} Pendenz{pendenzen.length === 1 ? '' : 'en'}</p>
+    <div className="arbeitsseite">
+      <div className="cockpit-kopfzeile">
+        <h1 className="seiten-titel">Alle Pendenzen</h1>
+        <span className="cockpit-kopf-hinweis">Suchen und filtern über alle Mandanten – Klick auf eine Pendenz zeigt rechts die Details.</span>
+      </div>
 
-      <div className="filter-leiste">
+      <div className="filter-leiste filter-leiste-kompakt">
         <input
           type="text"
           placeholder="Suche nächster Schritt/Beschreibung…"
@@ -87,12 +87,6 @@ export default function AllePendenzen() {
         </select>
         <input type="date" value={filter.von} onChange={(e) => filterFeld('von', e.target.value)} title="Fällig von" />
         <input type="date" value={filter.bis} onChange={(e) => filterFeld('bis', e.target.value)} title="Fällig bis" />
-        <select value={filter.sort} onChange={(e) => filterFeld('sort', e.target.value)}>
-          <option value="faelligkeit_asc">Fälligkeit ↑</option>
-          <option value="faelligkeit_desc">Fälligkeit ↓</option>
-          <option value="prioritaet">Priorität</option>
-          <option value="erstellt_am_desc">Zuletzt erstellt</option>
-        </select>
         {filterAktiv && (
           <button type="button" className="filter-reset" onClick={() => setFilter(LEERE_FILTER)}>Filter zurücksetzen</button>
         )}
@@ -100,26 +94,14 @@ export default function AllePendenzen() {
 
       {fehler && <div className="hinweis-fehler">{fehler}</div>}
 
-      {/* Gleiches Layout wie im Cockpit: Liste links, Vorschau der angeklickten Pendenz rechts --
-          erst ein Klick in der Vorschau selbst oeffnet das Bearbeiten-Fenster. */}
-      <div className="karte karte-kalender">
-        <div className="uebersicht-layout">
-          <div className="uebersicht-liste uebersicht-liste-voll">
-            <PendenzListeNachKunde
-              speicherSchluessel="alle-pendenzen-eingeklappt"
-              pendenzen={pendenzen}
-              onOeffnen={setAktivePendenz}
-              onStatusAendern={statusAendern}
-              leerText="Keine Pendenzen gefunden."
-              ohneAbhaken
-              onVorschau={setVorschauPendenz}
-              vorschauId={angezeigtePendenz?.id}
-            />
-          </div>
-
-          <PendenzVorschau pendenz={angezeigtePendenz} onOeffnen={setAktivePendenz} onStatusAendern={statusAendern} />
-        </div>
-      </div>
+      <PendenzArbeitsliste
+        titel="Pendenzen"
+        pendenzen={pendenzen}
+        leerText="Keine Pendenzen gefunden."
+        speicherSchluessel="alle-pendenzen-eingeklappt"
+        onOeffnen={setAktivePendenz}
+        onStatusAendern={statusAendern}
+      />
 
       {aktivePendenz && (
         <PendenzModal

@@ -1794,3 +1794,43 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
 .uebersicht-kopf-summe { font-size: var(--fs-klein); font-weight: var(--fw-normal); color: var(--text-muted); }
 .uebersicht-kopf-summe strong { color: var(--text); font-weight: var(--fw-halbfett); }
 .uebersicht-kopf-ohne { color: var(--text-faint); }
+
+/* ---------- Einheitliche Arbeitsseiten (Alle Pendenzen, Mandanten, Archiv) ----------
+   Gleiches Muster wie das Cockpit: schmale Kopfzeile, optional eine kompakte Filterleiste,
+   darunter die Arbeitskarte, die die restliche Fensterhoehe fuellt -- Liste und Detailansicht
+   scrollen je fuer sich, die Seite selbst nicht. */
+.arbeitsseite { display: flex; flex-direction: column; height: 100%; }
+.arbeitsseite > .uebersicht-karte { flex: 1 1 auto; min-height: 0; margin-bottom: 0; display: flex; flex-direction: column; }
+.uebersicht-liste.ohne-links { border-left: none; }
+
+.filter-leiste-kompakt { margin-bottom: 10px; gap: 6px; flex: 0 0 auto; }
+.filter-leiste-kompakt select,
+.filter-leiste-kompakt input[type="text"],
+.filter-leiste-kompakt input[type="date"] { padding-top: 4px; padding-bottom: 4px; font-size: var(--fs-liste-klein); }
+
+/* Aktionen rechts in der Kopfzeile (z.B. "+ Neuer Mandant"). */
+.kopfzeile-aktionen { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.kopfzeile-checkbox { display: flex; align-items: center; gap: 5px; font-size: var(--fs-klein); color: var(--text-muted); cursor: pointer; }
+
+/* Mandanten-Ansicht: linke Spalte mit Mandanten statt Bereichen. */
+.mandanten-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mandanten-zaehler { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.uebersicht-kategorie.inaktiv { opacity: 0.55; }
+
+/* Eckdaten des gewaehlten Mandanten ueber seiner Liste. */
+.mandant-eckdaten {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: var(--fs-liste-klein);
+  color: var(--text-muted);
+}
+
+/* Projekt-Kopf in vollstaendigen Listen: Fortschritt der Schritte; Schritte darunter eingerueckt. */
+.tagesliste-projekt { color: var(--text-faint); font-size: var(--fs-label); font-weight: var(--fw-mittel); }
+.tagesliste-eintrag.projekt .tagesliste-titel { font-weight: var(--fw-mittel); }
+.tagesliste-eintrag.schritt .tagesliste-titel { padding-left: 30px; color: var(--text-muted); }
