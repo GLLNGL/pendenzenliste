@@ -84,22 +84,34 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
         </button>
         {!zu && (
           <ul className="tagesliste">
-            {gruppe.items.map((p) => {
+            {gruppe.items.flatMap((p, index) => {
               const ueberfaellig = datumFeld === 'faelligkeit' && p.status !== 'Erledigt' && p.faelligkeit < heute;
               const istProjekt = p.teilaufgaben_gesamt > 0;
-              // Schritt direkt unter seinem Projekt-Kopf: eingerueckt statt mit Projekt-Praefix.
-              const unterKopf = p.uebergeordnete_pendenz_id != null
-                && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
-              return (
+              const istSchritt = p.uebergeordnete_pendenz_id != null;
+              // Projekte als Aufzaehlung: Schritte stehen mit Aufzaehlungsstrich unter ihrem
+              // Projekt. Ist der Projekt-Kopf selbst nicht in der Liste (Cockpit, Kalender), wird
+              // vor dem ersten Schritt eine Projekt-Titelzeile eingefuegt.
+              const kopfInListe = istSchritt && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
+              const vorgaenger = gruppe.items[index - 1];
+              const brauchtTitelzeile = istSchritt && !kopfInListe
+                && vorgaenger?.uebergeordnete_pendenz_id !== p.uebergeordnete_pendenz_id;
+              const zeilen = [];
+              if (brauchtTitelzeile) {
+                zeilen.push(
+                  <li key={`projekt-${p.uebergeordnete_pendenz_id}`} className="tagesliste-projektzeile">
+                    {p.eltern_titel}<span className="tagesliste-projekt"> Projekt</span>
+                  </li>,
+                );
+              }
+              zeilen.push(
                 <li key={p.id}>
                   <button
                     type="button"
-                    className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${unterKopf ? 'schritt' : ''}`}
+                    className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${istSchritt ? 'schritt' : ''}`}
                     onClick={() => onWaehlen(p)}
-                    title={p.titel}
+                    title={p.eltern_titel ? `${p.eltern_titel} – ${p.titel}` : p.titel}
                   >
                     <span className="tagesliste-titel">
-                      {p.eltern_titel && !unterKopf && <span className="tagesliste-eltern">{p.eltern_titel} › </span>}
                       {p.titel}
                       {istProjekt && (
                         <span className="tagesliste-projekt"> Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
@@ -116,8 +128,9 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                     </span>
                     <span className={`tagesliste-status status-${statusSlug(p.status)}`}>{p.status}</span>
                   </button>
-                </li>
+                </li>,
               );
+              return zeilen;
             })}
           </ul>
         )}
