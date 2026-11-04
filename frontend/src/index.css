@@ -30,6 +30,7 @@
   --fs-text: 13.5px;    /* Fliesstext, Listenzeilen, Formularfelder */
   --fs-klein: 12.5px;   /* Sekundaertext: Mandant/Bearbeiter, Daten, Hinweise */
   --fs-liste: 13px;     /* Zeilen in Pendenzen-Listen und Tabellen (kompakter als Fliesstext) */
+  --fs-zeilentitel: 14px; /* Nächster Schritt einer Pendenz in Listen -- grösser als Teilaufgaben/Nebenspalten */
   --fs-liste-klein: 12px; /* Teilaufgaben und Nebenspalten in Listen */
   --fs-label: 11px;     /* Beschriftungen in Grossbuchstaben, Zaehler */
   --fw-normal: 400;
@@ -464,11 +465,14 @@ a { color: var(--accent); text-decoration: none; }
 .cockpit-resizable > .karte-kalender { flex: 0 0 auto; }
 .cockpit-resizable > .cockpit-resize-griff { flex: 0 0 auto; }
 .cockpit-kalender-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Kein Kartenabstand unter dem Kalender -- er sitzt ganz unten und wuerde sonst einen unnoetigen
+   Scrollbalken erzeugen. */
+.cockpit-kalender-wrapper > .karte { margin-bottom: 0; }
 
 /* Links der Monat, rechts die Pendenzen des angeklickten Tages. */
 .kalender-layout { display: flex; align-items: stretch; }
 
-.kalender { width: 300px; flex-shrink: 0; padding: 12px 14px; }
+.kalender { width: 264px; flex-shrink: 0; padding: 8px 12px; }
 
 .kalender-tagesliste {
   flex: 1;
@@ -490,7 +494,7 @@ a { color: var(--accent); text-decoration: none; }
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .kalender-monat {
@@ -518,8 +522,8 @@ a { color: var(--accent); text-decoration: none; }
 .kalender-raster {
   display: grid;
   grid-template-columns: 16px repeat(7, 1fr);
-  gap: 2px;
-  margin-bottom: 10px;
+  gap: 0;
+  margin-bottom: 4px;
 }
 
 /* Kalenderwoche des Montags dieser Zeile -- klein und kursiv wie im iPhone-Kalender, keine
@@ -537,19 +541,19 @@ a { color: var(--accent); text-decoration: none; }
 .kalender-tag {
   border: none;
   background: none;
-  padding: 1px 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  font-size: var(--fs-klein);
+  gap: 1px;
+  font-size: var(--fs-liste-klein);
 }
 
 /* Die Tageszahl selbst ist der Kreis (wie im iPhone-Kalender) -- Punkt fuer "hat Pendenzen"
    sitzt knapp darunter. */
 .kalender-tag-zahl {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -635,6 +639,11 @@ a { color: var(--accent); text-decoration: none; }
 .pendenz-zeile.pz-kind.vorschau-aktiv td { background: var(--neutral-bg); }
 .pendenz-zeile.pz-kind:hover td { background: var(--surface-3); }
 .pendenz-zeile.pz-kind .zeile-titel { padding-left: 20px; font-weight: 400; }
+
+/* Hierarchie in der Liste: der naechste Schritt einer Pendenz ist der wichtigste Text der Zeile
+   -- groesser und kraeftiger als Teilaufgaben, Mandant/Bearbeiter, Aufwand und Datum. */
+.pendenz-zeile.pz-haupt .zeile-titel-text { font-size: var(--fs-zeilentitel); font-weight: var(--fw-halbfett); }
+.pendenz-zeile.pz-kind .zeile-titel-text { color: var(--text-muted); }
 
 .pendenz-zeile.erledigt .zeile-titel-text { text-decoration: line-through; color: var(--text-faint); }
 
@@ -1121,7 +1130,7 @@ code {
 }
 
 .kunde-gruppe-titel-klickbar { cursor: pointer; }
-.kunde-gruppe-titel-klickbar:hover { background: var(--surface-3); }
+.kunde-gruppe-titel-klickbar:hover { background: var(--neutral-bg); }
 .kunde-gruppe-titel.eingeklappt { border-bottom: none; }
 .kunde-gruppe-titel .mandant-einklapp-toggle { padding-right: 0; }
 
@@ -1152,18 +1161,22 @@ code {
 /* Primaere Gliederung einer Pendenzen-Liste (Cockpit, Kalender-Tagesliste, Alle Pendenzen,
    Archiv): Kunde als Gruppenkopf ueber seinen Pendenzen, deshalb kraeftiger als die
    untergeordnete .status-gruppe-titel-Zeile in Mandanten.jsx. */
-.kunde-gruppe + .kunde-gruppe { margin-top: 10px; }
+/* Jeder Mandant als eigener Block: ein grauer Zwischenraum in Hintergrundfarbe trennt die
+   Gruppen (statt nur einer feinen Linie), ohne die Spalten gegenueber dem gemeinsamen
+   Tabellenkopf zu verschieben. */
+.kunde-gruppe + .kunde-gruppe { border-top: 12px solid var(--bg); }
 
 .kunde-gruppe-titel {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  font-size: var(--fs-liste);
+  padding: 9px 14px 9px 11px;
+  font-size: var(--fs-abschnitt);
   font-weight: var(--fw-fett);
+  letter-spacing: -0.01em;
   color: var(--text);
-  background: var(--neutral-bg);
-  border-top: 1px solid var(--border);
+  background: var(--surface-3);
+  border-left: 3px solid var(--accent);
   border-bottom: 1px solid var(--border);
 }
 

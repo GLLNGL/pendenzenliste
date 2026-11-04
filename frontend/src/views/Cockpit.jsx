@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import PendenzListeNachKunde from '../components/PendenzListeNachKunde.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
@@ -15,10 +15,12 @@ import { WIP_LIMIT } from '../lib/wip.js';
 
 const REIHENFOLGE = ['faellig', 'inArbeit', 'nachfassen', 'wochenziele', 'heuteBearbeiten', 'unveraendert'];
 
-const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-faelligkeiten-hoehe';
+// v2: mit dem kompakteren Kalender startet die Uebersicht neu mit dem ganzen freien Platz --
+// eine frueher gespeicherte (meist kleine) Hoehe wird darum bewusst nicht mehr gelesen.
+const HOEHE_SPEICHER_SCHLUESSEL = 'cockpit-uebersicht-hoehe-v2';
 const BLOCK_SPEICHER_SCHLUESSEL = 'cockpit-block-filter';
 const HOEHE_MIN = 140; // Mindesthoehe der Faelligkeiten-Liste
-const KALENDER_MIN = 200; // Mindesthoehe der Kalender-Karte
+const KALENDER_MIN = 200; // Mindesthoehe der Kalender-Karte beim Ziehen
 
 function gespeicherteHoeheLesen() {
   const wert = Number(localStorage.getItem(HOEHE_SPEICHER_SCHLUESSEL));
@@ -222,6 +224,24 @@ export default function Cockpit() {
     window.addEventListener('mousemove', bewegen);
     window.addEventListener('mouseup', loslassen);
   }, []);
+
+  // Ohne gespeicherte Hoehe bekommt die Uebersicht allen Platz, den der Kalender nicht braucht:
+  // Uebersicht kurz auf die Mindesthoehe setzen, dann messen, wie viel Luft die Kalender-Karte
+  // (flex:1) unter ihrem Inhalt hat, und genau diese Luft der Uebersicht geben. Gemessen wird in
+  // gerenderten Pixeln und ueber den Massstab der Uebersicht in CSS-Pixel umgerechnet -- so
+  // stimmt es auch unter dem Zoom-Ausgleich (AuthGate.jsx).
+  useLayoutEffect(() => {
+    if (faelligkeitenHoehe != null || !offene || !layoutRef.current || !kalenderRef.current) return;
+    const layout = layoutRef.current;
+    const wrapper = kalenderRef.current;
+    const karte = wrapper.firstElementChild;
+    if (!karte) return;
+    layout.style.setProperty('--faelligkeiten-hoehe', `${HOEHE_MIN}px`);
+    const massstab = layout.getBoundingClientRect().height / HOEHE_MIN || 1;
+    const luft = (wrapper.getBoundingClientRect().height - karte.getBoundingClientRect().height) / massstab;
+    const ABSTAND_UNTER_KALENDER = 24; // Rand der Karte, damit nichts angeschnitten wirkt
+    setFaelligkeitenHoehe(Math.max(HOEHE_MIN, Math.round(HOEHE_MIN + luft - ABSTAND_UNTER_KALENDER)));
+  }, [faelligkeitenHoehe, offene]);
 
   const laden = useCallback(() => {
     api.pendenzen.offene().then(setOffene).catch((e) => setFehler(e.message));
