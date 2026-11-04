@@ -2,15 +2,18 @@ import { useEffect, useState, useCallback } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import api from '../api.js';
 import PendenzModal from './PendenzModal.jsx';
-import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren, aufAenderungHoeren } from '../events.js';
+import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren, aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
+import { heutigesDatumISO } from '../format.js';
+
+const WIEDERKEHR_SCHLUESSEL = 'wiederkehr-zuletzt-erzeugt';
 
 const NAV_EINTRAEGE = [
   { pfad: '/', label: 'Cockpit' },
   { pfad: '/eingang', label: 'Eingang' },
   { pfad: '/pendenzen', label: 'Alle Pendenzen' },
   { pfad: '/mandanten', label: 'Mandanten' },
-  { pfad: '/regeln', label: 'Wiederkehr-Regeln' },
+  { pfad: '/regeln', label: 'Wiederkehrende' },
   { pfad: '/archiv', label: 'Archiv' },
   { pfad: '/team', label: 'Team' },
   { pfad: '/einstellungen', label: 'Einstellungen' },
@@ -56,6 +59,21 @@ export default function Layout() {
     ladeEingangAnzahl();
     return aufAenderungHoeren(ladeEingangAnzahl);
   }, [ladeEingangAnzahl]);
+
+  // Wiederkehrende Mandatsarbeiten entstehen automatisch mit Vorlauf: einmal pro Tag (beim
+  // ersten Oeffnen der App) alles erzeugen, was bis heute erscheint. Doppelt kann nichts
+  // entstehen -- die Datenbank laesst bereits vorhandene Regel/Periode-Kombinationen aus, auch
+  // wenn beide Personen die App gleichzeitig oeffnen.
+  useEffect(() => {
+    const heute = heutigesDatumISO();
+    let zuletzt = null;
+    try { zuletzt = localStorage.getItem(WIEDERKEHR_SCHLUESSEL); } catch { /* ohne Speicher: jedes Mal */ }
+    if (zuletzt === heute) return;
+    api.regeln.erzeugen(heute).then((neu) => {
+      try { localStorage.setItem(WIEDERKEHR_SCHLUESSEL, heute); } catch { /* ohne Speicher weiter nutzbar */ }
+      if (neu.length) meldeAenderung();
+    }).catch(() => { /* naechster Versuch beim naechsten Oeffnen */ });
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e) {

@@ -5,7 +5,8 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './lib/supabaseClient.js';
 import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
-import { naechstePendenzen, heutigesDatumUTC } from './lib/recurrence.js';
+import { naechstePendenzen, faelligeVorkommen, heutigesDatumUTC } from './lib/recurrence.js';
+import { REGEL_TYPEN } from './lib/regelVorlagen.js';
 import { heutigesDatumISO } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
 
@@ -129,6 +130,29 @@ function pendenzPayloadValidieren(payload, { neuer }) {
     throw new Error('Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten)');
   }
   if (payload.block !== undefined && payload.block !== null && !BLOECKE.includes(payload.block)) throw new Error('Ungültiger Block');
+}
+
+// Zusatzfelder einer Wiederkehr-Regel (Etappe 4) -- nur Felder uebernehmen, die im Aufruf
+// vorkommen.
+function regelZusatzfelder(daten) {
+  const patch = {};
+  if (daten.typ !== undefined) {
+    if (!REGEL_TYPEN.includes(daten.typ)) throw new Error('Ungültiger Typ');
+    patch.typ = daten.typ;
+  }
+  if (daten.block !== undefined) {
+    if (!BLOECKE.includes(daten.block)) throw new Error('Ungültiger Block');
+    patch.block = daten.block;
+  }
+  if (daten.vorlaufEinheit !== undefined) patch.vorlauf_einheit = daten.vorlaufEinheit === 'arbeitstage' ? 'arbeitstage' : 'tage';
+  if (daten.checkliste !== undefined) patch.checkliste = (daten.checkliste || []).map((s) => String(s).trim()).filter(Boolean);
+  if (daten.prioritaet !== undefined) {
+    if (!PRIORITAETEN.includes(daten.prioritaet)) throw new Error('Ungültige Priorität');
+    patch.prioritaet = daten.prioritaet;
+  }
+  if (daten.harteFrist !== undefined) patch.harte_frist = !!daten.harteFrist;
+  if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
+  return patch;
 }
 
 // Mandats-Eckdaten der Kundenliste (Etappe 1) -- nur Felder uebernehmen, die im Aufruf
@@ -513,6 +537,7 @@ const api = {
         faelligkeit_config: daten.faelligkeitConfig || {},
         vorlauf_tage: Number(daten.vorlaufTage) || 0,
         aktiv: daten.aktiv === undefined ? true : !!daten.aktiv,
+        ...regelZusatzfelder(daten),
       }).select().single();
       pruefeFehler(error);
       return data;
@@ -526,9 +551,70 @@ const api = {
       if (daten.faelligkeitConfig !== undefined) patch.faelligkeit_config = daten.faelligkeitConfig;
       if (daten.vorlaufTage !== undefined) patch.vorlauf_tage = Number(daten.vorlaufTage);
       if (daten.aktiv !== undefined) patch.aktiv = !!daten.aktiv;
+      Object.assign(patch, regelZusatzfelder(daten));
       const { data, error } = await supabase.from('wiederkehr_regeln').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
       return data;
+    },
+    // "Wiederkehrende erzeugen" (Etappe 4): legt fuer alle aktiven Regeln die Pendenzen an, die
+    // bis zum Stichtag erscheinen (Faelligkeit minus Vorlauf). Ohne Duplikate -- der eindeutige
+    // Index regel_id + perioden_schluessel laesst bereits vorhandene einfach aus (auch wenn
+    // zwei Personen gleichzeitig erzeugen). Die Checkliste der Regel wird als Projekt-Schritte
+    // angelegt; der Datenbank-Trigger stellt alle ausser dem ersten auf "Später".
+    // Stichtag: heute (taeglicher Automatik-Lauf beim Oeffnen der App) oder Freitag naechster
+    // Woche (Knopf "fuer naechste Woche erzeugen").
+    erzeugen: async (bisISO) => {
+      const heute = heutigesDatumISO();
+      const stichtag = bisISO || heute;
+      const { data: regeln, error } = await supabase.from('wiederkehr_regeln').select('*').eq('aktiv', true);
+      pruefeFehler(error);
+
+      const erzeugt = [];
+      for (const regel of regeln) {
+        const kandidaten = faelligeVorkommen(regel, heute, stichtag);
+        if (!kandidaten.length) continue;
+        const checkliste = (Array.isArray(regel.checkliste) ? regel.checkliste : [])
+          .map((s) => String(s).trim()).filter(Boolean);
+        const gemeinsam = {
+          mandant_id: regel.mandant_id,
+          prioritaet: regel.prioritaet || 'B',
+          block: regel.block || 'Sonstiges',
+          harte_frist: !!regel.harte_frist,
+          status: 'Offen',
+          geplant: true,
+        };
+
+        const { data: neu, error: fehlerNeu } = await supabase.from('pendenzen')
+          .upsert(kandidaten.map((v) => ({
+            ...gemeinsam,
+            titel: v.titel,
+            faelligkeit: v.faelligkeit,
+            // Mit Checkliste steckt der Aufwand in den Schritten (Projekt-Kopf ohne eigenen).
+            aufwand_minuten: checkliste.length ? null : (regel.aufwand_minuten ?? null),
+            regel_id: regel.id,
+            perioden_schluessel: v.periodenSchluessel,
+          })), { onConflict: 'regel_id,perioden_schluessel', ignoreDuplicates: true })
+          .select('id, titel, faelligkeit');
+        pruefeFehler(fehlerNeu);
+
+        for (const projekt of neu) {
+          if (checkliste.length) {
+            // Nacheinander einfuegen, damit die Projekt-Logik die Reihenfolge sauber nachfuehrt.
+            for (const [index, schritt] of checkliste.entries()) {
+              const { error: fehlerSchritt } = await supabase.from('pendenzen').insert({
+                ...gemeinsam,
+                titel: schritt,
+                faelligkeit: projekt.faelligkeit,
+                uebergeordnete_pendenz_id: projekt.id,
+                reihenfolge: index + 1,
+              });
+              pruefeFehler(fehlerSchritt);
+            }
+          }
+          erzeugt.push({ ...projekt, schritte: checkliste.length });
+        }
+      }
+      return erzeugt;
     },
     loeschen: async (id) => {
       const { error } = await supabase.from('wiederkehr_regeln').delete().eq('id', id);

@@ -24,8 +24,14 @@ const ZAHLUNGSLAUF_RHYTHMEN = [
 
 // Frueher per GET /api/meta vom Server geliefert (aus backend/src/recurrence.js) -- da rein
 // statisch, jetzt direkt als Konstante im Frontend statt eines Netzwerk-Aufrufs.
-const RHYTHMEN = ['monatlich', 'quartalsweise', 'halbjaehrlich', 'jaehrlich'];
+const RHYTHMEN = ['woechentlich', '14-taeglich', 'monatlich', 'quartalsweise', 'halbjaehrlich', 'jaehrlich'];
+const RHYTHMUS_LABEL = {
+  woechentlich: 'Wöchentlich', '14-taeglich': 'Alle 14 Tage', monatlich: 'Monatlich',
+  quartalsweise: 'Quartalsweise', halbjaehrlich: 'Halbjährlich', jaehrlich: 'Jährlich',
+};
+// "wochentag" gehoert zu den Wochen-Rhythmen, alle anderen zu den Monats-/Jahres-Rhythmen.
 const FAELLIGKEIT_TYPEN = [
+  { typ: 'wochentag', label: 'Wochentag', felder: ['wochentag'] },
   { typ: 'tag_des_monats', label: 'Tag des Monats', felder: ['tag'] },
   { typ: 'letzter_tag_des_monats', label: 'Letzter Tag des Monats', felder: [] },
   { typ: 'tage_nach_periodenende', label: 'X Tage nach Periodenende', felder: ['tage'] },
@@ -53,6 +59,6 @@ function formatiereAufwand(minuten) {
 
 export {
   STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE,
-  MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN, RHYTHMEN, FAELLIGKEIT_TYPEN, statusSlug, formatiereAufwand,
+  MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN, RHYTHMEN, RHYTHMUS_LABEL, FAELLIGKEIT_TYPEN, statusSlug, formatiereAufwand,
   statusWechselBrauchtFormular,
 };
