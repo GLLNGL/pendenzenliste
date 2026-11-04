@@ -56,10 +56,23 @@ test('Erzeugen trägt nichts Überfälliges nach (keine Altlasten)', () => {
 test('MWST quartalsweise: 60 Tage nach Quartalsende, 3 Wochen Vorlauf', () => {
   const v = vorlageFuerTyp('MWST', { mwst_periode: 'Quartal' });
   const r = regel({ titel_vorlage: v.titelVorlage, rhythmus: v.rhythmus, faelligkeit_typ: v.faelligkeitTyp, faelligkeit_config: v.faelligkeitConfig, vorlauf_tage: v.vorlaufTage });
-  const [q3] = naechstePendenzen(r, ab('2026-07-01'), 1);
+  // Ab 01.09. ist Q2 (Frist 29.08.) vorbei -- als Nächstes kommt Q3.
+  const [q3] = naechstePendenzen(r, ab('2026-09-01'), 1);
   assert.equal(q3.faelligkeit, '2026-11-29'); // 30.09. + 60 Tage
   assert.equal(q3.erscheintAb, '2026-11-08');
   assert.equal(q3.titel, 'MWST-Abrechnung Q3 2026 einreichen');
+});
+
+test('Vorschau zeigt auch das abgelaufene Quartal, dessen Frist noch kommt', () => {
+  const v = vorlageFuerTyp('MWST', { mwst_periode: 'Quartal' });
+  const r = regel({ titel_vorlage: v.titelVorlage, rhythmus: v.rhythmus, faelligkeit_typ: v.faelligkeitTyp, faelligkeit_config: v.faelligkeitConfig, vorlauf_tage: v.vorlaufTage });
+  // Am 04.11.2026 läuft Q4 -- die Q3-Abrechnung ist aber erst am 29.11. fällig.
+  assert.deepEqual(naechstePendenzen(r, ab('2026-11-04'), 2).map((x) => x.titel), [
+    'MWST-Abrechnung Q3 2026 einreichen',
+    'MWST-Abrechnung Q4 2026 einreichen',
+  ]);
+  // Und das Erzeugen bis Ende nächster Woche legt Q3 an (erscheint 08.11.).
+  assert.deepEqual(faelligeVorkommen(r, '2026-11-04', '2026-11-13').map((x) => x.periodenSchluessel), ['2026-Q3']);
 });
 
 test('Vorlagen übernehmen die Mandats-Eckdaten', () => {

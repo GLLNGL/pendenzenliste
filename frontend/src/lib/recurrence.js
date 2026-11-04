@@ -213,11 +213,18 @@ function vorkommen(rule, periodKey) {
   });
 }
 
-// Vorschau: die nächsten `anzahl` Vorkommen ab einem Datum.
+// Vorschau: die nächsten `anzahl` Vorkommen ab einem Datum. Beginnt bei der frühesten Periode,
+// deren Fälligkeit noch bevorsteht -- bei MWST z.B. beim abgelaufenen Quartal, dessen
+// Einreichefrist (60 Tage nach Quartalsende) erst noch kommt.
 function naechstePendenzen(rule, ab, anzahl) {
   const ergebnisse = [];
   const abISO = toISODate(ab);
   let periodKey = getPeriodKey(rule, ab);
+  for (let i = 0; i < MAX_ITERATIONEN; i += 1) {
+    const vorher = previousPeriodKey(rule, periodKey);
+    if (!vorkommen(rule, vorher).some((v) => v.faelligkeit >= abISO)) break;
+    periodKey = vorher;
+  }
   for (let i = 0; i < anzahl + 50 && ergebnisse.length < anzahl; i += 1) {
     for (const v of vorkommen(rule, periodKey)) {
       if (ergebnisse.length < anzahl && v.faelligkeit >= abISO) ergebnisse.push(v);
