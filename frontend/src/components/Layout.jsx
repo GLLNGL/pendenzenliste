@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
-import { modulFuerPfad } from '../lib/module.js';
+import { Outlet } from 'react-router-dom';
+import ModulNavigation from './ModulNavigation.jsx';
 import api from '../api.js';
 import PendenzModal from './PendenzModal.jsx';
+import TimerLeiste from './TimerLeiste.jsx';
 import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren, aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
 import { heutigesDatumISO } from '../format.js';
@@ -19,8 +20,6 @@ function editierbaresElementFokussiert() {
 
 export default function Layout() {
   const { benutzer, abmelden } = useAuth();
-  const { pathname } = useLocation();
-  const modul = modulFuerPfad(pathname);
   const [mandanten, setMandanten] = useState([]);
   const [mitarbeitende, setMitarbeitende] = useState([]);
   const [schnellErfassungOffen, setSchnellErfassungOffen] = useState(false);
@@ -82,21 +81,9 @@ export default function Layout() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <Link to="/start" className="sidebar-titel sidebar-module-link" title="Alle Module">
-          <span className="sidebar-module-symbol" aria-hidden="true">▦</span> Module
-        </Link>
-        {modul && <div className="sidebar-modul-name"><span aria-hidden="true">{modul.symbol}</span> {modul.name}</div>}
-        <nav className="sidebar-nav">
-          {(modul?.eintraege ?? []).map((eintrag) => (
-            <NavLink key={eintrag.pfad} to={eintrag.pfad} end={eintrag.pfad === '/'} className={({ isActive }) => (isActive ? 'aktiv' : '')}>
-              <span>{eintrag.label}</span>
-              {eintrag.pfad === '/eingang' && eingangAnzahl > 0 && (
-                <span className="zaehler-pille nav-eingang-pille">{eingangAnzahl}</span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
+        <ModulNavigation zaehler={{ '/eingang': eingangAnzahl }} />
         <div className="sidebar-fuss">
+          <TimerLeiste />
           <button type="button" className="btn-neu" onClick={() => setSchnellErfassungOffen(true)}>
             <span>+ Neue Pendenz</span>
             <span className="taste">n</span>

@@ -5,6 +5,7 @@ import { STATUS_WERTE, statusSlug, formatiereAufwand } from '../constants.js';
 import { statusWechseln } from '../lib/wip.js';
 import { aufAenderungHoeren } from '../events.js';
 import Badge from './Badge.jsx';
+import PendenzZeit from './PendenzZeit.jsx';
 
 // Dritte Spalte neben einer Pendenzenliste: Klick auf den Titel einer Zeile zeigt hier
 // Beschreibung und Eckdaten der Pendenz, ohne gleich das volle Bearbeiten-Fenster zu oeffnen.
@@ -165,6 +166,8 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
           )}
         </div>
       )}
+
+      {!(pendenz.teilaufgaben_gesamt > 0) && <PendenzZeit key={pendenz.id} pendenz={pendenz} />}
 
       <div className="pendenz-vorschau-fortschritt">
         <div className="pendenz-vorschau-teilaufgaben-titel">E-Mails</div>

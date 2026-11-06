@@ -4,6 +4,7 @@ import api from '../api.js';
 import OffertDokument from '../components/OffertDokument.jsx';
 import FormularModal from '../components/FormularModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
+import MandantSuche from '../components/MandantSuche.jsx';
 import { useMitarbeitende } from '../hooks.js';
 import { useAuth } from '../AuthContext.jsx';
 import { meldeMandantenAenderung } from '../events.js';
@@ -49,6 +50,7 @@ export default function OffertEditor() {
   const [meldung, setMeldung] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(null);
   const [dialog, setDialog] = useState(null); // 'mail' | 'annahme' | 'mandant'
+  const [neuerName, setNeuerName] = useState('');
 
   const ladeMandanten = useCallback(() => api.mandanten.liste().then(setMandanten), []);
 
@@ -260,7 +262,6 @@ export default function OffertEditor() {
     );
   }
 
-  const auswahlMandanten = mandanten.filter((m) => m.aktiv || String(m.id) === String(kopf.mandant_id));
 
   function positionsTabelle(liste, istLizenz) {
     const katalog = (istLizenz ? module : leistungen).filter((x) => x.aktiv || liste.some((p) => (istLizenz ? p.abacus_modul_id : p.leistung_id) === x.id));
@@ -343,11 +344,14 @@ export default function OffertEditor() {
               <div className="feld">
                 <label htmlFor="of-mandant">Mandant *</label>
                 <div className="feld-inline">
-                  <select id="of-mandant" value={String(kopf.mandant_id)} onChange={(e) => kopfAendern('mandant_id', e.target.value)}>
-                    <option value="">– wählen –</option>
-                    {auswahlMandanten.map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.potenziell ? ' (potenziell)' : ''}</option>)}
-                  </select>
-                  <button type="button" className="btn-klein" onClick={() => setDialog('mandant')}>+ Interessent</button>
+                  <MandantSuche
+                    id="of-mandant"
+                    mandanten={mandanten}
+                    wert={kopf.mandant_id}
+                    onWahl={(wert) => kopfAendern('mandant_id', wert)}
+                    onNeu={(text) => { setNeuerName(text.trim()); setDialog('mandant'); }}
+                  />
+                  <button type="button" className="btn-klein" onClick={() => { setNeuerName(''); setDialog('mandant'); }}>+ Interessent</button>
                 </div>
                 {mandant && !mandant.strasse && <p className="feld-hinweis">Adresse fehlt – im Kundenstamm ergänzen, damit sie auf der Offerte steht.</p>}
               </div>
@@ -440,6 +444,7 @@ export default function OffertEditor() {
           mandant={null}
           alleMandanten={mandanten}
           vorgabeStatus="potenziell"
+          vorgabeName={neuerName}
           onSchliessen={() => setDialog(null)}
           onGespeichert={async (m) => {
             setDialog(null);

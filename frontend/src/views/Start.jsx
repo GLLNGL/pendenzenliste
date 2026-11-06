@@ -7,7 +7,7 @@ export default function Start() {
   return (
     <div className="start-seite">
       <h1 className="seiten-titel">Module</h1>
-      <p className="seiten-untertitel">Modul wählen – die Seitenleiste zeigt danach nur dessen Programme. «Module» oben links führt jederzeit hierher zurück.</p>
+      <p className="seiten-untertitel">Modul wählen – die Seitenleiste zeigt danach nur dessen Programme. Oben links im Feld «Modul» wechselst du jederzeit.</p>
       <div className="modul-kacheln">
         {MODULE.map((m) => (
           <div
@@ -20,7 +20,7 @@ export default function Start() {
           >
             <div className="modul-kachel-kopf">
               <span className="modul-kachel-symbol" aria-hidden="true">{m.symbol}</span>
-              <span className="modul-kachel-name">{m.name}</span>
+              <span className="modul-kachel-name">{m.nr} {m.name}</span>
               {m.folgt && <span className="tag-potenziell">folgt</span>}
             </div>
             <p className="modul-kachel-text">{m.beschreibung}</p>

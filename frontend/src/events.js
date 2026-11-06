@@ -4,6 +4,17 @@
 const PENDENZEN_EVENT = 'pendenzen-geaendert';
 const MANDANTEN_EVENT = 'mandanten-geaendert';
 const MITARBEITENDE_EVENT = 'mitarbeitende-geaendert';
+const ZEIT_EVENT = 'zeit-geaendert';
+
+// Zeiterfassung (v7): Timer gestartet/gestoppt, Eintrag erfasst/geaendert.
+function meldeZeitAenderung() {
+  window.dispatchEvent(new Event(ZEIT_EVENT));
+}
+
+function aufZeitAenderungHoeren(callback) {
+  window.addEventListener(ZEIT_EVENT, callback);
+  return () => window.removeEventListener(ZEIT_EVENT, callback);
+}
 
 function meldeAenderung() {
   window.dispatchEvent(new Event(PENDENZEN_EVENT));
@@ -36,4 +47,5 @@ export {
   meldeAenderung, aufAenderungHoeren,
   meldeMandantenAenderung, aufMandantenAenderungHoeren,
   meldeMitarbeitendeAenderung, aufMitarbeitendeAenderungHoeren,
+  meldeZeitAenderung, aufZeitAenderungHoeren,
 };

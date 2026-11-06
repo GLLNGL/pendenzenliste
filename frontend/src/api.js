@@ -9,6 +9,7 @@ import { naechstePendenzen, faelligeVorkommen, heutigesDatumUTC } from './lib/re
 import { REGEL_TYPEN } from './lib/regelVorlagen.js';
 import { heutigesDatumISO } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
+import { laufendeMinuten, ansatzFuer } from './lib/zeit.js';
 
 // btoa() kann nur Latin1 -- Umlaute/Sonderzeichen in Titel/Beschreibung brauchen den Umweg
 // ueber UTF-8-Bytes, sonst wirft btoa bei manchen Zeichen einen Fehler.
@@ -51,6 +52,9 @@ const CONSTRAINT_MELDUNGEN = {
   mandant_pauschalen_abacus_modul_id_fkey: 'Dieses Modul ist noch in Pauschalen von Mandanten hinterlegt – stattdessen auf inaktiv setzen.',
   mandant_pauschalen_zeitraum: '«Gültig bis» liegt vor «Gültig ab».',
   mandant_pauschalen_eine_position: 'Bitte genau eine Leistung oder ein ABACUS-Modul wählen.',
+  idx_zeiteintraege_ein_timer: 'Es läuft bereits ein Timer – bitte zuerst stoppen.',
+  zeiteintraege_intern_ohne_mandant: 'Interne Zeit hat keinen Mandanten, Mandanten-Zeit ist Pauschale oder Extra.',
+  zeiteintraege_mandant_id_fkey: 'Für diesen Mandanten ist Zeit erfasst – er kann nicht gelöscht werden (stattdessen inaktiv setzen).',
 };
 
 // Leerer Text -> null, sonst getrimmt.
@@ -235,6 +239,7 @@ function regelZusatzfelder(daten) {
   }
   if (daten.harteFrist !== undefined) patch.harte_frist = !!daten.harteFrist;
   if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
+  if (daten.leistungId !== undefined) patch.leistung_id = zahlOderNull(daten.leistungId);
   return patch;
 }
 
@@ -541,6 +546,96 @@ const api = {
     },
   },
 
+  // Zeiterfassung (v7, Etappe 2). Laufender Timer = minuten null (pro Person hoechstens einer).
+  zeit: {
+    liste: async (filter = {}) => {
+      let q = supabase.from('zeiteintraege')
+        .select('*, mandanten(name, kunden_nr), pendenzen(titel), leistungen(name), mitarbeitende(name)')
+        .order('datum', { ascending: false }).order('id', { ascending: false });
+      if (filter.von) q = q.gte('datum', filter.von);
+      if (filter.bis) q = q.lte('datum', filter.bis);
+      if (filter.mandantId === 'intern') q = q.is('mandant_id', null);
+      else if (filter.mandantId) q = q.eq('mandant_id', Number(filter.mandantId));
+      if (filter.mitarbeiterId) q = q.eq('mitarbeiter_id', Number(filter.mitarbeiterId));
+      if (filter.art) q = q.eq('art', filter.art);
+      if (filter.pendenzId) q = q.eq('pendenz_id', Number(filter.pendenzId));
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    laufender: async () => {
+      const ich = await aktuelleMitarbeiterId();
+      if (!ich) return null;
+      const { data, error } = await supabase.from('zeiteintraege')
+        .select('*, mandanten(name), pendenzen(titel), leistungen(name)')
+        .eq('mitarbeiter_id', ich).is('minuten', null).maybeSingle();
+      pruefeFehler(error);
+      return data;
+    },
+    // Timer starten. Laeuft schon einer, wird er mit seinen Angaben gestoppt (Korrektur im Journal).
+    starten: async ({ pendenzId = null, mandantId = null, leistungId = null, art, beschreibung = null }) => {
+      const ich = await aktuelleMitarbeiterId();
+      if (!ich) throw new Error('Keine angemeldete Person gefunden.');
+      const laufend = await api.zeit.laufender();
+      let gestoppt = null;
+      if (laufend) {
+        const minuten = laufendeMinuten(laufend.timer_start);
+        await api.zeit.speichern(laufend.id, {
+          mandantId: laufend.mandant_id, pendenzId: laufend.pendenz_id, leistungId: laufend.leistung_id, art: laufend.art,
+          datum: laufend.datum, minuten, beschreibung: laufend.beschreibung, stundenansatzChf: laufend.stundenansatz_chf,
+        });
+        gestoppt = { ...laufend, minuten };
+      }
+      const { data, error } = await supabase.from('zeiteintraege').insert({
+        mitarbeiter_id: ich, pendenz_id: pendenzId, mandant_id: mandantId || null, leistung_id: leistungId || null,
+        art: mandantId ? (art === 'extra' ? 'extra' : 'pauschal') : 'intern',
+        beschreibung: textOderNull(beschreibung), datum: heutigesDatumISO(), timer_start: new Date().toISOString(), minuten: null,
+      }).select().single();
+      pruefeFehler(error);
+      return { eintrag: data, gestoppt };
+    },
+    // Neu erfassen (id null) oder aendern/stoppen. Bei Extra wird der Ansatz festgehalten:
+    // mitgegeben, sonst der Ansatz der Leistung bzw. der Standardansatz.
+    speichern: async (id, d) => {
+      const minuten = Number(d.minuten);
+      if (!(minuten > 0 && minuten <= 1440)) throw new Error('Bitte eine Dauer zwischen 1 Minute und 24 Stunden angeben.');
+      if (!d.datum) throw new Error('Datum ist erforderlich.');
+      const mandantId = zahlOderNull(d.mandantId);
+      const art = mandantId ? (d.art === 'extra' ? 'extra' : 'pauschal') : 'intern';
+      const leistungId = zahlOderNull(d.leistungId);
+      let ansatz = art === 'extra' ? zahlOderNull(d.stundenansatzChf) : null;
+      if (art === 'extra' && ansatz == null) {
+        const [{ data: ansaetze }, { data: leistung }] = await Promise.all([
+          supabase.from('stundenansaetze').select('*'),
+          leistungId ? supabase.from('leistungen').select('*').eq('id', leistungId).maybeSingle() : Promise.resolve({ data: null }),
+        ]);
+        ansatz = ansatzFuer(leistung, ansaetze || []);
+        if (ansatz == null) throw new Error('Kein Stundenansatz gefunden – bitte unter Preise & Katalog einen Standardansatz festlegen.');
+      }
+      const zeile = {
+        mandant_id: mandantId, pendenz_id: zahlOderNull(d.pendenzId), leistung_id: leistungId, art,
+        datum: d.datum, minuten, stundenansatz_chf: ansatz, beschreibung: textOderNull(d.beschreibung),
+      };
+      let q;
+      if (id) {
+        q = supabase.from('zeiteintraege').update(zeile).eq('id', id);
+      } else {
+        q = supabase.from('zeiteintraege').insert({ ...zeile, mitarbeiter_id: zahlOderNull(d.mitarbeiterId) ?? await aktuelleMitarbeiterId() });
+      }
+      const { data, error } = await q.select().single();
+      pruefeFehler(error);
+      // Die Pendenz merkt sich die Leistung als Vorschlag fuer das naechste Mal.
+      if (zeile.pendenz_id && leistungId) {
+        await supabase.from('pendenzen').update({ leistung_id: leistungId }).eq('id', zeile.pendenz_id).is('leistung_id', null);
+      }
+      return data;
+    },
+    loeschen: async (id) => {
+      const { error } = await supabase.from('zeiteintraege').delete().eq('id', id);
+      pruefeFehler(error);
+    },
+  },
+
   // Vereinbarte Pauschalen pro Mandant (v7, Etappe 1).
   pauschalen: {
     ...tabelle('mandant_pauschalen', {
@@ -695,6 +790,7 @@ const api = {
         warte_seit: wartet ? (daten.warteSeit || heutigesDatumISO()) : null,
         wiedervorlage: wartet ? daten.wiedervorlage : null,
         bearbeitungstag: daten.bearbeitungstag || null,
+        ...(daten.leistungId ? { leistung_id: Number(daten.leistungId) } : {}),
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
         reihenfolge: daten.reihenfolge ?? null,
         // Mobil-Erfassen (siehe MobilErfassen.jsx) uebergibt explizit geplant:false -- so eine
@@ -741,6 +837,7 @@ const api = {
       if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
       if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
       if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
+      if (daten.leistungId !== undefined) patch.leistung_id = zahlOderNull(daten.leistungId);
       // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
       // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
       patch.geplant = true;
@@ -895,6 +992,8 @@ const api = {
           harte_frist: !!regel.harte_frist,
           status: 'Offen',
           geplant: true,
+          // Standard-Leistung (Zeiterfassung) an die erzeugten Pendenzen weitergeben.
+          ...(regel.leistung_id ? { leistung_id: regel.leistung_id } : {}),
         };
 
         const { data: neu, error: fehlerNeu } = await supabase.from('pendenzen')
