@@ -58,6 +58,7 @@ export default function ModulNavigation({ zaehler = {} }) {
 
   return (
     <div className="modul-navigation">
+      <div className="app-name">Auftragsmanagement</div>
       <div className="modul-auswahl-label">Modul</div>
       <div className="modul-auswahl" ref={boxRef}>
         {offen ? (

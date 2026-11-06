@@ -33,7 +33,7 @@ function baueICS({ titel, beschreibung, faelligkeit, uid }) {
   const zeilen = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Pendenzenliste//DE',
+    'PRODID:-//Auftragsmanagement//DE',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

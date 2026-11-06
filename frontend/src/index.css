@@ -2451,3 +2451,7 @@ a.btn-klein { text-decoration: none; color: var(--text); display: inline-flex; a
 .projekt-schritte-tabelle tr.erledigt input { text-decoration: line-through; color: var(--text-muted); }
 .projekt-schritt-status { font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
 .projekt-modal .btn-klein { align-self: flex-start; }
+.app-name { padding: 0 12px 12px; margin-bottom: 10px; border-bottom: 1px solid var(--border); font-size: var(--fs-abschnitt); font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.eingang-mail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.eingang-mail-text { font-size: var(--fs-klein); color: var(--text-muted); }
+.eingang-mail-marke { color: var(--text-muted); }

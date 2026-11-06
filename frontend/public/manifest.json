@@ -1,7 +1,7 @@
 {
-  "name": "Pendenzenliste",
-  "short_name": "Pendenzen",
-  "description": "Pendenzenliste fuer Treuhandmandate",
+  "name": "Auftragsmanagement",
+  "short_name": "Aufträge",
+  "description": "Auftragsmanagement fuer Treuhandmandate: Pendenzen, Offerten, Zeiterfassung, Rapporte",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f2f3f5",

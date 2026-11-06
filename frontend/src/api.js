@@ -279,6 +279,22 @@ const api = {
   // (lib/ics.js) und als Base64 mitgeschickt.
   mail: {
     status: async () => ({ konfiguriert: true }),
+    // Auftraege per E-Mail: Mails aus dem Outlook-Ordner "Auftraege" in den Eingang holen
+    // (Edge Function "mail-eingang").
+    eingangAbholen: async () => {
+      const { data, error } = await supabase.functions.invoke('mail-eingang', { body: {} });
+      if (error) {
+        if (error instanceof FunctionsHttpError) {
+          const koerper = await error.context.json().catch(() => null);
+          throw new Error(koerper?.fehler || error.message);
+        }
+        if (/not found|404|Failed to send/i.test(error.message)) {
+          throw new Error('Die Funktion «mail-eingang» ist in Supabase noch nicht eingerichtet.');
+        }
+        throw new Error(error.message);
+      }
+      return data;
+    },
     senden: async (daten) => {
       const body = { an: daten.an, betreff: daten.betreff, text: daten.text };
       if (daten.kalender) {
@@ -300,7 +316,7 @@ const api = {
       const { data: { user } } = await supabase.auth.getUser();
       const ziel = user?.email;
       if (!ziel) throw new Error('Keine E-Mail-Adresse fuer den Test gefunden.');
-      await sendMailAufrufen({ an: ziel, betreff: 'Testmail Pendenzenliste', text: 'Dies ist eine Testmail von der Pendenzenliste.' });
+      await sendMailAufrufen({ an: ziel, betreff: 'Testmail Auftragsmanagement', text: 'Dies ist eine Testmail vom Auftragsmanagement.' });
       return { an: ziel };
     },
   },

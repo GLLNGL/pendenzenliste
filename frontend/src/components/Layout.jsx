@@ -67,6 +67,17 @@ export default function Layout() {
     }).catch(() => { /* naechster Versuch beim naechsten Oeffnen */ });
   }, []);
 
+  // Auftraege per E-Mail beim Oeffnen der App abholen (hoechstens alle 15 Minuten, still --
+  // Fehler zeigt der Eingang selbst an).
+  useEffect(() => {
+    const SCHLUESSEL = 'mail-eingang-zuletzt';
+    let zuletzt = 0;
+    try { zuletzt = Number(localStorage.getItem(SCHLUESSEL)) || 0; } catch { /* ohne Speicher: jedes Mal */ }
+    if (Date.now() - zuletzt < 15 * 60 * 1000) return;
+    try { localStorage.setItem(SCHLUESSEL, String(Date.now())); } catch { /* ohne Speicher weiter */ }
+    api.mail.eingangAbholen().then((r) => { if (r?.neu) meldeAenderung(); }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === 'n' && !editierbaresElementFokussiert() && !schnellErfassungOffen) {

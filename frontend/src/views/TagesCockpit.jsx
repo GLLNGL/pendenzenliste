@@ -60,7 +60,7 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt =
       <span className="tp-aufwand">{p.aufwand_minuten ? formatiereAufwand(p.aufwand_minuten) : ''}</span>
       {!erledigt && aktionen?.length > 0 && (
         <span className="tp-aktionen">
-          {aktionen.map((a) => (
+          {aktionen.filter((a) => !a.sichtbar || a.sichtbar(p)).map((a) => (
             <button key={a.label} type="button" className="tp-aktion" onClick={() => a.ausfuehren(p)} title={a.titel}>{a.label}</button>
           ))}
         </span>
@@ -195,14 +195,21 @@ export default function TagesCockpit() {
   }
   async function planen(p, tag) {
     try {
-      await api.pendenzen.aktualisieren(p.id, { bearbeitungstag: tag });
+      // "Zu planen" heisst: jetzt nicht -- eine Pendenz in Arbeit geht dabei zurueck auf Offen.
+      const patch = { bearbeitungstag: tag };
+      if (!tag && p.status === 'In Arbeit') patch.status = 'Offen';
+      await api.pendenzen.aktualisieren(p.id, patch);
       meldeAenderung();
     } catch (err) {
       window.alert(err.message);
     }
   }
 
-  const zuPlanenAktion = { label: 'Zu planen', titel: 'Bearbeitungstag entfernen – in den Ordner «Zu planen»', ausfuehren: (p) => planen(p, null) };
+  // Bei ueberfaelliger Frist bliebe die Pendenz trotzdem in "Heute" -- dort kein "Zu planen".
+  const zuPlanenAktion = {
+    label: 'Zu planen', titel: 'Bearbeitungstag entfernen – in den Ordner «Zu planen»', ausfuehren: (p) => planen(p, null),
+    sichtbar: (p) => !(p.faelligkeit && p.faelligkeit <= heute),
+  };
 
   return (
     <div className="tp-seite">

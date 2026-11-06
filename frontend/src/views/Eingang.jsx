@@ -101,6 +101,23 @@ export default function Eingang() {
   const [eintraege, setEintraege] = useState([]);
   const [fehler, setFehler] = useState(null);
   const [aktion, setAktion] = useState(null); // { pendenz, projektModus }
+  const [abruf, setAbruf] = useState({ laeuft: false, meldung: null, fehler: null });
+
+  // Auftraege aus dem Outlook-Ordner "Auftraege" abholen -- beim Oeffnen und per Knopf.
+  const mailsAbholen = useCallback(async () => {
+    setAbruf({ laeuft: true, meldung: null, fehler: null });
+    try {
+      const r = await api.mail.eingangAbholen();
+      setAbruf({ laeuft: false, fehler: null, meldung: r?.hinweis || (r?.neu ? `${r.neu} neue${r.neu === 1 ? 'r Auftrag' : ' Aufträge'} aus E-Mail übernommen.` : 'Keine neuen Aufträge im Ordner «Aufträge».') });
+      if (r?.neu) meldeAenderung();
+    } catch (err) {
+      setAbruf({ laeuft: false, meldung: null, fehler: err.message });
+    }
+  }, []);
+  useEffect(() => {
+    const zeitgeber = setTimeout(mailsAbholen, 0);
+    return () => clearTimeout(zeitgeber);
+  }, [mailsAbholen]);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
 
@@ -138,6 +155,12 @@ export default function Eingang() {
       <p className="seiten-untertitel">
         Triage für jeden Eintrag: Aktion nötig? → unter 2 Minuten? → wartet auf Dritte? → mehrere Schritte? → sonst einplanen.
       </p>
+      <div className="eingang-mail">
+        <button type="button" className="btn" onClick={mailsAbholen} disabled={abruf.laeuft}>{abruf.laeuft ? 'Holt E-Mails…' : '✉ E-Mails abholen'}</button>
+        <span className="eingang-mail-text">
+          {abruf.fehler ? <span className="text-ueberfaellig">{abruf.fehler}</span> : (abruf.meldung || 'Aufträge per E-Mail: in Outlook in den Ordner «Aufträge» ziehen.')}
+        </span>
+      </div>
 
       <div className="karte">
         <Schnellerfassung onErfasst={laden} />
@@ -152,7 +175,7 @@ export default function Eingang() {
             onKeyDown={(ev) => { if (ev.key === 'Enter') oeffnen(e, false); }}
           >
             <div className="eingang-eintrag-kopf">
-              <span className="eingang-eintrag-titel">{e.titel}</span>
+              <span className="eingang-eintrag-titel">{e.email_message_id && <span className="eingang-mail-marke" title={`E-Mail von ${e.email_von ?? ''}`}>✉ </span>}{e.titel}</span>
               <span className="eingang-eintrag-datum">{formatiereZeitstempel(e.erstellt_am)}</span>
             </div>
             {e.beschreibung && <p className="eingang-eintrag-text">{e.beschreibung}</p>}

@@ -22,12 +22,14 @@ function meine(p, ichId) {
   return ichId == null || p.bearbeiter_id == null || p.bearbeiter_id === ichId;
 }
 
-// Gehoert eine offene Pendenz auf den Tag? Bearbeitungstag bis heute, Frist bis heute
-// (Ueberfaelliges eingeschlossen), "In Arbeit", faelliges Nachfassen.
+// Gehoert eine offene Pendenz auf den Tag? Ein geplanter Bearbeitungstag hat Vorrang (wer etwas
+// auf Montag legt, sieht es erst Montag -- auch wenn es "In Arbeit" oder faellig ist). Ohne
+// Bearbeitungstag: "In Arbeit" und Frist bis heute (Ueberfaelliges eingeschlossen).
+// "Warten auf" erscheint am Nachfassdatum.
 function istHeute(p, heute) {
-  if (p.status === 'Warten auf') return (p.wiedervorlage && p.wiedervorlage <= heute) || (p.faelligkeit && p.faelligkeit <= heute);
-  if (p.status === 'In Arbeit') return true;
-  return (p.bearbeitungstag && p.bearbeitungstag <= heute) || (p.faelligkeit && p.faelligkeit <= heute);
+  if (p.status === 'Warten auf') return !!((p.wiedervorlage && p.wiedervorlage <= heute) || (!p.bearbeitungstag && p.faelligkeit && p.faelligkeit <= heute));
+  if (p.bearbeitungstag) return p.bearbeitungstag <= heute;
+  return p.status === 'In Arbeit' || !!(p.faelligkeit && p.faelligkeit <= heute);
 }
 
 /**
@@ -45,12 +47,12 @@ function tagesplan(offene, erledigte, { heute, ichId = null }) {
   const koepfe = offene.filter((p) => p.teilaufgaben_gesamt > 0 && p.status !== 'Erledigt' && meine(p, ichId));
   const kopfHeute = new Set(koepfe.filter((k) => istHeute(k, heute)).map((k) => k.id));
   const kopfMorgen = new Set(koepfe.filter((k) => !kopfHeute.has(k.id) && (k.bearbeitungstag === morgenTag || k.faelligkeit === morgenTag)).map((k) => k.id));
-  const aktiverSchritt = (p, ids) => ids.has(p.uebergeordnete_pendenz_id) && ['Offen', 'In Arbeit'].includes(p.status);
+  const aktiverSchritt = (p, ids) => !p.bearbeitungstag && ids.has(p.uebergeordnete_pendenz_id) && ['Offen', 'In Arbeit'].includes(p.status);
 
   const heuteOffen = offen.filter((p) => istHeute(p, heute) || aktiverSchritt(p, kopfHeute)).sort(sortierung);
   const heuteIds = new Set(heuteOffen.map((p) => p.id));
   const morgenOffen = offen
-    .filter((p) => !heuteIds.has(p.id) && (p.bearbeitungstag === morgenTag || p.faelligkeit === morgenTag
+    .filter((p) => !heuteIds.has(p.id) && (p.bearbeitungstag === morgenTag || (!p.bearbeitungstag && p.faelligkeit === morgenTag)
       || (p.status === 'Warten auf' && p.wiedervorlage === morgenTag) || aktiverSchritt(p, kopfMorgen)))
     .sort(sortierung);
 

@@ -24,7 +24,7 @@ export default function Login() {
   return (
     <div className="login-seite">
       <div className="login-box">
-        <div className="login-titel">Pendenzenliste</div>
+        <div className="login-titel">Auftragsmanagement</div>
         <p className="login-untertitel">Bitte mit deiner E-Mail-Adresse anmelden.</p>
         <form onSubmit={absenden}>
           <div className="feld">

@@ -25,7 +25,7 @@ test('Heute, Morgen (nächster Arbeitstag) und Wochenziele', () => {
   assert.deepEqual(t.heute.offen.map((x) => x.id).sort(), [1, 2, 3]);
   assert.deepEqual(t.heute.erledigt.map((x) => x.id), [10]);
   assert.equal(t.morgen.tag, '2026-11-09');
-  assert.deepEqual(t.morgen.offen.map((x) => x.id).sort(), [4, 5]);
+  assert.deepEqual(t.morgen.offen.map((x) => x.id).sort(), [4]); // 5 ist auf den 20.11. geplant
   assert.deepEqual(t.wochenziele.offen.map((x) => x.id), [9]);
   assert.deepEqual(t.wochenziele.erledigt.map((x) => x.id), [11]);
 });
@@ -51,4 +51,15 @@ test('Geplantes Projekt bringt seine aktive Teilaufgabe nach Heute', () => {
   ];
   const t = tagesplan(offene, [], { heute });
   assert.deepEqual(t.heute.offen.map((x) => x.id), [21]);
+});
+
+test('Geplanter Bearbeitungstag hat Vorrang vor «In Arbeit» und Frist', () => {
+  const offene = [
+    p(30, { status: 'In Arbeit', bearbeitungstag: '2026-11-09' }),
+    p(31, { faelligkeit: '2026-11-02', bearbeitungstag: '2026-11-09' }),
+    p(32, { status: 'In Arbeit' }),
+  ];
+  const t = tagesplan(offene, [], { heute });
+  assert.deepEqual(t.heute.offen.map((x) => x.id), [32]);
+  assert.deepEqual(t.morgen.offen.map((x) => x.id).sort(), [30, 31]);
 });

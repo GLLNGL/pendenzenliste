@@ -106,7 +106,7 @@ export default function Einstellungen() {
       </div>
 
       <h2 className="abschnitt-titel">Zugriff vom Handy</h2>
-      <p className="seiten-untertitel">Der PC muss dafür eingeschaltet und die Pendenzenliste gestartet sein.</p>
+      <p className="seiten-untertitel">Der PC muss dafür eingeschaltet und das Auftragsmanagement gestartet sein.</p>
 
       <div className="karte" style={{ maxWidth: 640 }}>
         <div className="modal-koerper">
@@ -138,7 +138,7 @@ export default function Einstellungen() {
 
           <div style={{ marginTop: 12 }}>
             <strong>Als App auf den Home-Bildschirm</strong> (iPhone): Seite in Safari öffnen →
-            Teilen-Symbol → „Zum Home-Bildschirm". Danach startet die Pendenzenliste mit eigenem Icon
+            Teilen-Symbol → „Zum Home-Bildschirm". Danach startet das Auftragsmanagement mit eigenem Icon
             und ohne Browser-Leiste.
           </div>
         </div>

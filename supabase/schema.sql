@@ -1122,6 +1122,15 @@ alter table public.wiederkehr_regeln drop constraint if exists wiederkehr_regeln
 alter table public.wiederkehr_regeln add constraint wiederkehr_regeln_aufwand_minuten_check
   check (aufwand_minuten is null or (aufwand_minuten > 0 and aufwand_minuten <= 6000));
 
+-- ==========================================================================
+-- Auftraege per E-Mail (v7): Mails aus dem Outlook-Ordner "Auftraege" werden von der Edge
+-- Function "mail-eingang" als Pendenz in den Eingang gelegt (geplant = false). Die Message-ID
+-- verhindert, dass dieselbe Mail zweimal uebernommen wird.
+-- ==========================================================================
+alter table public.pendenzen add column if not exists email_message_id text;
+alter table public.pendenzen add column if not exists email_von text;
+create unique index if not exists idx_pendenzen_email_message_id on public.pendenzen (email_message_id) where email_message_id is not null;
+
 -- --------------------------------------------------------------------------
 -- View und Legacy-RPC bewusst am Dateiende: der View liest p.* und muss darum nach allen
 -- "alter table pendenzen add column" (auch spaeteren Etappen) neu erstellt werden, sonst
