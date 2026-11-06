@@ -2215,3 +2215,40 @@ table.tabelle tr.klickbar { cursor: pointer; }
 .pendenz-zeit-zeile { grid-template-columns: 150px 1fr auto 44px; }
 .pauschalen-kapazitaet { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; margin-top: 10px; padding: 8px 12px; background: var(--surface-2); border-radius: var(--radius); font-size: var(--fs-klein); font-variant-numeric: tabular-nums; }
 .pauschalen-reserve { color: #1f7a3d; font-weight: 600; }
+
+/* ---------- Pendenzenliste im Tabellen-Layout (wie Leistungskatalog) ---------- */
+.tagesliste-kopf,
+.tagesliste-eintrag {
+  grid-template-columns: minmax(0, 1fr) 84px 34px 64px 92px;
+  column-gap: 14px;
+}
+.tagesliste-kopf.mit-frist,
+.tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 84px 34px 88px 64px 92px; }
+.tagesliste-kopf {
+  display: grid;
+  position: sticky; top: 0; z-index: 2;
+  padding: 9px 14px 8px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--fs-label); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted);
+}
+.tagesliste-kopf-titel { padding-left: 14px; }
+.tagesliste-kopf-zahl, .tagesliste-aufwand { text-align: right; }
+.tagesliste-eintrag { padding-top: 8px; padding-bottom: 8px; font-size: var(--fs-liste); align-items: center; }
+.tagesliste-titel { white-space: normal; overflow: visible; line-height: 1.35; }
+.tagesliste-block { color: var(--text-muted); font-size: var(--fs-liste-klein); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tagesliste-prio { font-weight: 600; color: var(--text-muted); text-align: center; }
+.tagesliste-prio.prio-a { color: var(--danger); }
+.tagesliste-gruppe-titel { padding-top: 8px; padding-bottom: 7px; background: var(--surface-2); }
+.tagesliste-gruppe + .tagesliste-gruppe { border-top: none; }
+.tagesliste li:last-child .tagesliste-eintrag { border-bottom: 1px solid var(--border); }
+.tagesliste-kopf > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tagesliste-kopf-prio { text-align: center; }
+/* Schmale Listen (Cockpit, Kalender, kleine Fenster): Block und Prio ausblenden. */
+.uebersicht-liste, .kalender-tagesliste { container-type: inline-size; }
+@container (max-width: 620px) {
+  .tagesliste-kopf-block, .tagesliste-kopf-prio, .tagesliste-block, .tagesliste-prio { display: none; }
+  .tagesliste-kopf, .tagesliste-eintrag { grid-template-columns: minmax(0, 1fr) 64px 86px; column-gap: 12px; }
+  .tagesliste-kopf.mit-frist, .tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 88px 64px 86px; }
+}

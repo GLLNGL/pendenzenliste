@@ -65,7 +65,20 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
     }
   }
 
-  return gruppiertNachMandant(pendenzen).map((gruppe) => {
+  // Tabellen-Layout wie der Leistungskatalog: eine Kopfzeile mit Spaltennamen ueber allen
+  // Gruppen, die Spalten stehen in jeder Zeile genau darunter.
+  const kopfzeile = (
+    <div key="kopf" className={`tagesliste-kopf ${datumFeld ? 'mit-frist' : ''}`} aria-hidden="true">
+      <span className="tagesliste-kopf-titel">Nächster Schritt</span>
+      <span className="tagesliste-kopf-block">Block</span>
+      <span className="tagesliste-kopf-prio">Prio</span>
+      {datumFeld && <span>{DATUM_TITEL[datumFeld]}</span>}
+      <span className="tagesliste-kopf-zahl">Aufwand</span>
+      <span>Status</span>
+    </div>
+  );
+
+  return [kopfzeile, ...gruppiertNachMandant(pendenzen).map((gruppe) => {
     const zu = eingeklappt.has(String(gruppe.schluessel));
     return (
       <div key={gruppe.schluessel} className={`tagesliste-gruppe ${zu ? 'eingeklappt' : ''}`}>
@@ -121,6 +134,8 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                         <span className="tagesliste-projekt">Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
                       )}
                     </span>
+                    <span className="tagesliste-block">{p.block && p.block !== 'Sonstiges' ? p.block : ''}</span>
+                    <span className={`tagesliste-prio prio-${String(p.prioritaet || '').toLowerCase()}`}>{istProjekt ? '' : p.prioritaet}</span>
                     {datumFeld && (
                       <span className={`tagesliste-frist ${ueberfaellig ? 'ueberfaellig' : ''}`} title={DATUM_TITEL[datumFeld]}>
                         {formatiereDatum(p[datumFeld])}
@@ -140,5 +155,5 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
         )}
       </div>
     );
-  });
+  })];
 }
