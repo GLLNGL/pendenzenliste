@@ -2326,3 +2326,16 @@ button.tagesliste-projektzeile { padding-left: 13px; }
 .tagesliste-projektzeile .tagesliste-projekt-name { padding-left: 3px; }
 .tagesliste-eintrag.schritt .tagesliste-titel { padding-left: 50px; }
 .tagesliste-eintrag.schritt::before, .tagesliste-eintrag.schritt::after { left: 40px; }
+
+/* Ebenen klar unterscheidbar: Mandant fett (wie bisher), Projekt grosse Schrift ohne Fett,
+   Teilaufgaben kleiner und grau; zwischen den Mandanten ein deutlicher Abstand. */
+.tagesliste-gruppe + .tagesliste-gruppe { border-top: 10px solid var(--bg); }
+.tagesliste-gruppe-titel { border-top: 1px solid var(--border); }
+.tagesliste-eintrag.projekt .tagesliste-titel,
+.tagesliste-projektzeile .tagesliste-projekt-name { font-weight: 400; font-size: var(--fs-text); color: var(--text); }
+button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; padding-bottom: 9px; }
+.tagesliste-eintrag:not(.schritt) .tagesliste-titel { font-size: var(--fs-text); }
+.tagesliste-eintrag.schritt .tagesliste-titel { font-size: 12px; color: var(--text-muted); }
+.tagesliste-eintrag.schritt { background: var(--surface-2); }
+.tagesliste-eintrag.schritt:hover { background: var(--surface-3); }
+.tagesliste-projekt-anzahl { font-size: var(--fs-liste-klein); }
