@@ -4,7 +4,7 @@
 // nur hier drin aendert sich, WIE die Daten geholt werden.
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './lib/supabaseClient.js';
-import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
+import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
 import { naechstePendenzen, faelligeVorkommen, heutigesDatumUTC } from './lib/recurrence.js';
 import { REGEL_TYPEN } from './lib/regelVorlagen.js';
 import { heutigesDatumISO, datumPlusTage } from './format.js';
@@ -38,7 +38,7 @@ const CONSTRAINT_MELDUNGEN = {
   pendenzen_warten_auf_pflicht: 'Status «Warten auf» braucht eine Person und ein Nachfassdatum.',
   pendenzen_prioritaet_check: 'Ungültige Priorität (erlaubt: A, B, C).',
   pendenzen_status_check: 'Ungültiger Status.',
-  pendenzen_aufwand_minuten_check: 'Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten).',
+  pendenzen_aufwand_minuten_check: 'Ungültiger Aufwand.',
   pendenzen_block_check: 'Ungültiger Block.',
   idx_mandanten_kunden_nr: 'Diese Kunden-Nr. ist bereits vergeben.',
   idx_stundenansaetze_ein_standard: 'Es kann nur einen Standardansatz geben.',
@@ -220,8 +220,8 @@ async function pendenzenListe(query = {}) {
 
 function pendenzPayloadValidieren(payload, { neuer }) {
   if (neuer && (!payload.titel || !String(payload.titel).trim())) throw new Error('Nächster Schritt ist erforderlich');
-  if (payload.aufwandMinuten != null && payload.aufwandMinuten !== '' && !AUFWAND_MINUTEN.includes(Number(payload.aufwandMinuten))) {
-    throw new Error('Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten)');
+  if (payload.aufwandMinuten != null && payload.aufwandMinuten !== '' && !(Number(payload.aufwandMinuten) > 0 && Number(payload.aufwandMinuten) <= 6000)) {
+    throw new Error('Ungültiger Aufwand');
   }
   if (payload.block !== undefined && payload.block !== null && !BLOECKE.includes(payload.block)) throw new Error('Ungültiger Block');
 }
@@ -881,6 +881,7 @@ const api = {
         wiedervorlage: wartet ? daten.wiedervorlage : null,
         bearbeitungstag: daten.bearbeitungstag || null,
         ...(daten.leistungId ? { leistung_id: Number(daten.leistungId) } : {}),
+        ...(daten.verrechnung ? { verrechnung: daten.verrechnung === 'extra' ? 'extra' : 'pauschal' } : {}),
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
         reihenfolge: daten.reihenfolge ?? null,
         // Mobil-Erfassen (siehe MobilErfassen.jsx) uebergibt explizit geplant:false -- so eine
@@ -928,6 +929,7 @@ const api = {
       if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
       if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
       if (daten.leistungId !== undefined) patch.leistung_id = zahlOderNull(daten.leistungId);
+      if (daten.verrechnung !== undefined) patch.verrechnung = daten.verrechnung === 'extra' ? 'extra' : 'pauschal';
       // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
       // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
       patch.geplant = true;

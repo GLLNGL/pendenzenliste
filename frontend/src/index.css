@@ -2437,3 +2437,17 @@ a.btn-klein { text-decoration: none; color: var(--text); display: inline-flex; a
 .diktat-knopf.aktiv { background: var(--danger); border-color: var(--danger); color: #fff; animation: timer-puls 1.4s ease-in-out infinite; }
 .diktat-hinweis { font-size: var(--fs-label); color: var(--danger); }
 .diktat-fehler { font-size: var(--fs-label); color: var(--danger); }
+
+/* Projekt-Fenster mit Teilschritt-Zeilen */
+.modal.projekt-modal { width: min(980px, calc(100vw - 32px)); max-width: none; }
+.feld-reihe.projekt-reihe-3 { grid-template-columns: repeat(3, 1fr); }
+.projekt-schritte { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.projekt-schritte-kopf { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: var(--fs-text); }
+.projekt-schritte-summe { font-weight: 400; font-size: var(--fs-klein); color: var(--text-muted); }
+.projekt-schritte-tabelle th { padding: 6px 6px; font-size: var(--fs-label); text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.03em; }
+.projekt-schritte-tabelle td { padding: 4px 6px; }
+.projekt-schritte-tabelle td:first-child { width: 42%; }
+.projekt-schritte-tabelle input, .projekt-schritte-tabelle select { width: 100%; font-size: var(--fs-klein); }
+.projekt-schritte-tabelle tr.erledigt input { text-decoration: line-through; color: var(--text-muted); }
+.projekt-schritt-status { font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
+.projekt-modal .btn-klein { align-self: flex-start; }

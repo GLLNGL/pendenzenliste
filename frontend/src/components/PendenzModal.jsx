@@ -1,6 +1,7 @@
 import { useLeistungen } from '../hooks.js';
 import PendenzZeit from './PendenzZeit.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
+import ProjektModal from './ProjektModal.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -69,7 +70,17 @@ function mandantFuerSpeichern(wert) {
 // Ein Modal fuer Schnellerfassung (pendenz=null) und vollstaendiges Bearbeiten (pendenz gesetzt).
 // projektModus: aus der Eingang-Triage "Mehrere Schritte" geoeffnet -- zeigt den Hinweis zur
 // Projekt-Logik bei den Schritten.
-export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, projektModus = false, onSchliessen, onGespeichert, onGeloescht }) {
+// Weiche (v7): Neue Pendenzen und Projekte (oberste Ebene) oeffnen das Projekt-Fenster mit
+// Teilschritt-Zeilen; Teilschritte und Eingang-Notizen (Triage) das ausfuehrliche Fenster.
+export default function PendenzModal(props) {
+  const { pendenz, vorgabe, projektModus } = props;
+  const alsProjekt = pendenz
+    ? pendenz.uebergeordnete_pendenz_id == null && pendenz.geplant !== false
+    : !projektModus && !vorgabe?.uebergeordnetePendenzId;
+  return alsProjekt ? <ProjektModal {...props} /> : <PendenzDetailModal {...props} />;
+}
+
+export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, projektModus = false, onSchliessen, onGespeichert, onGeloescht }) {
   const leistungen = useLeistungen();
   const { benutzer } = useAuth();
   const [formular, setFormular] = useState(() => (pendenz ? ausPendenz(pendenz) : leeresFormular(vorgabe)));

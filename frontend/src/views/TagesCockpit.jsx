@@ -87,12 +87,14 @@ function nachProjekt(zeilen) {
   return bloecke;
 }
 
-function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktionen, onOeffnen, onAbhaken }) {
+function Karte({ titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken }) {
   // Projekte sind im Cockpit aufgeklappt (Teilaufgaben abhaken); Klick aufs Projekt klappt zu.
   const [zu, setZu] = useState(() => new Set());
   const umschalten = (id) => setZu((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const total = offen.length + erledigt.length;
-  const anteil = total ? erledigt.length / total : 0;
+  const fertig = erledigtAnzahl ?? erledigt.length;
+  const gesamt = offen.length + fertig;
+  const anteil = gesamt ? fertig / gesamt : 0;
   return (
     <section className="tp-karte">
       <header className="tp-karte-kopf">
@@ -101,11 +103,12 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
           <div className="tp-karte-untertitel">{untertitel}</div>
         </div>
         <div className="tp-karte-stand">
-          {total > 0 && <span>{erledigt.length} von {total} erledigt</span>}
+          {total > 0 && erledigtAnzahl == null && <span>{erledigt.length} von {total} erledigt</span>}
+          {erledigtAnzahl > 0 && <span>{erledigtAnzahl} heute erledigt</span>}
           {minutenSumme(offen) > 0 && <span className="tp-karte-zeit">noch {formatiereStunden(minutenSumme(offen))}</span>}
         </div>
       </header>
-      {total > 0 && <div className="tp-fortschritt"><div style={{ width: `${Math.round(anteil * 100)}%` }} /></div>}
+      {gesamt > 0 && <div className="tp-fortschritt"><div style={{ width: `${Math.round(anteil * 100)}%` }} /></div>}
       {total > 0 && (
       <div className="tp-kacheln">
       {nachMandant(offen, erledigt).map((g) => {
@@ -143,7 +146,8 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
       })}
       </div>
       )}
-      {total === 0 && <div className="tp-leer">{leerText}</div>}
+      {total === 0 && !(erledigtAnzahl > 0) && <div className="tp-leer">{leerText}</div>}
+      {total === 0 && erledigtAnzahl > 0 && <div className="tp-alles">Alles erledigt.</div>}
       {total > 0 && offen.length === 0 && <div className="tp-alles">Alles erledigt.</div>}
     </section>
   );
@@ -217,7 +221,7 @@ export default function TagesCockpit() {
           titel="Heute"
           untertitel={`${tagText(heute)} · geplant, fällig, in Arbeit`}
           offen={plan.heute.offen}
-          erledigt={plan.heute.erledigt}
+          erledigtAnzahl={plan.heute.erledigt.length}
           leerText="Für heute ist nichts geplant."
           heute={heute}
           aktionen={[{ label: `→ ${morgenName}`, titel: `Auf ${morgenName} verschieben`, ausfuehren: (p) => planen(p, plan.morgen.tag) }, zuPlanenAktion]}

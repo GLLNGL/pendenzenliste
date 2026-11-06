@@ -30,7 +30,8 @@ async function timerStarten(pendenz) {
   const leistungId = leistungVorschlag(pendenz, aktiv);
   const ergebnis = await api.zeit.starten({
     pendenzId: pendenz.id, mandantId: pendenz.mandant_id, leistungId,
-    art: artVorschlag(pendenz.mandant_id, leistungId, aktiv), beschreibung: pendenz.titel,
+    art: pendenz.verrechnung && pendenz.mandant_id ? pendenz.verrechnung : artVorschlag(pendenz.mandant_id, leistungId, aktiv),
+    beschreibung: pendenz.titel,
   });
   meldeZeitAenderung();
   return ergebnis;

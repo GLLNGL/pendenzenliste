@@ -10,7 +10,7 @@ const PRIORITAET_BESCHREIBUNG = {
   C: 'C – dringend, wenig Wert (bündeln/delegieren)',
 };
 
-const AUFWAND_MINUTEN = [15, 30, 60, 120];
+const AUFWAND_MINUTEN = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480];
 const BLOECKE = ['Zahlungen', 'Lohn', 'MWST', 'Abschluss', 'Debitoren', 'Admin', 'Sonstiges'];
 
 // Mandats-Eckdaten (Kundenliste). Werte = gespeicherter Text, Label = Anzeige.

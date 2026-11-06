@@ -60,7 +60,8 @@ export default function ZeitModal({ eintrag = null, pendenz = null, onSchliessen
   } else {
     const mandantId = pendenz?.mandant_id ?? '';
     const leistungId = leistungVorschlag(pendenz, pauschalenVon(mandantId));
-    const art = artVorschlag(mandantId, leistungId, pauschalenVon(mandantId));
+    // Verrechnung des Teilschritts (Pauschal/Extra) geht vor; sonst Vorschlag aus den Pauschalen.
+    const art = pendenz?.verrechnung && mandantId ? pendenz.verrechnung : artVorschlag(mandantId, leistungId, pauschalenVon(mandantId));
     start = {
       datum: heute, von: '', bis: '', dauer: '', intern: !!pendenz && !pendenz.mandant_id,
       mandantId: wert(mandantId), leistungId: wert(leistungId), art: art === 'intern' ? 'pauschal' : art,
