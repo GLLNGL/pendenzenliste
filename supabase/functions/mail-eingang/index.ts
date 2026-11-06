@@ -17,7 +17,9 @@
 // SUPABASE_URL und SUPABASE_ANON_KEY stellt Supabase automatisch bereit.
 
 import { ImapFlow } from 'npm:imapflow@1.0.164';
-import { simpleParser } from 'npm:mailparser@3.7.1';
+// postal-mime statt mailparser: rein JavaScript, laeuft zuverlaessig in Deno (mailparser blieb
+// in der Supabase-Umgebung beim Zerlegen haengen).
+import PostalMime from 'npm:postal-mime@2.3.2';
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const CORS_HEADERS = {
@@ -119,9 +121,10 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
 
       for (const msg of nachrichten) {
         zustand.schritt = `Mail ${msg.uid} verarbeiten`;
-        const mail = await simpleParser(msg.source);
-        const messageId = mail.messageId || `uid-${msg.uid}-${mail.date?.toISOString() ?? ''}`;
-        const von = mail.from?.value?.[0];
+        const mail = await PostalMime.parse(new Uint8Array(msg.source));
+        const gesendet = mail.date ? new Date(mail.date) : null;
+        const messageId = mail.messageId || `uid-${msg.uid}-${gesendet?.toISOString() ?? ''}`;
+        const von = mail.from;
         const vonAdresse = (von?.address ?? '').toLowerCase();
         const vonText = von ? (von.name ? `${von.name} <${von.address}>` : von.address) : 'unbekannt';
 
@@ -132,9 +135,11 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
             ? (mandanten ?? []).find((m) => [m.email, m.geschaeftsfuehrung_email].some((e) => domainVon(e) === domain))
             : undefined);
 
-        const datum = mail.date ? mail.date.toLocaleString('de-CH', { timeZone: 'Europe/Zurich' }) : '';
-        const text = (mail.text ?? '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
-        const anhaenge = (mail.attachments ?? []).map((a) => a.filename).filter(Boolean);
+        const datum = gesendet && !Number.isNaN(gesendet.getTime()) ? gesendet.toLocaleString('de-CH', { timeZone: 'Europe/Zurich' }) : '';
+        // Nur-HTML-Mails: Tags entfernen, damit lesbarer Text in der Beschreibung steht.
+        const rohtext = mail.text || (mail.html ?? '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+        const text = rohtext.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
+        const anhaenge = (mail.attachments ?? []).map((a: { filename?: string | null }) => a.filename).filter(Boolean);
 
         const { error } = await supabase.from('pendenzen').insert({
           titel: (mail.subject ?? '').trim() || '(E-Mail ohne Betreff)',

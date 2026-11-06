@@ -20,11 +20,22 @@ function utf8ZuBase64(text) {
 // Der tatsaechliche Funktionsname im Supabase-Dashboard ist "clever-processor" (von Supabase
 // zufaellig vergeben, als "send-mail" umbenannt wurde nur der Anzeigename geaendert, nicht der
 // Aufruf-Pfad) -- functions.invoke() braucht den echten Pfad, nicht den Anzeigenamen.
+// Fehlertext einer Edge Function lesen ({ fehler: '...' }); Text statt json(), weil der
+// Antwortkoerper sonst bei manchen Antworten nicht gelesen werden kann.
+async function fehlerKoerperLesen(error) {
+  try {
+    const roh = await error.context.text();
+    return JSON.parse(roh);
+  } catch {
+    return null;
+  }
+}
+
 async function sendMailAufrufen(body) {
   const { data, error } = await supabase.functions.invoke('clever-processor', { body });
   if (error) {
     if (error instanceof FunctionsHttpError) {
-      const fehlerKoerper = await error.context.json().catch(() => null);
+      const fehlerKoerper = await fehlerKoerperLesen(error);
       throw new Error(fehlerKoerper?.fehler || error.message);
     }
     throw new Error(error.message);
@@ -285,7 +296,7 @@ const api = {
       const { data, error } = await supabase.functions.invoke('mail-eingang', { body: {} });
       if (error) {
         if (error instanceof FunctionsHttpError) {
-          const koerper = await error.context.json().catch(() => null);
+          const koerper = await fehlerKoerperLesen(error);
           throw new Error(koerper?.fehler || error.message);
         }
         if (/Failed to send/i.test(error.message)) {
