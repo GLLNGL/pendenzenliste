@@ -2278,3 +2278,51 @@ table.tabelle tr.klickbar { cursor: pointer; }
   border-left: none; border-bottom-color: var(--accent); background: none; color: var(--accent); font-weight: 600;
 }
 .uebersicht-kategorie.uebersicht-reiter-knopf:hover { background: var(--surface-hover); }
+
+/* ==========================================================================
+   Ruhige Listen: Mandant -> Projekt (Anzahl Teilaufgaben) -> Teilaufgaben (eingeklappt).
+   Kaum Farbe -- nur Ueberfaelliges bleibt rot, alles andere in Grautoenen.
+   ========================================================================== */
+.tagesliste-gruppe-titel { background: var(--surface-2); color: var(--text); font-size: var(--fs-liste); }
+.tagesliste-gruppe-titel:hover { background: var(--surface-3); }
+
+/* Projekt: ohne Toenung, Symbol und Badge -- halbfett mit Anzahl Teilaufgaben in Grau. */
+.tagesliste-eintrag.projekt,
+.tagesliste-projektzeile { background: var(--surface); }
+.tagesliste-eintrag.projekt:hover,
+.tagesliste-projektzeile:hover { background: var(--surface-hover); }
+.tagesliste-eintrag.projekt .tagesliste-titel::before,
+.tagesliste-projektzeile .tagesliste-projekt-name::before { content: none; }
+.tagesliste-eintrag.projekt .tagesliste-titel { font-weight: 600; color: var(--text); }
+.tagesliste-projekt-anzahl { margin-left: 8px; font-weight: 400; font-size: var(--fs-liste-klein); color: var(--text-muted); white-space: nowrap; }
+
+/* Projekt-Titelzeile (Projekt selbst nicht in der Liste, z.B. Cockpit): klickbar zum Aufklappen. */
+button.tagesliste-projektzeile {
+  display: flex; align-items: baseline; gap: 6px; width: 100%;
+  padding: 8px 14px 8px 3px; border: none; border-left: 3px solid transparent; border-bottom: 1px solid var(--border);
+  font: inherit; font-size: var(--fs-liste); color: var(--text); text-align: left; cursor: pointer;
+}
+.tagesliste-projekt-pfeil { width: 14px; flex-shrink: 0; text-align: center; color: var(--text-muted); font-size: 12px; }
+.tagesliste-projektzeile .tagesliste-projekt-name { font-weight: 600; padding-left: 10px; }
+.tagesliste-umschalter { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.tagesliste-umschalter:hover { color: var(--text); background: var(--surface-3); }
+
+/* Teilaufgaben: eingerueckt unter dem Projekt, normale Schrift. */
+.tagesliste-eintrag.schritt { padding-top: 6px; padding-bottom: 6px; }
+.tagesliste-eintrag.schritt .tagesliste-titel { font-size: var(--fs-liste-klein); color: var(--text); }
+
+/* Status, Prioritaet, Zaehler: neutral. */
+.tagesliste-status[class*='status-'] { color: var(--text-muted); font-weight: 400; }
+.tagesliste-status.status-in-arbeit { color: var(--text); font-weight: 600; }
+.tagesliste-eintrag.prio-a { border-left-color: transparent; }
+.tagesliste-prio.prio-a { color: var(--text); font-weight: 700; }
+.uebersicht-reiter .zaehler-pille,
+.uebersicht-kategorie .zaehler-pille { background: var(--surface-3) !important; color: var(--text-muted) !important; }
+.uebersicht-kategorie.uebersicht-reiter-knopf.aktiv { color: var(--text); border-bottom-color: var(--text); }
+/* Einzug je Ebene: Mandant 0, Projekt/Pendenz 1, Teilaufgabe 2. */
+.tagesliste-titel, .tagesliste-kopf-titel { padding-left: 26px; }
+.tagesliste-umschalter { left: 13px; }
+button.tagesliste-projektzeile { padding-left: 13px; }
+.tagesliste-projektzeile .tagesliste-projekt-name { padding-left: 3px; }
+.tagesliste-eintrag.schritt .tagesliste-titel { padding-left: 50px; }
+.tagesliste-eintrag.schritt::before, .tagesliste-eintrag.schritt::after { left: 40px; }

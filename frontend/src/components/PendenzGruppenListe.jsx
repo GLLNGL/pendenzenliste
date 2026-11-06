@@ -125,8 +125,9 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
               // Projekt. Ist der Projekt-Kopf selbst nicht in der Liste (Cockpit, Kalender), wird
               // vor dem ersten Schritt eine Projekt-Titelzeile eingefuegt.
               const kopfInListe = istSchritt && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
-              // Schritte unter einem eingeklappten Projekt-Kopf ausblenden.
-              if (kopfInListe && !offeneProjekte.has(p.uebergeordnete_pendenz_id)) return [];
+              // Struktur Mandant -> Projekt -> Teilaufgaben: Teilaufgaben sind eingeklappt, bis
+              // das Projekt aufgeklappt wird (auch wenn nur die Teilaufgaben in der Liste stehen).
+              const schrittSichtbar = !istSchritt || offeneProjekte.has(p.uebergeordnete_pendenz_id);
               const projektOffen = istProjekt && offeneProjekte.has(p.id);
               const vorgaenger = gruppe.items[index - 1];
               const nachfolger = gruppe.items[index + 1];
@@ -136,13 +137,26 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
               const letzterSchritt = istSchritt && nachfolger?.uebergeordnete_pendenz_id !== p.uebergeordnete_pendenz_id;
               const zeilen = [];
               if (brauchtTitelzeile) {
+                const elternId = p.uebergeordnete_pendenz_id;
+                const anzahlHier = gruppe.items.filter((k) => k.uebergeordnete_pendenz_id === elternId).length;
+                const offen = offeneProjekte.has(elternId);
                 zeilen.push(
-                  <li key={`projekt-${p.uebergeordnete_pendenz_id}`} className="tagesliste-projektzeile">
-                    <span className="tagesliste-projekt-name">{p.eltern_titel}</span>
-                    <span className="tagesliste-projekt">Projekt</span>
+                  <li key={`projekt-${elternId}`}>
+                    <button
+                      type="button"
+                      className="tagesliste-projektzeile"
+                      onClick={() => projektUmschalten(elternId)}
+                      aria-expanded={offen}
+                      title={offen ? 'Teilaufgaben einklappen' : 'Teilaufgaben anzeigen'}
+                    >
+                      <span className="tagesliste-projekt-pfeil" aria-hidden="true">{offen ? '▾' : '▸'}</span>
+                      <span className="tagesliste-projekt-name">{p.eltern_titel}</span>
+                      <span className="tagesliste-projekt-anzahl">{anzahlHier} {anzahlHier === 1 ? 'Teilaufgabe' : 'Teilaufgaben'}</span>
+                    </button>
                   </li>,
                 );
               }
+              if (!schrittSichtbar) return zeilen;
               zeilen.push(
                 <li key={p.id} className={istProjekt ? 'mit-umschalter' : undefined}>
                   {istProjekt && (
@@ -151,7 +165,7 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                       className="tagesliste-umschalter"
                       onClick={() => projektUmschalten(p.id)}
                       aria-expanded={projektOffen}
-                      title={projektOffen ? 'Schritte einklappen' : `${p.teilaufgaben_gesamt} Schritte anzeigen`}
+                      title={projektOffen ? 'Teilaufgaben einklappen' : `${p.teilaufgaben_gesamt} Teilaufgaben anzeigen`}
                     >
                       {projektOffen ? '▾' : '▸'}
                     </button>
@@ -165,7 +179,7 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                     <span className="tagesliste-titel">
                       {p.titel}
                       {istProjekt && (
-                        <span className="tagesliste-projekt">Projekt {p.teilaufgaben_erledigt}/{p.teilaufgaben_gesamt}</span>
+                        <span className="tagesliste-projekt-anzahl">{p.teilaufgaben_gesamt} {p.teilaufgaben_gesamt === 1 ? 'Teilaufgabe' : 'Teilaufgaben'}{p.teilaufgaben_erledigt > 0 ? ` · ${p.teilaufgaben_erledigt} erledigt` : ''}</span>
                       )}
                     </span>
                     <span className="tagesliste-block">{p.block && p.block !== 'Sonstiges' ? p.block : ''}</span>
