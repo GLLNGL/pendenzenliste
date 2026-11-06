@@ -1904,3 +1904,41 @@ table.tabelle tr:hover td { background: var(--surface-hover); }
 }
 /* Letzter Schritt eines Projekts: Linie endet beim Abzweig (└ statt ├). */
 .tagesliste-eintrag.schritt.letzter::before { bottom: 50%; }
+
+/* ---------- Preise & Pauschalen (v7, Etappe 1) ---------- */
+.preise-seite { padding-bottom: 40px; }
+.preise-abschnitt-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; max-width: 1200px; }
+.preise-seite > .karte { max-width: 1200px; }
+.preise-seite > .karte.preise-karte-schmal { max-width: 760px; }
+.preise-seite .preise-abschnitt-kopf:has(+ .preise-karte-schmal) { max-width: 760px; }
+table.tabelle th.zahl, table.tabelle td.zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.tabelle tfoot td { font-weight: var(--fw-fett); border-top: 1px solid var(--border); border-bottom: none; }
+.preise-fehlt { color: var(--warning); font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; }
+.preise-gruppe { color: var(--text-muted); font-size: var(--fs-liste-klein); }
+.formular-vorschau {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: var(--fs-klein);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tag-potenziell {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e8effc;
+  color: var(--accent);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.mandant-eckdaten-aktionen { display: inline-flex; gap: 6px; flex-shrink: 0; }
+
+/* Pauschalen eines Mandanten (breites Fenster mit Tabelle). */
+.modal.modal-breit { width: min(1040px, calc(100vw - 32px)); max-width: none; }
+.pauschalen-tabelle td.beendet { color: var(--text-faint); }
+.pauschalen-tabelle .unter-liste { color: var(--danger); }
+.pauschalen-zusatz { font-size: var(--fs-liste-klein); color: var(--text-muted); }
+.feld-reihe.feld-reihe-plz { grid-template-columns: 110px 1fr; }

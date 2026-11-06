@@ -10,6 +10,7 @@ import Archiv from './views/Archiv.jsx';
 import Wochenrueckblick from './views/Wochenrueckblick.jsx';
 import Team from './views/Team.jsx';
 import Einstellungen from './views/Einstellungen.jsx';
+import Preise from './views/Preise.jsx';
 import { useIstHandy } from './hooks.js';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/regeln" element={<Regeln />} />
         <Route path="/wochenrueckblick" element={<Wochenrueckblick />} />
         <Route path="/archiv" element={<Archiv />} />
+        <Route path="/preise" element={<Preise />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />
       </Route>

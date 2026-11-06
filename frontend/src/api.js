@@ -39,7 +39,90 @@ const CONSTRAINT_MELDUNGEN = {
   pendenzen_status_check: 'Ungültiger Status.',
   pendenzen_aufwand_minuten_check: 'Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten).',
   pendenzen_block_check: 'Ungültiger Block.',
+  idx_mandanten_kunden_nr: 'Diese Kunden-Nr. ist bereits vergeben.',
+  idx_stundenansaetze_ein_standard: 'Es kann nur einen Standardansatz geben.',
+  stundenansaetze_name_key: 'Ein Ansatz mit diesem Namen existiert bereits.',
+  leistungen_name_key: 'Eine Leistung mit diesem Namen existiert bereits.',
+  abacus_module_name_key: 'Ein Modul mit diesem Namen existiert bereits.',
+  leistungen_zeit_pflicht: 'Zeitbasierte Leistung braucht Zeit pro Einheit und Stundenansatz.',
+  leistungen_fix_pflicht: 'Festpreis-Leistung braucht einen Preis pro Einheit.',
+  leistungen_stundenansatz_id_fkey: 'Dieser Ansatz wird noch von Leistungen verwendet – stattdessen auf inaktiv setzen.',
+  mandant_pauschalen_leistung_id_fkey: 'Diese Leistung ist noch in Pauschalen von Mandanten hinterlegt – stattdessen auf inaktiv setzen.',
+  mandant_pauschalen_abacus_modul_id_fkey: 'Dieses Modul ist noch in Pauschalen von Mandanten hinterlegt – stattdessen auf inaktiv setzen.',
+  mandant_pauschalen_zeitraum: '«Gültig bis» liegt vor «Gültig ab».',
+  mandant_pauschalen_eine_position: 'Bitte genau eine Leistung oder ein ABACUS-Modul wählen.',
 };
+
+// Leerer Text -> null, sonst getrimmt.
+function textOderNull(wert) {
+  if (wert == null) return null;
+  const t = String(wert).trim();
+  return t === '' ? null : t;
+}
+
+// Adress- und Statusfelder der Mandanten (v7) -- nur Felder uebernehmen, die im Aufruf vorkommen.
+function mandantAdresse(daten) {
+  const patch = {};
+  for (const [feld, spalte] of [['kundenNr', 'kunden_nr'], ['ansprechperson', 'ansprechperson'], ['strasse', 'strasse'],
+    ['plz', 'plz'], ['ort', 'ort'], ['telefon', 'telefon']]) {
+    if (daten[feld] !== undefined) patch[spalte] = textOderNull(daten[feld]);
+  }
+  if (daten.potenziell !== undefined) patch.potenziell = !!daten.potenziell;
+  return patch;
+}
+
+// Einfache Tabellen (Preise) -- Liste, Speichern (neu/aendern), Loeschen.
+function tabelle(name, { sortierung = [['name', true]], zuZeile }) {
+  return {
+    liste: async () => {
+      let q = supabase.from(name).select('*');
+      for (const [spalte, aufsteigend] of sortierung) q = q.order(spalte, { ascending: aufsteigend, nullsFirst: false });
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    speichern: async (id, daten) => {
+      const zeile = zuZeile(daten);
+      const q = id ? supabase.from(name).update(zeile).eq('id', id) : supabase.from(name).insert(zeile);
+      const { data, error } = await q.select().single();
+      pruefeFehler(error);
+      return data;
+    },
+    loeschen: async (id) => {
+      const { error } = await supabase.from(name).delete().eq('id', id);
+      pruefeFehler(error);
+    },
+  };
+}
+
+// Es gibt genau einen Standardansatz: wird ein anderer zum Standard, verliert der bisherige
+// die Markierung (zuerst, sonst verletzt das Speichern den eindeutigen Index).
+function standardansatzUmschalten(t) {
+  return {
+    ...t,
+    speichern: async (id, daten) => {
+      if (daten.istStandard) {
+        let q = supabase.from('stundenansaetze').update({ ist_standard: false }).eq('ist_standard', true);
+        if (id) q = q.neq('id', id);
+        const { error } = await q;
+        pruefeFehler(error);
+      }
+      return t.speichern(id, daten);
+    },
+  };
+}
+
+function pflichtText(wert, meldung) {
+  const t = textOderNull(wert);
+  if (!t) throw new Error(meldung);
+  return t;
+}
+
+function nichtNegativ(wert, meldung) {
+  const z = zahlOderNull(wert);
+  if (z != null && (Number.isNaN(z) || z < 0)) throw new Error(meldung);
+  return z;
+}
 
 function pruefeFehler(error) {
   if (!error) return;
@@ -280,6 +363,7 @@ const api = {
         geschaeftsfuehrung_email: daten.geschaeftsfuehrungEmail || null,
         aktiv: daten.aktiv === undefined ? true : !!daten.aktiv, notizen: daten.notizen || null,
         ...mandatsEckdaten(daten),
+        ...mandantAdresse(daten),
       }).select().single();
       pruefeFehler(error);
       return data;
@@ -292,7 +376,7 @@ const api = {
       if (daten.geschaeftsfuehrungEmail !== undefined) patch.geschaeftsfuehrung_email = daten.geschaeftsfuehrungEmail || null;
       if (daten.aktiv !== undefined) patch.aktiv = !!daten.aktiv;
       if (daten.notizen !== undefined) patch.notizen = daten.notizen || null;
-      Object.assign(patch, mandatsEckdaten(daten));
+      Object.assign(patch, mandatsEckdaten(daten), mandantAdresse(daten));
       const { data, error } = await supabase.from('mandanten').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
       return data;
@@ -300,6 +384,87 @@ const api = {
     loeschen: async (id) => {
       const { error } = await supabase.from('mandanten').delete().eq('id', id);
       pruefeFehler(error);
+    },
+  },
+
+  // Preise (v7, Etappe 1): Stundenansaetze, Leistungskatalog, ABACUS-Module.
+  preise: {
+    ansaetze: standardansatzUmschalten(tabelle('stundenansaetze', {
+      sortierung: [['ist_standard', false], ['name', true]],
+      zuZeile: (d) => ({
+        name: pflichtText(d.name, 'Name ist erforderlich'),
+        chf_pro_stunde: (() => {
+          const z = nichtNegativ(d.chfProStunde, 'Ungültiger Ansatz');
+          if (z == null) throw new Error('CHF pro Stunde ist erforderlich');
+          return z;
+        })(),
+        ist_standard: !!d.istStandard,
+        aktiv: d.aktiv === undefined ? true : !!d.aktiv,
+      }),
+    })),
+    leistungen: tabelle('leistungen', {
+      sortierung: [['reihenfolge', true], ['name', true]],
+      zuZeile: (d) => {
+        const preisArt = d.preisArt === 'fix' ? 'fix' : 'zeit';
+        return {
+          name: pflichtText(d.name, 'Name ist erforderlich'),
+          einheit: pflichtText(d.einheit, 'Einheit ist erforderlich'),
+          turnus: d.turnus === 'jaehrlich' ? 'jaehrlich' : 'monatlich',
+          preis_art: preisArt,
+          minuten_pro_einheit: nichtNegativ(d.minutenProEinheit, 'Ungültige Zeit pro Einheit'),
+          stundenansatz_id: preisArt === 'zeit' ? zahlOderNull(d.stundenansatzId) : null,
+          festpreis_pro_einheit: preisArt === 'fix' ? nichtNegativ(d.festpreisProEinheit, 'Ungültiger Preis') : null,
+          angebot_gruppe: textOderNull(d.angebotGruppe),
+          hinweis: textOderNull(d.hinweis),
+          reihenfolge: zahlOderNull(d.reihenfolge),
+          aktiv: d.aktiv === undefined ? true : !!d.aktiv,
+        };
+      },
+    }),
+    abacusModule: tabelle('abacus_module', {
+      sortierung: [['reihenfolge', true], ['name', true]],
+      zuZeile: (d) => ({
+        name: pflichtText(d.name, 'Name ist erforderlich'),
+        chf_pro_monat: (() => {
+          const z = nichtNegativ(d.chfProMonat, 'Ungültiger Preis');
+          if (z == null) throw new Error('CHF pro Monat ist erforderlich');
+          return z;
+        })(),
+        einkaufspreis_pro_monat: nichtNegativ(d.einkaufspreisProMonat, 'Ungültiger Einkaufspreis'),
+        hinweis: textOderNull(d.hinweis),
+        reihenfolge: zahlOderNull(d.reihenfolge),
+        aktiv: d.aktiv === undefined ? true : !!d.aktiv,
+      }),
+    }),
+  },
+
+  // Vereinbarte Pauschalen pro Mandant (v7, Etappe 1).
+  pauschalen: {
+    ...tabelle('mandant_pauschalen', {
+      sortierung: [['gueltig_ab', true], ['id', true]],
+      zuZeile: (d) => {
+        const betrag = nichtNegativ(d.betragMonat, 'Ungültiger Betrag');
+        if (betrag == null) throw new Error('Betrag pro Monat ist erforderlich');
+        if (!d.gueltigAb) throw new Error('«Gültig ab» ist erforderlich');
+        return {
+          mandant_id: Number(d.mandantId),
+          leistung_id: zahlOderNull(d.leistungId),
+          abacus_modul_id: zahlOderNull(d.abacusModulId),
+          menge: nichtNegativ(d.menge, 'Ungültige Menge'),
+          betrag_monat: betrag,
+          gueltig_ab: d.gueltigAb,
+          gueltig_bis: d.gueltigBis || null,
+          notiz: textOderNull(d.notiz),
+        };
+      },
+    }),
+    // Ohne Mandant: alle Pauschalen (fuer die Summen in der Mandanten-Liste).
+    liste: async (mandantId) => {
+      let q = supabase.from('mandant_pauschalen').select('*').order('gueltig_ab').order('id');
+      if (mandantId) q = q.eq('mandant_id', mandantId);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
     },
   },
 

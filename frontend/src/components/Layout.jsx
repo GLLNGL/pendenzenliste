@@ -16,6 +16,7 @@ const NAV_EINTRAEGE = [
   { pfad: '/regeln', label: 'Wiederkehrende' },
   { pfad: '/wochenrueckblick', label: 'Wochenrückblick' },
   { pfad: '/archiv', label: 'Archiv' },
+  { pfad: '/preise', label: 'Preise' },
   { pfad: '/team', label: 'Team' },
   { pfad: '/einstellungen', label: 'Einstellungen' },
 ];

@@ -2,16 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { meldeMandantenAenderung } from '../events.js';
 import { MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
+import { naechsteKundenNr } from '../lib/preise.js';
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
-export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
+// Status im Formular: Aktiv / Potenziell (Interessent, z.B. fuer eine Offerte) / Inaktiv.
+function statusVon(mandant) {
+  if (mandant && !mandant.aktiv) return 'inaktiv';
+  return mandant?.potenziell ? 'potenziell' : 'aktiv';
+}
+
+export default function MandantModal({ mandant, alleMandanten = [], onSchliessen, onGespeichert }) {
   const [formular, setFormular] = useState(() => ({
     name: mandant?.name ?? '',
     kuerzel: mandant?.kuerzel ?? '',
     email: mandant?.email ?? '',
     geschaeftsfuehrungEmail: mandant?.geschaeftsfuehrung_email ?? '',
-    aktiv: mandant?.aktiv ?? 1,
+    status: statusVon(mandant),
+    kundenNr: mandant?.kunden_nr ?? (mandant ? '' : naechsteKundenNr(alleMandanten)),
+    ansprechperson: mandant?.ansprechperson ?? '',
+    strasse: mandant?.strasse ?? '',
+    plz: mandant?.plz ?? '',
+    ort: mandant?.ort ?? '',
+    telefon: mandant?.telefon ?? '',
     notizen: mandant?.notizen ?? '',
     // Mandats-Eckdaten -- Grundlage fuer die wiederkehrenden Pendenzen (Vorlauf je Mandant).
     mwstPeriode: mandant?.mwst_periode ?? '',
@@ -55,7 +68,14 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
         kuerzel: formular.kuerzel.trim() || null,
         email: formular.email.trim() || null,
         geschaeftsfuehrungEmail: formular.geschaeftsfuehrungEmail.trim() || null,
-        aktiv: formular.aktiv ? 1 : 0,
+        aktiv: formular.status !== 'inaktiv',
+        potenziell: formular.status === 'potenziell',
+        kundenNr: formular.kundenNr,
+        ansprechperson: formular.ansprechperson,
+        strasse: formular.strasse,
+        plz: formular.plz,
+        ort: formular.ort,
+        telefon: formular.telefon,
         notizen: formular.notizen.trim() || null,
         mwstPeriode: formular.mwstPeriode || null,
         lohnzahltag: formular.lohnzahltag,
@@ -95,11 +115,40 @@ export default function MandantModal({ mandant, onSchliessen, onGespeichert }) {
               </div>
               <div className="feld">
                 <label htmlFor="mandant-status">Status</label>
-                <select id="mandant-status" value={formular.aktiv ? '1' : '0'} onChange={(e) => feldAendern('aktiv', e.target.value === '1')}>
-                  <option value="1">Aktiv</option>
-                  <option value="0">Inaktiv</option>
+                <select id="mandant-status" value={formular.status} onChange={(e) => feldAendern('status', e.target.value)}>
+                  <option value="aktiv">Aktiv</option>
+                  <option value="potenziell">Potenziell (Interessent)</option>
+                  <option value="inaktiv">Inaktiv</option>
                 </select>
               </div>
+            </div>
+            <div className="feld-reihe">
+              <div className="feld">
+                <label htmlFor="mandant-kunden-nr">Kunden-Nr.</label>
+                <input id="mandant-kunden-nr" type="text" value={formular.kundenNr} onChange={(e) => feldAendern('kundenNr', e.target.value)} placeholder={naechsteKundenNr(alleMandanten)} maxLength={20} />
+              </div>
+              <div className="feld">
+                <label htmlFor="mandant-ansprechperson">Ansprechperson</label>
+                <input id="mandant-ansprechperson" type="text" value={formular.ansprechperson} onChange={(e) => feldAendern('ansprechperson', e.target.value)} />
+              </div>
+            </div>
+            <div className="feld">
+              <label htmlFor="mandant-strasse">Strasse</label>
+              <input id="mandant-strasse" type="text" value={formular.strasse} onChange={(e) => feldAendern('strasse', e.target.value)} />
+            </div>
+            <div className="feld-reihe feld-reihe-plz">
+              <div className="feld">
+                <label htmlFor="mandant-plz">PLZ</label>
+                <input id="mandant-plz" type="text" value={formular.plz} onChange={(e) => feldAendern('plz', e.target.value)} maxLength={10} />
+              </div>
+              <div className="feld">
+                <label htmlFor="mandant-ort">Ort</label>
+                <input id="mandant-ort" type="text" value={formular.ort} onChange={(e) => feldAendern('ort', e.target.value)} />
+              </div>
+            </div>
+            <div className="feld">
+              <label htmlFor="mandant-telefon">Telefon</label>
+              <input id="mandant-telefon" type="tel" value={formular.telefon} onChange={(e) => feldAendern('telefon', e.target.value)} />
             </div>
             <div className="feld">
               <label htmlFor="mandant-email">Ansprechpartner/in E-Mail</label>

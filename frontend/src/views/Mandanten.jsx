@@ -3,6 +3,8 @@ import api from '../api.js';
 import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
+import PauschalenModal from '../components/PauschalenModal.jsx';
+import { aktivePauschalen, pauschalenSumme, formatiereCHF } from '../lib/preise.js';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { OFFENE_STATUS, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
@@ -18,6 +20,7 @@ function gespeicherteAuswahlLesen() {
 // Mandats-Eckdaten als kurze Zeile ueber der Liste (nur erfasste Angaben).
 function eckdatenText(m) {
   const teile = [];
+  if (m.kunden_nr) teile.push(m.kunden_nr);
   if (m.kuerzel) teile.push(`Kürzel ${m.kuerzel}`);
   if (m.mwst_periode) teile.push(m.mwst_periode === 'keine' ? 'keine MWST' : `MWST ${m.mwst_periode}`);
   if (m.lohnzahltag) teile.push(`Lohnzahltag ${m.lohnzahltag}.`);
@@ -39,17 +42,23 @@ export default function Mandanten() {
   const [bearbeiteterMandant, setBearbeiteterMandant] = useState(null);
   const [neuerMandantOffen, setNeuerMandantOffen] = useState(false);
   const [zeigeInaktive, setZeigeInaktive] = useState(false);
+  const [pauschalen, setPauschalen] = useState([]);
+  const [pauschalenMandant, setPauschalenMandant] = useState(null);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
 
   const laden = useCallback(() => {
+    // Volle Mandanten-Zeilen (inkl. Adresse/Status, v7) statt mandanten_uebersicht() -- die
+    // Zaehler werden ohnehin unten aus der Pendenzenliste berechnet.
     Promise.all([
-      api.mandanten.uebersicht(),
+      api.mandanten.liste(),
       api.pendenzen.liste({ status: OFFENE_STATUS.join(','), sort: 'faelligkeit_asc' }),
     ]).then(([u, p]) => {
       setUebersicht(u);
       setOffenePendenzen(p);
     }).catch((e) => setFehler(e.message));
+    // Pauschalen separat: fehlt die Schema-Erweiterung noch, bleibt die Ansicht trotzdem nutzbar.
+    api.pauschalen.liste().then(setPauschalen).catch(() => setPauschalen([]));
   }, []);
 
   useEffect(() => {
@@ -115,7 +124,7 @@ export default function Mandanten() {
           onClick={() => waehlen(String(m.id))}
           title={m.aktiv ? m.name : `${m.name} (inaktiv)`}
         >
-          <span className="mandanten-name">{m.name}</span>
+          <span className="mandanten-name">{m.name}{m.potenziell && <> <span className="tag-potenziell" title="Potenzieller Mandant (Interessent)">pot.</span></>}</span>
           <span className="mandanten-zaehler">
             {zaehlerVon(m.id).ueberfaellig > 0 && <span className="zaehler-pille ueberfaellig" title="überfällig">{zaehlerVon(m.id).ueberfaellig}</span>}
             <span className="zaehler-pille">{zaehlerVon(m.id).offen}</span>
@@ -131,10 +140,21 @@ export default function Mandanten() {
     </div>
   );
 
+  const pauschaleMonat = gewaehlt
+    ? pauschalenSumme(aktivePauschalen(pauschalen.filter((p) => p.mandant_id === gewaehlt.id), heute))
+    : 0;
   const eckdaten = gewaehlt && (
     <div className="mandant-eckdaten">
-      <span>{eckdatenText(gewaehlt)}{!gewaehlt.aktiv && <strong> · inaktiv</strong>}</span>
-      <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(gewaehlt)}>Mandant bearbeiten</button>
+      <span>
+        {eckdatenText(gewaehlt)}
+        {gewaehlt.potenziell && <strong> · potenziell</strong>}
+        {!gewaehlt.aktiv && <strong> · inaktiv</strong>}
+        {' · '}{pauschaleMonat > 0 ? `Pauschale CHF ${formatiereCHF(pauschaleMonat)}/Mt.` : 'keine Pauschale'}
+      </span>
+      <span className="mandant-eckdaten-aktionen">
+        <button type="button" className="btn-klein" onClick={() => setPauschalenMandant(gewaehlt)}>Pauschalen</button>
+        <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(gewaehlt)}>Mandant bearbeiten</button>
+      </span>
     </div>
   );
 
@@ -178,14 +198,24 @@ export default function Mandanten() {
       {bearbeiteterMandant && (
         <MandantModal
           mandant={bearbeiteterMandant}
+          alleMandanten={uebersicht}
           onSchliessen={() => setBearbeiteterMandant(null)}
           onGespeichert={() => { setBearbeiteterMandant(null); laden(); }}
+        />
+      )}
+
+      {pauschalenMandant && (
+        <PauschalenModal
+          mandant={pauschalenMandant}
+          onSchliessen={() => setPauschalenMandant(null)}
+          onGeaendert={() => api.pauschalen.liste().then(setPauschalen).catch(() => {})}
         />
       )}
 
       {neuerMandantOffen && (
         <MandantModal
           mandant={null}
+          alleMandanten={uebersicht}
           onSchliessen={() => setNeuerMandantOffen(false)}
           onGespeichert={() => { setNeuerMandantOffen(false); laden(); }}
         />
