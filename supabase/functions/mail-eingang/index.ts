@@ -96,7 +96,10 @@ Deno.serve(async (req) => {
     const verschieben: number[] = [];
     try {
       const nachrichten = [];
-      for await (const msg of client.fetch('1:*', { uid: true, source: true })) {
+      // Leerer Ordner: manche Server (Dovecot) lehnen "1:*" dann als ungueltig ab.
+      // deno-lint-ignore no-explicit-any
+      const anzahl = (client as any).mailbox?.exists ?? 0;
+      for await (const msg of (anzahl > 0 ? client.fetch('1:*', { uid: true, source: true }) : [])) {
         nachrichten.push(msg);
         if (nachrichten.length >= MAX_PRO_ABRUF) break;
       }
