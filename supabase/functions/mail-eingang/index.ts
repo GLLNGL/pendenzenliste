@@ -54,22 +54,31 @@ Deno.serve(async (req) => {
   try {
     await client.connect();
 
-    // Ordner anlegen, falls es ihn noch nicht gibt -- er erscheint dann auch in Outlook.
-    const vorhanden = await client.list();
-    const pfade = new Set(vorhanden.map((m) => m.path));
+    // Ordner suchen bzw. anlegen -- er erscheint dann auch in Outlook. Manche Server (z.B.
+    // Metanet/Dovecot) legen eigene Ordner unter dem Posteingang ab ("INBOX.Auftraege"), darum
+    // wird nach dem Ordnernamen auf oberster Ebene oder direkt unter INBOX gesucht.
+    let vorhanden = await client.list();
     const trenner = vorhanden[0]?.delimiter || '/';
-    const ziel = `${ordner}${trenner}Übernommen`;
-    if (!pfade.has(ordner)) {
-      await client.mailboxCreate(ordner);
-      await client.mailboxCreate(ziel);
+    const oben = (m: { parentPath?: string }) => !m.parentPath || /^inbox$/i.test(m.parentPath);
+    let quelle = vorhanden.find((m) => m.name === ordner && oben(m));
+    let neuAngelegt = false;
+    if (!quelle) {
+      const erstellt = await client.mailboxCreate(ordner);
+      vorhanden = await client.list();
+      quelle = vorhanden.find((m) => m.path === erstellt.path) ?? vorhanden.find((m) => m.name === ordner && oben(m));
+      neuAngelegt = true;
+    }
+    const quellPfad = quelle?.path ?? ordner;
+    let ziel = vorhanden.find((m) => m.name === 'Übernommen' && m.parentPath === quellPfad)?.path;
+    if (!ziel) ziel = (await client.mailboxCreate(`${quellPfad}${trenner}Übernommen`)).path;
+    if (neuAngelegt) {
       await client.logout();
       return antwort({ ok: true, neu: 0, hinweis: `Ordner «${ordner}» wurde angelegt – Mails dort hinein ziehen.` });
     }
-    if (!pfade.has(ziel)) await client.mailboxCreate(ziel);
 
     const { data: mandanten } = await supabase.from('mandanten').select('id, name, email, geschaeftsfuehrung_email').eq('aktiv', true);
 
-    const lock = await client.getMailboxLock(ordner);
+    const lock = await client.getMailboxLock(quellPfad);
     const uebernommen: string[] = [];
     const verschieben: number[] = [];
     try {
