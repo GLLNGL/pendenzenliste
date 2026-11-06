@@ -2262,3 +2262,19 @@ table.tabelle tr.klickbar { cursor: pointer; }
 }
 .tagesliste-umschalter:hover { background: var(--surface-3); color: var(--accent); }
 .tagesliste-umschalter { color: var(--accent); font-size: 14px; font-weight: 700; }
+
+/* Cockpit: Bereiche als Reiter ueber der Tabelle (statt linker Spalte) -- die Liste hat so die
+   volle Breite und zeigt alle Spalten wie der Leistungskatalog. */
+.uebersicht-reiter {
+  display: flex; flex-wrap: wrap; gap: 2px 4px;
+  padding: 0 10px; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.uebersicht-kategorie.uebersicht-reiter-knopf {
+  flex: 0 0 auto; gap: 7px; padding: 9px 10px 8px;
+  border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  font-size: var(--fs-klein); white-space: nowrap;
+}
+.uebersicht-kategorie.uebersicht-reiter-knopf.aktiv {
+  border-left: none; border-bottom-color: var(--accent); background: none; color: var(--accent); font-weight: 600;
+}
+.uebersicht-kategorie.uebersicht-reiter-knopf:hover { background: var(--surface-hover); }

@@ -107,18 +107,20 @@ function Kennzahlen({ inArbeitAnzahl, auslastung, block, onBlockWaehlen }) {
   );
 }
 
-// Links die Bereiche (wie Ordner in einem Mail-Programm), in der Mitte die Liste des gewaehlten
-// Bereichs, rechts die Detailansicht -- dieselbe Arbeitskarte wie in allen anderen Ansichten.
+// Oben die Bereiche als Reiter, darunter die Liste des gewaehlten Bereichs in voller Breite
+// (Tabellen-Layout mit allen Spalten), rechts die Detailansicht.
 function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, onOeffnen, onStatusAendern }) {
   const aktuelle = bloecke.find((b) => b.key === aktiveKategorie) || bloecke[0];
 
   const bereiche = (
-    <div className="uebersicht-kategorien">
+    <div className="uebersicht-reiter" role="tablist">
       {bloecke.map((b) => (
         <button
           type="button"
           key={b.key}
-          className={`uebersicht-kategorie ${b.klasse || ''} ${b.key === aktuelle.key ? 'aktiv' : ''}`}
+          role="tab"
+          aria-selected={b.key === aktuelle.key}
+          className={`uebersicht-kategorie uebersicht-reiter-knopf ${b.klasse || ''} ${b.key === aktuelle.key ? 'aktiv' : ''}`}
           onClick={() => onKategorieWaehlen(b.key)}
         >
           <span>{b.titel}</span>
@@ -147,7 +149,7 @@ function FaelligkeitsUebersicht({ bloecke, aktiveKategorie, onKategorieWaehlen, 
       speicherSchluessel="cockpit-uebersicht-eingeklappt"
       onOeffnen={onOeffnen}
       onStatusAendern={onStatusAendern}
-      links={bereiche}
+      reiter={bereiche}
       oben={oben}
     />
   );

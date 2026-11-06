@@ -10,7 +10,7 @@ import { aufwandSumme, formatiereStunden } from '../constants.js';
 // oeffnet das Bearbeiten-Fenster.
 export default function PendenzArbeitsliste({
   titel, pendenzen, datum = 'faelligkeit', leerText, speicherSchluessel,
-  onOeffnen, onStatusAendern, links, oben, className = '',
+  onOeffnen, onStatusAendern, links, oben, reiter, className = '',
 }) {
   const [vorschauPendenz, setVorschauPendenz] = useState(null);
   // Frischen Datensatz nachschlagen statt das alte vorschauPendenz-Objekt weiterzuverwenden --
@@ -33,6 +33,8 @@ export default function PendenzArbeitsliste({
           {summe.ohne > 0 && <span className="uebersicht-kopf-ohne"> ({summe.ohne} ohne Schätzung)</span>}
         </span>
       </div>
+
+      {reiter}
 
       <div className="uebersicht-layout">
         {links}
