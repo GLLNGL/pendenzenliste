@@ -2261,3 +2261,4 @@ table.tabelle tr.klickbar { cursor: pointer; }
   color: var(--text-muted); font-size: 12px; line-height: 1; cursor: pointer;
 }
 .tagesliste-umschalter:hover { background: var(--surface-3); color: var(--accent); }
+.tagesliste-umschalter { color: var(--accent); font-size: 14px; font-weight: 700; }
