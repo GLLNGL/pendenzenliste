@@ -83,10 +83,15 @@ Deno.serve(async (req) => {
     let ziel = vorhanden.find((m) => m.name === 'Übernommen' && m.parentPath === quellPfad)?.path;
     schritt = 'Unterordner «Übernommen» anlegen';
     if (!ziel) ziel = (await client.mailboxCreate(`${quellPfad}${trenner}Übernommen`)).path;
+    // Outlook zeigt bei IMAP-Postfaechern nur abonnierte Ordner -- darum beide abonnieren
+    // (auch wenn sie schon existieren; mehrfaches Abonnieren schadet nicht).
+    schritt = 'Ordner abonnieren';
+    await client.mailboxSubscribe(quellPfad);
+    await client.mailboxSubscribe(ziel);
     schritt = 'Mails lesen';
     if (neuAngelegt) {
       await client.logout();
-      return antwort({ ok: true, neu: 0, hinweis: `Ordner «${ordner}» wurde im Postfach ${Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER')} angelegt – Mails dort hinein ziehen.` });
+      return antwort({ ok: true, neu: 0, ordner: quellPfad, hinweis: `Ordner «${ordner}» wurde im Postfach ${Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER')} angelegt – Mails dort hinein ziehen.` });
     }
 
     const { data: mandanten } = await supabase.from('mandanten').select('id, name, email, geschaeftsfuehrung_email').eq('aktiv', true);
@@ -148,7 +153,7 @@ Deno.serve(async (req) => {
       lock.release();
     }
     await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in
