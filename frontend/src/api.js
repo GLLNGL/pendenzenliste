@@ -116,6 +116,14 @@ function standardansatzUmschalten(t) {
   };
 }
 
+// Verrechnete Zeit (in einem Detailrapport) bleibt unveraendert, bis der Rapport storniert wird.
+async function verrechnetPruefen(id) {
+  const { data } = await supabase.from('zeiteintraege').select('rapport_id, rapporte(nummer)').eq('id', id).maybeSingle();
+  if (data?.rapport_id) {
+    throw new Error(`Diese Zeit ist im Rapport ${data.rapporte?.nummer ?? ''} verrechnet – zum Ändern zuerst den Rapport stornieren.`);
+  }
+}
+
 function pflichtText(wert, meldung) {
   const t = textOderNull(wert);
   if (!t) throw new Error(meldung);
@@ -597,6 +605,7 @@ const api = {
     // Neu erfassen (id null) oder aendern/stoppen. Bei Extra wird der Ansatz festgehalten:
     // mitgegeben, sonst der Ansatz der Leistung bzw. der Standardansatz.
     speichern: async (id, d) => {
+      if (id) await verrechnetPruefen(id);
       const minuten = Number(d.minuten);
       if (!(minuten > 0 && minuten <= 1440)) throw new Error('Bitte eine Dauer zwischen 1 Minute und 24 Stunden angeben.');
       if (!d.datum) throw new Error('Datum ist erforderlich.');
@@ -631,7 +640,86 @@ const api = {
       return data;
     },
     loeschen: async (id) => {
+      await verrechnetPruefen(id);
       const { error } = await supabase.from('zeiteintraege').delete().eq('id', id);
+      pruefeFehler(error);
+    },
+  },
+
+  // Detailrapporte (v7, Etappe 3).
+  rapporte: {
+    liste: async () => {
+      const { data, error } = await supabase.from('rapporte').select('*, mandanten(name, kunden_nr), mitarbeitende(name)')
+        .order('datum', { ascending: false }).order('id', { ascending: false });
+      pruefeFehler(error);
+      return data;
+    },
+    holen: async (id) => {
+      const { data, error } = await supabase.from('rapporte').select('*').eq('id', id).single();
+      pruefeFehler(error);
+      return data;
+    },
+    // Offene (noch nicht verrechnete) Zeit eines Mandanten im Zeitraum bzw. die Zeit eines
+    // abgeschlossenen Rapports.
+    eintraege: async ({ mandantId, von, bis, rapportId }) => {
+      let q = supabase.from('zeiteintraege')
+        .select('*, pendenzen(titel), leistungen(name), mitarbeitende(name)')
+        .order('datum').order('id');
+      if (rapportId) q = q.eq('rapport_id', rapportId);
+      else q = q.eq('mandant_id', Number(mandantId)).gte('datum', von).lte('datum', bis).is('rapport_id', null).not('minuten', 'is', null);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    // Noch nicht verrechnete Mandanten-Zeit (fuer die Uebersicht "zu verrechnen").
+    offen: async () => {
+      const { data, error } = await supabase.from('zeiteintraege')
+        .select('id, mandant_id, datum, minuten, art, stundenansatz_chf, mandanten(name)')
+        .is('rapport_id', null).not('mandant_id', 'is', null).not('minuten', 'is', null);
+      pruefeFehler(error);
+      return data;
+    },
+    // Abschliessen: Rapport anlegen und die Eintraege als verrechnet markieren.
+    abschliessen: async (kopf, ids, summen) => {
+      if (!ids.length) throw new Error('Keine Zeit im Rapport – nichts zu verrechnen.');
+      const { data, error } = await supabase.from('rapporte').insert({
+        nummer: kopf.nummer, mandant_id: Number(kopf.mandant_id), von: kopf.von, bis: kopf.bis, datum: kopf.datum,
+        bearbeiter_id: zahlOderNull(kopf.bearbeiter_id), runden_minuten: Number(kopf.runden_minuten) || 5,
+        mwst_satz: Number(kopf.mwst_satz ?? 8.1), mwst_pflichtig: !!kopf.mwst_pflichtig,
+        minuten_pauschal: summen.minutenPauschal, minuten_extra: summen.minutenExtra, betrag_extra: summen.betragExtra,
+        rechnung_nr: textOderNull(kopf.rechnung_nr), bemerkung: textOderNull(kopf.bemerkung),
+      }).select().single();
+      if (error?.message?.includes('rapporte_nummer_key')) throw new Error(`Die Rapport-Nr. ${kopf.nummer} ist bereits vergeben.`);
+      pruefeFehler(error);
+      const { data: markiert, error: fehlerMarkieren } = await supabase.from('zeiteintraege')
+        .update({ rapport_id: data.id }).in('id', ids).is('rapport_id', null).select('id');
+      pruefeFehler(fehlerMarkieren);
+      if (markiert.length !== ids.length) {
+        // Inzwischen anderswo verrechnet: Rapport zuruecknehmen, damit nichts doppelt verrechnet wird.
+        await supabase.from('zeiteintraege').update({ rapport_id: null }).eq('rapport_id', data.id);
+        await supabase.from('rapporte').delete().eq('id', data.id);
+        throw new Error('Ein Teil dieser Zeit wurde inzwischen in einem anderen Rapport verrechnet – bitte neu laden.');
+      }
+      return data;
+    },
+    aktualisieren: async (id, patch) => {
+      const zeile = {};
+      if (patch.rechnung_nr !== undefined) zeile.rechnung_nr = textOderNull(patch.rechnung_nr);
+      if (patch.bemerkung !== undefined) zeile.bemerkung = textOderNull(patch.bemerkung);
+      const { error } = await supabase.from('rapporte').update(zeile).eq('id', id);
+      pruefeFehler(error);
+    },
+    // Stornieren: Verknuepfung loesen (Zeit wird wieder "offen"), Rapport entfernen.
+    stornieren: async (id) => {
+      const { error } = await supabase.from('zeiteintraege').update({ rapport_id: null }).eq('rapport_id', id);
+      pruefeFehler(error);
+      const { error: fehlerLoeschen } = await supabase.from('rapporte').delete().eq('id', id);
+      pruefeFehler(fehlerLoeschen);
+    },
+    versenden: async (rapport, { an, betreff, text, pdfBase64, dateiname }) => {
+      if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
+      await sendMailAufrufen({ an: an.trim(), betreff, text, anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }] });
+      const { error } = await supabase.from('rapporte').update({ versendet_am: new Date().toISOString(), versendet_an: an.trim() }).eq('id', rapport.id);
       pruefeFehler(error);
     },
   },

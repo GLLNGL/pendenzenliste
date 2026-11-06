@@ -40,10 +40,13 @@ const MODULE = [
     ],
   },
   {
-    id: 'zeit', nr: 40, name: 'Zeiterfassung', symbol: '◷', beschreibung: 'Stunden pro Mandant (Pauschale/Extra) – Detailrapport und Rentabilität folgen',
+    id: 'zeit', nr: 40, name: 'Zeiterfassung', symbol: '◷', beschreibung: 'Stunden pro Mandant (Pauschale/Extra), Detailrapport – Rentabilität folgt',
     gruppen: [
       { nr: 1, name: 'Erfassung', eintraege: [
         { nr: 11, pfad: '/zeit', label: 'Zeitjournal' },
+      ] },
+      { nr: 2, name: 'Verrechnung', eintraege: [
+        { nr: 21, pfad: '/rapporte', label: 'Detailrapporte' },
       ] },
     ],
   },

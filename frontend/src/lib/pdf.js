@@ -12,6 +12,7 @@ async function elementZuPdf(element) {
   huelle.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff;';
   const kopie = element.cloneNode(true);
   kopie.style.transform = 'none';
+  kopie.style.zoom = '1';
   kopie.style.boxShadow = 'none';
   huelle.appendChild(kopie);
   document.body.appendChild(huelle);

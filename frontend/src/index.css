@@ -2039,7 +2039,7 @@ a.sidebar-module-link:hover { color: var(--accent); }
   html { zoom: 1 !important; }
   body * { visibility: hidden; }
   .druck-ziel, .druck-ziel * { visibility: visible; }
-  .druck-ziel { position: fixed; left: 0; top: 0; transform: none !important; }
+  .druck-ziel { position: absolute; left: 0; top: 0; transform: none !important; }
   .druck-ziel .offerte-dokument { box-shadow: none; }
 }
 .modal.modal-mittel { width: min(720px, calc(100vw - 32px)); max-width: none; }
@@ -2180,3 +2180,32 @@ table.tabelle tr.klickbar { cursor: pointer; }
 .mobil-timer-titel { color: var(--text-muted); }
 .mobil-timer-start { display: flex; flex-direction: column; gap: 10px; }
 .btn.mobil-gross { padding: 12px; font-size: 16px; width: 100%; }
+
+/* ---------- Detailrapport (v7, Etappe 3) ---------- */
+.rapport-dokument .rd-text { margin: 4px 0 6px; }
+.rapport-dokument .rd-hinweis { margin: 0 0 6px; font-size: 9.5px; color: #555; font-style: italic; }
+.rapport-dokument .rd-abschnitt { margin-top: 20px; color: var(--od-navy); }
+.rapport-dokument table.rd-tabelle th.rd-datum, .rapport-dokument .rd-tabelle td:first-child { width: 70px; }
+.rapport-dokument table.rd-tabelle th.rd-leistung { width: 190px; }
+.rapport-dokument table.rd-tabelle th.rd-zeit { width: 62px; }
+.rapport-dokument table.rd-tabelle th.rd-ansatz { width: 76px; }
+.rapport-dokument table.rd-tabelle th.rd-betrag { width: 86px; }
+.rapport-dokument .rd-tabelle td:nth-child(3), .rapport-dokument .rd-tabelle td:nth-child(4), .rapport-dokument .rd-tabelle td:nth-child(5) { width: auto; }
+.rapport-dokument .rd-uebersicht { margin-top: 6px; font-size: 10px; color: #444; }
+.rapport-dokument .rd-uebersicht td { padding: 1px 6px; }
+.rapport-dokument .rd-summe { margin-top: 4px; }
+.rapport-dokument .rd-summe td.rd-betrag { width: 110px; }
+.rapport-dokument .rd-bemerkung { margin-top: 18px; white-space: pre-wrap; }
+.rapport-dokument .od-positionen th:nth-child(3), .rapport-dokument .od-positionen td:nth-child(3),
+.rapport-dokument .od-positionen th:nth-child(4), .rapport-dokument .od-positionen td:nth-child(4),
+.rapport-dokument .od-positionen th:nth-child(5), .rapport-dokument .od-positionen td:nth-child(5),
+.rapport-dokument .od-positionen th:nth-child(6), .rapport-dokument .od-positionen td:nth-child(6) { width: auto; }
+.rapport-dokument { min-height: 1123px; }
+.rapport-vorschau-skala { width: auto; height: auto; overflow: visible; }
+.rapport-vorschau-skala .offerte-dokument { zoom: 0.75; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); }
+@media print { .druck-ziel .offerte-dokument { zoom: 1 !important; } }
+.rapport-eintraege { max-height: 320px; overflow-y: auto; }
+.rapport-eintraege td { padding: 4px 8px; font-size: var(--fs-liste-klein); }
+.rapport-eintraege tr.ausgeschlossen td { color: var(--text-faint); text-decoration: line-through; }
+
+.rapport-fest { font-weight: 600; padding: 4px 0; }

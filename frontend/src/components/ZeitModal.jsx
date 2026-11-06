@@ -91,6 +91,7 @@ export default function ZeitModal({ eintrag = null, pendenz = null, onSchliessen
         return patch;
       }}
       vorschau={(f) => {
+        if (eintrag?.rapport_id) return 'Diese Zeit ist bereits in einem Detailrapport verrechnet – Änderungen erst nach einem Storno des Rapports.';
         const minuten = parseDauer(f.dauer);
         if (!f.mandantId) return 'Interne Zeit – zählt nicht in die Rentabilität eines Mandanten.';
         const inPauschale = pauschalLeistungIds(pauschalenVon(f.mandantId)).has(Number(f.leistungId));

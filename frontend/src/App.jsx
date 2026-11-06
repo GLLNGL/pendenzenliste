@@ -13,6 +13,8 @@ import Einstellungen from './views/Einstellungen.jsx';
 import Preise from './views/Preise.jsx';
 import Start from './views/Start.jsx';
 import Zeitjournal from './views/Zeitjournal.jsx';
+import Rapporte from './views/Rapporte.jsx';
+import RapportEditor from './views/RapportEditor.jsx';
 import Offerten from './views/Offerten.jsx';
 import OffertEditor from './views/OffertEditor.jsx';
 import { useIstHandy } from './hooks.js';
@@ -36,6 +38,8 @@ export default function App() {
         <Route path="/offerten/:id" element={<OffertEditor />} />
         <Route path="/preise" element={<Preise />} />
         <Route path="/zeit" element={<Zeitjournal />} />
+        <Route path="/rapporte" element={<Rapporte />} />
+        <Route path="/rapporte/:id" element={<RapportEditor />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />
       </Route>
