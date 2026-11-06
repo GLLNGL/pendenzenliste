@@ -4,7 +4,7 @@ import FormularModal from './FormularModal.jsx';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import {
   listenpreisMonat, planMinutenMonat, effektiverSatz, formatiereCHF, formatiereMinuten, turnusLabel,
-  aktivePauschalen, pauschalenSumme,
+  aktivePauschalen, pauschalenSumme, zielansatz, maxMinuten, formatiereTage,
 } from '../lib/preise.js';
 
 const wertOderLeer = (w) => (w == null ? '' : String(w));
@@ -49,10 +49,15 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
     const leistung = leistungVon(p);
     if (leistung) {
       const plan = planMinutenMonat(leistung, p.menge);
-      return { leistung, liste: listenpreisMonat(leistung, p.menge, ansaetze), plan, satz: effektiverSatz(p.betrag_monat, plan) };
+      const ansatz = zielansatz(leistung, ansaetze);
+      const max = maxMinuten(p.betrag_monat, ansatz);
+      return {
+        leistung, liste: listenpreisMonat(leistung, p.menge, ansaetze), plan, satz: effektiverSatz(p.betrag_monat, plan),
+        ansatz, ansatzName: ansaetze.find((a) => a.id === leistung.stundenansatz_id)?.name ?? 'Standard', max,
+      };
     }
     const modul = modulVon(p);
-    return { modul, liste: modul ? Number(modul.chf_pro_monat) * Number(p.menge ?? 1) : null, plan: null, satz: null };
+    return { modul, liste: modul ? Number(modul.chf_pro_monat) * Number(p.menge ?? 1) : null, plan: null, satz: null, ansatz: null, max: null };
   }
 
   const aktive = pauschalen.filter((p) => aktiveIds.has(p.id));
@@ -61,7 +66,9 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
   const summeZeit = aktive.filter((p) => p.leistung_id).reduce((s, p) => s + Number(p.betrag_monat), 0);
   const summePlan = aktive.reduce((s, p) => s + (kennzahlen(p).plan ?? 0), 0);
   const ohnePlanzeit = aktive.filter((p) => p.leistung_id && kennzahlen(p).plan == null).length;
-  const standard = ansaetze.find((a) => a.ist_standard);
+  const summeMax = aktive.reduce((s, p) => s + (kennzahlen(p).max ?? 0), 0);
+  const summePlanMitZeit = aktive.filter((p) => kennzahlen(p).plan != null && kennzahlen(p).max != null);
+  const reserve = summePlanMitZeit.reduce((s, p) => s + kennzahlen(p).max - kennzahlen(p).plan, 0);
 
   async function nachAktion(aktion) {
     await aktion();
@@ -123,6 +130,11 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
               teile.push(`${betrag < liste ? 'Rabatt' : 'Aufschlag'} ${Math.abs((1 - betrag / liste) * 100).toLocaleString('de-CH', { maximumFractionDigits: 1 })} %`);
             }
           }
+          if (!istModul && f.betragMonat !== '') {
+            const ansatz = zielansatz(k, ansaetze);
+            const max = maxMinuten(f.betragMonat, ansatz);
+            if (max != null) teile.push(`max. ${formatiereMinuten(max)}/Mt. (${formatiereTage(max)}) bei CHF ${formatiereCHF(ansatz, { ohneRappen: true })}/Std.`);
+          }
           if (!istModul) {
             const plan = planMinutenMonat(k, f.menge);
             if (plan != null) {
@@ -152,7 +164,7 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
     <div className="modal-hintergrund" onClick={onSchliessen}>
       <div className="modal modal-breit" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
-          <span>Pauschalen · {mandant.name}{mandant.kunden_nr ? ` (${mandant.kunden_nr})` : ''}</span>
+          <span>Preise &amp; Pauschalen · {mandant.name}{mandant.kunden_nr ? ` (${mandant.kunden_nr})` : ''}</span>
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
         </div>
         <div className="modal-koerper">
@@ -160,8 +172,10 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
           <table className="tabelle pauschalen-tabelle">
             <thead>
               <tr>
-                <th>Position</th><th className="zahl">Menge</th><th className="zahl">Listenpreis/Mt.</th>
-                <th className="zahl">Betrag/Mt.</th><th className="zahl">Planzeit/Mt.</th><th className="zahl">CHF/Planstd.</th>
+                <th>Dienstleistung</th><th className="zahl">Menge</th><th className="zahl">Listenpreis/Mt.</th>
+                <th className="zahl">Preis/Mt.</th><th className="zahl" title="Zielansatz der Leistung">Ansatz</th>
+                <th className="zahl" title="Preis / Zielansatz – so viele Stunden pro Monat deckt der Preis">Max. Std./Mt.</th>
+                <th className="zahl">Planzeit/Mt.</th><th className="zahl" title="Preis / Planzeit">Ertrag/Planstd.</th>
                 <th>Gültig</th><th></th>
               </tr>
             </thead>
@@ -171,15 +185,18 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
                 const beendet = !aktiveIds.has(p.id) && p.gueltig_bis && p.gueltig_bis < heute;
                 const name = k.leistung?.name ?? (k.modul ? `ABACUS: ${k.modul.name}` : '–');
                 const einheit = k.leistung ? ` ${k.leistung.einheit}${k.leistung.turnus === 'jaehrlich' ? '/Jahr' : ''}` : '';
-                const unterZiel = k.satz != null && standard && k.satz < Number(standard.chf_pro_stunde);
+                const unterZiel = k.satz != null && k.ansatz != null && k.satz < k.ansatz;
+                const ueberMax = k.plan != null && k.max != null && k.plan > k.max;
                 return (
                   <tr key={p.id} title={p.notiz || undefined}>
                     <td className={beendet ? 'beendet' : ''}>{name}</td>
                     <td className="zahl">{p.menge == null ? '–' : `${Number(p.menge).toLocaleString('de-CH')}${einheit}`}</td>
                     <td className="zahl">{formatiereCHF(k.liste)}</td>
                     <td className="zahl">{formatiereCHF(p.betrag_monat)}</td>
-                    <td className="zahl">{k.leistung ? formatiereMinuten(k.plan) : ''}</td>
-                    <td className={`zahl ${unterZiel ? 'unter-liste' : ''}`} title={unterZiel ? `unter dem Standardansatz von CHF ${formatiereCHF(standard.chf_pro_stunde)}` : undefined}>
+                    <td className="zahl" title={k.ansatzName}>{k.ansatz == null ? '' : formatiereCHF(k.ansatz, { ohneRappen: true })}</td>
+                    <td className="zahl" title={k.max == null ? undefined : formatiereTage(k.max)}>{k.max == null ? '' : formatiereMinuten(k.max)}</td>
+                    <td className={`zahl ${ueberMax ? 'unter-liste' : ''}`} title={ueberMax ? 'Planzeit höher als die Stunden, die der Preis deckt' : undefined}>{k.leistung ? formatiereMinuten(k.plan) : ''}</td>
+                    <td className={`zahl ${unterZiel ? 'unter-liste' : ''}`} title={unterZiel ? `unter dem Zielansatz von CHF ${formatiereCHF(k.ansatz)}` : undefined}>
                       {k.satz == null ? '' : formatiereCHF(k.satz, { ohneRappen: true })}
                     </td>
                     <td className="pauschalen-zusatz">
@@ -192,7 +209,7 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
                   </tr>
                 );
               })}
-              {sichtbar.length === 0 && <tr><td colSpan={8} className="leer-hinweis">Noch keine Pauschalen erfasst.</td></tr>}
+              {sichtbar.length === 0 && <tr><td colSpan={10} className="leer-hinweis">Noch keine Preise erfasst – «+ Dienstleistung».</td></tr>}
             </tbody>
             {aktive.length > 0 && (
               <tfoot>
@@ -201,6 +218,8 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
                   <td></td>
                   <td className="zahl">{formatiereCHF(summeListe)}</td>
                   <td className="zahl">{formatiereCHF(summe)}</td>
+                  <td></td>
+                  <td className="zahl">{summeMax ? formatiereMinuten(summeMax) : ''}</td>
                   <td className="zahl">{summePlan ? formatiereMinuten(summePlan) : ''}</td>
                   <td className="zahl" title="Leistungen ohne ABACUS-Lizenzen, nur Positionen mit Planzeit">
                     {summePlan ? formatiereCHF(effektiverSatz(aktive.filter((p) => kennzahlen(p).plan != null).reduce((s, p) => s + Number(p.betrag_monat), 0), summePlan), { ohneRappen: true }) : ''}
@@ -210,6 +229,19 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
               </tfoot>
             )}
           </table>
+          {summeMax > 0 && (
+            <div className="pauschalen-kapazitaet">
+              <span>Max. einsetzbar: <strong>{formatiereMinuten(summeMax)} pro Monat</strong> ({formatiereTage(summeMax)})</span>
+              <span><strong>{formatiereMinuten(summeMax * 12)} pro Jahr</strong> ({formatiereTage(summeMax * 12)})</span>
+              {summePlan > 0 && <span>Planzeit {formatiereMinuten(summePlan)}/Mt.</span>}
+              {summePlanMitZeit.length > 0 && (
+                <span className={reserve < 0 ? 'unter-liste' : 'pauschalen-reserve'}>
+                  {reserve < 0 ? 'Fehlbetrag' : 'Reserve'} {formatiereMinuten(Math.abs(reserve))}/Mt.
+                </span>
+              )}
+              <span className="pauschalen-zusatz">1 Tag = 8 Std. · Max. = Preis ÷ Zielansatz der Leistung</span>
+            </div>
+          )}
           {aktive.length > 0 && (
             <p className="pauschalen-zusatz">
               Davon Leistungen CHF {formatiereCHF(summeZeit)}, ABACUS-Lizenzen CHF {formatiereCHF(summe - summeZeit)} · exkl. MWST
@@ -228,7 +260,7 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={() => setOffen({ art: 'leistung', eintrag: null })}>+ Leistung</button>
+            <button type="button" className="btn" onClick={() => setOffen({ art: 'leistung', eintrag: null })}>+ Dienstleistung</button>
             <button type="button" className="btn" onClick={() => setOffen({ art: 'modul', eintrag: null })}>+ ABACUS-Modul</button>
             <button type="button" className="btn btn-primary" onClick={onSchliessen}>Fertig</button>
           </div>

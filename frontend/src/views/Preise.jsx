@@ -78,7 +78,7 @@ export default function Preise() {
           { name: 'preisArt', label: 'Preis', typ: 'select', optionen: PREIS_ARTEN, leer: false },
           { name: 'minutenProEinheit', label: 'Zeit pro Einheit (Min.)', typ: 'zahl', halb: true, pflicht: false,
             hinweis: 'Bei Festpreis: Planzeit für den Soll-/Ist-Vergleich.' },
-          { name: 'stundenansatzId', label: 'Stundenansatz', typ: 'select', halb: true, sichtbar: (f) => f.preisArt === 'zeit',
+          { name: 'stundenansatzId', label: (f) => (f.preisArt === 'zeit' ? 'Stundenansatz' : 'Zielansatz (Kalkulation)'), typ: 'select', halb: true,
             optionen: aktiveAnsaetze.map((a) => ({ wert: String(a.id), label: `${a.name} (${formatiereCHF(a.chf_pro_stunde)})` })) },
           { name: 'festpreisProEinheit', label: 'CHF pro Einheit', typ: 'zahl', halb: true, schritt: '0.05', sichtbar: (f) => f.preisArt === 'fix' },
           { name: 'angebotGruppe', label: 'Gruppe im Angebot', typ: 'text', vorschlaege: gruppen,
@@ -238,7 +238,7 @@ export default function Preise() {
                     ? <span className="preise-fehlt" title="Planzeit fehlt – nötig für den Soll-/Ist-Vergleich">fehlt</span>
                     : formatiereMinuten(Number(l.minuten_pro_einheit))}
                 </td>
-                <td>{l.preis_art === 'fix' ? 'Festpreis' : ansatzName(l.stundenansatz_id)}</td>
+                <td>{l.preis_art === 'fix' ? `Festpreis · Ziel ${ansatzName(l.stundenansatz_id)}` : ansatzName(l.stundenansatz_id)}</td>
                 <td className="zahl">{formatiereCHF(preisProEinheit(l, ansaetze))}</td>
                 <td className="preise-gruppe">{l.angebot_gruppe || ''}</td>
                 <td>{status(l)}</td>

@@ -13,7 +13,7 @@ import {
   positionAusLeistung, positionAusModul, betragMonat, totale, planung, naechsteNummer,
   pauschalenAusOfferte, textErsetzen, chf,
 } from '../lib/offerte.js';
-import { aktivePauschalen, formatiereMinuten } from '../lib/preise.js';
+import { aktivePauschalen, formatiereMinuten, formatiereTage, zielansatz, maxMinuten } from '../lib/preise.js';
 import { elementZuPdf, herunterladen } from '../lib/pdf.js';
 
 let schluesselZaehler = 0;
@@ -100,6 +100,12 @@ export default function OffertEditor() {
   const t = totale(positionen, kopf);
   const plan = planung(positionen, kopf);
   const standard = ansaetze.find((a) => a.ist_standard);
+  // Stunden, die die Monatspauschale (nach Rabatt) beim Zielansatz je Leistung deckt.
+  const rabattFaktor = 1 - Number(kopf.rabatt_prozent || 0) / 100;
+  const maxStd = positionen.filter((p) => !p.ist_lizenz && p.leistung_id).reduce((s, p) => {
+    const l = leistungen.find((x) => x.id === p.leistung_id);
+    return s + (maxMinuten(betragMonat(p) * rabattFaktor, zielansatz(l, ansaetze)) ?? 0);
+  }, 0);
   const dienstleistungen = positionen.filter((p) => !p.ist_lizenz);
   const lizenzen = positionen.filter((p) => p.ist_lizenz);
   const dateiname = `Angebot ${kopf.nummer}${mandant ? ` ${mandant.name}` : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '');
@@ -407,6 +413,10 @@ export default function OffertEditor() {
                 <tr>
                   <td>Planzeit pro Monat{plan.ohneZeit ? ` (${plan.ohneZeit} Position${plan.ohneZeit > 1 ? 'en' : ''} ohne Zeit im Katalog)` : ''}</td>
                   <td className="zahl">{plan.minuten ? formatiereMinuten(plan.minuten) : '–'}</td>
+                </tr>
+                <tr>
+                  <td>Max. Stunden pro Monat (Preis ÷ Zielansatz je Leistung, 1 Tag = 8 Std.)</td>
+                  <td className="zahl">{maxStd ? `${formatiereMinuten(maxStd)} · ${formatiereTage(maxStd)}` : '–'}</td>
                 </tr>
                 <tr>
                   <td>Ertrag pro Planstunde{standard ? ` (Ziel ${chf(standard.chf_pro_stunde)})` : ''}</td>

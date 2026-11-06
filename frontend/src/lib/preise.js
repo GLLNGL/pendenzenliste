@@ -84,7 +84,29 @@ function pauschalenSumme(pauschalen) {
   return pauschalen.reduce((s, p) => s + Number(p.betrag_monat || 0), 0);
 }
 
+const STUNDEN_PRO_TAG = 8;
+
+// Zielansatz einer Leistung (CHF/Std.): ihr Ansatz, sonst der Standardansatz.
+function zielansatz(leistung, ansaetze) {
+  const a = ansaetze.find((x) => x.id === leistung?.stundenansatz_id) ?? ansaetze.find((x) => x.ist_standard);
+  return a ? Number(a.chf_pro_stunde) : null;
+}
+
+// Maximale Minuten, die der Betrag beim Zielansatz deckt (Betrag / Ansatz).
+function maxMinuten(betrag, ansatz) {
+  if (betrag == null || !ansatz) return null;
+  return (Number(betrag) / Number(ansatz)) * 60;
+}
+
+// "0.4 Tage" (1 Tag = 8 h).
+function formatiereTage(minuten) {
+  if (minuten == null) return '–';
+  const tage = minuten / 60 / STUNDEN_PRO_TAG;
+  return `${tage.toLocaleString('de-CH', { maximumFractionDigits: tage < 1 ? 2 : 1 })} ${tage === 1 ? 'Tag' : 'Tage'}`;
+}
+
 export {
+  STUNDEN_PRO_TAG, zielansatz, maxMinuten, formatiereTage,
   TURNUS, PREIS_ARTEN, EINHEITEN_VORSCHLAG, turnusLabel,
   preisProEinheit, listenpreisMonat, planMinutenMonat, effektiverSatz,
   formatiereCHF, formatiereMinuten, naechsteKundenNr, aktivePauschalen, pauschalenSumme,

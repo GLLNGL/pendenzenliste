@@ -156,7 +156,7 @@ export default function Mandanten() {
       <span className="mandant-eckdaten-aktionen">
         <button type="button" className="btn-klein" onClick={() => navigate(`/offerten/neu?mandant=${gewaehlt.id}`)}>Offerte erstellen</button>
         <button type="button" className="btn-klein" onClick={() => navigate(`/rapporte/neu?mandant=${gewaehlt.id}`)}>Rapport</button>
-        <button type="button" className="btn-klein" onClick={() => setPauschalenMandant(gewaehlt)}>Pauschalen</button>
+        <button type="button" className="btn-klein" onClick={() => setPauschalenMandant(gewaehlt)}>Preise &amp; Pauschalen</button>
         <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(gewaehlt)}>Mandant bearbeiten</button>
       </span>
     </div>

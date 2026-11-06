@@ -74,9 +74,9 @@ function artVorschlag(mandantId, leistungId, pauschalenDesMandanten) {
   return pauschalenDesMandanten.length > 0 ? 'pauschal' : 'extra';
 }
 
-// Ansatz fuer Extra-Arbeit: Ansatz der (zeitbasierten) Leistung, sonst der Standardansatz.
+// Ansatz fuer Extra-Arbeit: (Ziel-)Ansatz der Leistung, sonst der Standardansatz.
 function ansatzFuer(leistung, ansaetze) {
-  if (leistung?.preis_art === 'zeit') {
+  if (leistung?.stundenansatz_id) {
     const a = ansaetze.find((x) => x.id === leistung.stundenansatz_id);
     if (a) return Number(a.chf_pro_stunde);
   }

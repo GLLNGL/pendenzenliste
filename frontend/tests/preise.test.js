@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   preisProEinheit, listenpreisMonat, planMinutenMonat, effektiverSatz,
-  naechsteKundenNr, aktivePauschalen, pauschalenSumme,
+  naechsteKundenNr, aktivePauschalen, pauschalenSumme, zielansatz, maxMinuten, formatiereTage,
 } from '../src/lib/preise.js';
 
 const ansaetze = [{ id: 1, chf_pro_stunde: '130.00' }, { id: 2, chf_pro_stunde: 90 }];
@@ -50,4 +50,15 @@ test('Aktive Pauschalen und Summe', () => {
   const aktiv = aktivePauschalen(liste, '2026-11-06');
   assert.equal(aktiv.length, 1);
   assert.equal(pauschalenSumme(aktiv), 468);
+});
+
+test('Zielansatz, maximale Stunden und Tage', () => {
+  const liste = [{ id: 1, chf_pro_stunde: 130, ist_standard: true }, { id: 3, chf_pro_stunde: 220 }];
+  assert.equal(zielansatz({ stundenansatz_id: 3 }, liste), 220);
+  assert.equal(zielansatz({ stundenansatz_id: null }, liste), 130);
+  assert.equal(maxMinuten(520, 130), 240);
+  assert.equal(maxMinuten(100, 0), null);
+  assert.equal(formatiereTage(240), '0.5 Tage');
+  assert.equal(formatiereTage(480), '1 Tag');
+  assert.equal(formatiereTage(60 * 30), '3.8 Tage');
 });

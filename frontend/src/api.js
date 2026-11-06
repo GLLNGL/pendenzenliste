@@ -425,7 +425,8 @@ const api = {
           turnus: d.turnus === 'jaehrlich' ? 'jaehrlich' : 'monatlich',
           preis_art: preisArt,
           minuten_pro_einheit: nichtNegativ(d.minutenProEinheit, 'Ungültige Zeit pro Einheit'),
-          stundenansatz_id: preisArt === 'zeit' ? zahlOderNull(d.stundenansatzId) : null,
+          // Bei Festpreis = Zielansatz fuer die Kalkulation (maximale Stunden).
+          stundenansatz_id: zahlOderNull(d.stundenansatzId),
           festpreis_pro_einheit: preisArt === 'fix' ? nichtNegativ(d.festpreisProEinheit, 'Ungültiger Preis') : null,
           angebot_gruppe: textOderNull(d.angebotGruppe),
           hinweis: textOderNull(d.hinweis),
