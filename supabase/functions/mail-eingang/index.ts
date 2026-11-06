@@ -37,8 +37,7 @@ function domainVon(adresse: string | null | undefined) {
   return teile.length === 2 ? teile[1] : '';
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
+async function verarbeiten(req: Request, zustand: { schritt: string; client: ImapFlow | null }): Promise<Response> {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
@@ -61,7 +60,8 @@ Deno.serve(async (req) => {
     socketTimeout: 45000,
   });
 
-  let schritt = 'Anmelden am Postfach';
+  zustand.client = client;
+  zustand.schritt = 'Anmelden am Postfach';
   try {
     await client.connect();
 
@@ -69,14 +69,14 @@ Deno.serve(async (req) => {
     // Metanet/Dovecot) legen eigene Ordner unter dem Posteingang ab ("INBOX.Auftraege"), darum
     // wird nach dem Ordnernamen auf oberster Ebene oder direkt unter INBOX gesucht und beim
     // Anlegen das Namensraum-Praefix des Servers verwendet.
-    schritt = 'Ordner auflisten';
+    zustand.schritt = 'Ordner auflisten';
     let vorhanden = await client.list();
     const trenner = vorhanden[0]?.delimiter || '/';
     const oben = (m: { parentPath?: string }) => !m.parentPath || /^inbox$/i.test(m.parentPath);
     let quelle = vorhanden.find((m) => m.name === ordner && oben(m));
     let neuAngelegt = false;
     if (!quelle) {
-      schritt = `Ordner «${ordner}» anlegen`;
+      zustand.schritt = `Ordner «${ordner}» anlegen`;
       // deno-lint-ignore no-explicit-any
       const praefix = (client as any).namespace?.prefix ?? '';
       const erstellt = await client.mailboxCreate(`${praefix}${ordner}`);
@@ -86,22 +86,25 @@ Deno.serve(async (req) => {
     }
     const quellPfad = quelle?.path ?? ordner;
     let ziel = vorhanden.find((m) => m.name === 'Übernommen' && m.parentPath === quellPfad)?.path;
-    schritt = 'Unterordner «Übernommen» anlegen';
+    zustand.schritt = 'Unterordner «Übernommen» anlegen';
     if (!ziel) ziel = (await client.mailboxCreate(`${quellPfad}${trenner}Übernommen`)).path;
     // Outlook zeigt bei IMAP-Postfaechern nur abonnierte Ordner -- darum beide abonnieren
     // (auch wenn sie schon existieren; mehrfaches Abonnieren schadet nicht).
-    schritt = 'Ordner abonnieren';
+    zustand.schritt = 'Ordner abonnieren';
     await client.mailboxSubscribe(quellPfad);
     await client.mailboxSubscribe(ziel);
-    schritt = 'Mails lesen';
+    zustand.schritt = 'Mails lesen';
     if (neuAngelegt) {
       await client.logout();
       return antwort({ ok: true, neu: 0, ordner: quellPfad, hinweis: `Ordner «${ordner}» wurde im Postfach ${Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER')} angelegt – Mails dort hinein ziehen.` });
     }
 
+    zustand.schritt = 'Mandanten laden';
     const { data: mandanten } = await supabase.from('mandanten').select('id, name, email, geschaeftsfuehrung_email').eq('aktiv', true);
 
+    zustand.schritt = 'Ordner öffnen';
     const lock = await client.getMailboxLock(quellPfad);
+    zustand.schritt = 'Mails abrufen';
     const uebernommen: string[] = [];
     const verschieben: number[] = [];
     try {
@@ -115,6 +118,7 @@ Deno.serve(async (req) => {
       }
 
       for (const msg of nachrichten) {
+        zustand.schritt = `Mail ${msg.uid} verarbeiten`;
         const mail = await simpleParser(msg.source);
         const messageId = mail.messageId || `uid-${msg.uid}-${mail.date?.toISOString() ?? ''}`;
         const von = mail.from?.value?.[0];
@@ -153,6 +157,7 @@ Deno.serve(async (req) => {
         verschieben.push(msg.uid);
       }
 
+      zustand.schritt = 'Mails nach «Übernommen» verschieben';
       if (verschieben.length) await client.messageMove(verschieben, ziel, { uid: true });
     } finally {
       lock.release();
@@ -168,6 +173,25 @@ Deno.serve(async (req) => {
     const detail = e?.authenticationFailed
       ? 'Anmeldung abgelehnt – Benutzername oder Passwort (IMAP_USER/IMAP_PASS) prüfen.'
       : [e?.responseText, e?.serverResponseCode].filter(Boolean).join(' / ');
-    return antwort({ fehler: `${schritt}: ${e?.message ?? String(err)}${detail ? ` (${detail})` : ''}` }, 500);
+    return antwort({ fehler: `${zustand.schritt}: ${e?.message ?? String(err)}${detail ? ` (${detail})` : ''}` }, 500);
+  }
+}
+
+// Notbremse: Haengt die Verbindung (Server antwortet nicht), nach 40 Sekunden abbrechen und den
+// Schritt melden, statt bis zum Zeitlimit von Supabase (ohne Antwort) zu warten.
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
+  const zustand: { schritt: string; client: ImapFlow | null } = { schritt: 'Start', client: null };
+  let zeitgeber: number | undefined;
+  const notbremse = new Promise<Response>((resolve) => {
+    zeitgeber = setTimeout(() => {
+      try { zustand.client?.close(); } catch { /* schon zu */ }
+      resolve(antwort({ fehler: `Zeitüberschreitung (40 s) bei: ${zustand.schritt}` }, 504));
+    }, 40000);
+  });
+  try {
+    return await Promise.race([verarbeiten(req, zustand), notbremse]);
+  } finally {
+    clearTimeout(zeitgeber);
   }
 });
