@@ -56,26 +56,34 @@ Deno.serve(async (req) => {
     logger: false,
   });
 
+  let schritt = 'Anmelden am Postfach';
   try {
     await client.connect();
 
     // Ordner suchen bzw. anlegen -- er erscheint dann auch in Outlook. Manche Server (z.B.
     // Metanet/Dovecot) legen eigene Ordner unter dem Posteingang ab ("INBOX.Auftraege"), darum
-    // wird nach dem Ordnernamen auf oberster Ebene oder direkt unter INBOX gesucht.
+    // wird nach dem Ordnernamen auf oberster Ebene oder direkt unter INBOX gesucht und beim
+    // Anlegen das Namensraum-Praefix des Servers verwendet.
+    schritt = 'Ordner auflisten';
     let vorhanden = await client.list();
     const trenner = vorhanden[0]?.delimiter || '/';
     const oben = (m: { parentPath?: string }) => !m.parentPath || /^inbox$/i.test(m.parentPath);
     let quelle = vorhanden.find((m) => m.name === ordner && oben(m));
     let neuAngelegt = false;
     if (!quelle) {
-      const erstellt = await client.mailboxCreate(ordner);
+      schritt = `Ordner «${ordner}» anlegen`;
+      // deno-lint-ignore no-explicit-any
+      const praefix = (client as any).namespace?.prefix ?? '';
+      const erstellt = await client.mailboxCreate(`${praefix}${ordner}`);
       vorhanden = await client.list();
       quelle = vorhanden.find((m) => m.path === erstellt.path) ?? vorhanden.find((m) => m.name === ordner && oben(m));
       neuAngelegt = true;
     }
     const quellPfad = quelle?.path ?? ordner;
     let ziel = vorhanden.find((m) => m.name === 'Übernommen' && m.parentPath === quellPfad)?.path;
+    schritt = 'Unterordner «Übernommen» anlegen';
     if (!ziel) ziel = (await client.mailboxCreate(`${quellPfad}${trenner}Übernommen`)).path;
+    schritt = 'Mails lesen';
     if (neuAngelegt) {
       await client.logout();
       return antwort({ ok: true, neu: 0, hinweis: `Ordner «${ordner}» wurde im Postfach ${Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER')} angelegt – Mails dort hinein ziehen.` });
@@ -140,6 +148,13 @@ Deno.serve(async (req) => {
     return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
-    return antwort({ fehler: err instanceof Error ? err.message : String(err) }, 500);
+    // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in
+    // responseText; bei falschem Passwort ist authenticationFailed gesetzt.
+    // deno-lint-ignore no-explicit-any
+    const e = err as any;
+    const detail = e?.authenticationFailed
+      ? 'Anmeldung abgelehnt – Benutzername oder Passwort (IMAP_USER/IMAP_PASS) prüfen.'
+      : [e?.responseText, e?.serverResponseCode].filter(Boolean).join(' / ');
+    return antwort({ fehler: `${schritt}: ${e?.message ?? String(err)}${detail ? ` (${detail})` : ''}` }, 500);
   }
 });
