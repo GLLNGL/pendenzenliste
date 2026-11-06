@@ -41,11 +41,17 @@ function tagesplan(offene, erledigte, { heute, ichId = null }) {
   const morgenTag = plusArbeitstage(heute, 1);
   const montag = montagDerWoche(heute);
 
-  const heuteOffen = offen.filter((p) => istHeute(p, heute)).sort(sortierung);
+  // Ist ein Projekt selbst geplant/faellig, gehoert seine aktive Teilaufgabe (Offen/In Arbeit) dazu.
+  const koepfe = offene.filter((p) => p.teilaufgaben_gesamt > 0 && p.status !== 'Erledigt' && meine(p, ichId));
+  const kopfHeute = new Set(koepfe.filter((k) => istHeute(k, heute)).map((k) => k.id));
+  const kopfMorgen = new Set(koepfe.filter((k) => !kopfHeute.has(k.id) && (k.bearbeitungstag === morgenTag || k.faelligkeit === morgenTag)).map((k) => k.id));
+  const aktiverSchritt = (p, ids) => ids.has(p.uebergeordnete_pendenz_id) && ['Offen', 'In Arbeit'].includes(p.status);
+
+  const heuteOffen = offen.filter((p) => istHeute(p, heute) || aktiverSchritt(p, kopfHeute)).sort(sortierung);
   const heuteIds = new Set(heuteOffen.map((p) => p.id));
   const morgenOffen = offen
     .filter((p) => !heuteIds.has(p.id) && (p.bearbeitungstag === morgenTag || p.faelligkeit === morgenTag
-      || (p.status === 'Warten auf' && p.wiedervorlage === morgenTag)))
+      || (p.status === 'Warten auf' && p.wiedervorlage === morgenTag) || aktiverSchritt(p, kopfMorgen)))
     .sort(sortierung);
 
   return {

@@ -2391,3 +2391,17 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .tp-mandant-stand { font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
 .tp-mandant .tp-zeile { padding-left: 22px; }
 .tp-mandant .tp-zeile:last-child { border-bottom: none; }
+/* Cockpit: Projekt als Zwischenzeile, Teilaufgaben darunter eingerueckt. */
+.tp-projektzeile { border-bottom: 1px solid var(--border); }
+.tp-projektzeile button {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  padding: 9px 16px 8px 22px; border: none; background: var(--surface); text-align: left; cursor: pointer; font: inherit; color: var(--text);
+}
+.tp-projektzeile button:hover { background: var(--surface-hover); }
+.tp-projekt-pfeil { width: 12px; color: var(--text-muted); font-size: 11px; }
+.tp-projekt-titel { font-size: var(--fs-text); }
+.tp-projekt-anzahl { font-size: var(--fs-klein); color: var(--text-muted); white-space: nowrap; }
+.tp-mandant .tp-zeile.tp-teilaufgabe { padding-left: 44px; background: var(--surface-2); }
+.tp-zeile.tp-teilaufgabe .tp-titel { font-size: var(--fs-klein); }
+.tp-zeile.tp-teilaufgabe::before { content: ''; position: absolute; left: 32px; top: 0; bottom: 0; border-left: 1px solid var(--text-faint); }
+.tp-projekt-pfeil { font-size: 14px; width: 14px; }

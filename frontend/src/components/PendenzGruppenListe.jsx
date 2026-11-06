@@ -173,8 +173,8 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                   <button
                     type="button"
                     className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${istSchritt ? 'schritt' : ''} ${letzterSchritt ? 'letzter' : ''}`}
-                    onClick={() => onWaehlen(p)}
-                    title={p.eltern_titel ? `${p.eltern_titel} – ${p.titel}` : p.titel}
+                    onClick={() => { onWaehlen(p); if (istProjekt) projektUmschalten(p.id); }}
+                    title={p.eltern_titel ? `${p.eltern_titel} – ${p.titel}` : (istProjekt ? `${p.titel} – Klick zeigt bzw. verbirgt die Teilaufgaben` : p.titel)}
                   >
                     <span className="tagesliste-titel">
                       {p.titel}

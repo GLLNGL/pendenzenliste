@@ -32,11 +32,11 @@ function nachMandant(offen, erledigt) {
 }
 
 // Eine Zeile: abhaken, Titel (Projekt darueber), Hinweise, Aufwand; rechts kurze Planen-Knoepfe.
-function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
+function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt = false }) {
   const ueberfaellig = !erledigt && p.faelligkeit && p.faelligkeit < heute;
   const nachfassen = !erledigt && p.status === 'Warten auf';
   return (
-    <li className={`tp-zeile ${erledigt ? 'erledigt' : ''}`}>
+    <li className={`tp-zeile ${erledigt ? 'erledigt' : ''} ${inProjekt ? 'tp-teilaufgabe' : ''}`}>
       <button
         type="button"
         className={`tp-haken ${erledigt ? 'aktiv' : ''}`}
@@ -47,7 +47,7 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
         {erledigt ? '✓' : ''}
       </button>
       <button type="button" className="tp-text" onClick={() => onOeffnen(p)}>
-        {p.eltern_titel && <span className="tp-projekt">{p.eltern_titel}</span>}
+        {p.eltern_titel && !inProjekt && <span className="tp-projekt">{p.eltern_titel}</span>}
         <span className="tp-titel">{p.titel}</span>
         {(nachfassen || ueberfaellig || (p.faelligkeit && p.harte_frist)) && (
           <span className="tp-info">
@@ -69,7 +69,28 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
   );
 }
 
+// Zeilen eines Mandanten: einzelne Pendenzen und Projekte (mit ihren Teilaufgaben) in der
+// Reihenfolge ihres ersten Auftretens.
+function nachProjekt(zeilen) {
+  const bloecke = [];
+  const projekte = new Map();
+  for (const z of zeilen) {
+    const id = z.p.uebergeordnete_pendenz_id;
+    if (!id) { bloecke.push({ art: 'einzeln', z }); continue; }
+    if (!projekte.has(id)) {
+      const block = { art: 'projekt', id, titel: z.p.eltern_titel || 'Projekt', zeilen: [] };
+      projekte.set(id, block);
+      bloecke.push(block);
+    }
+    projekte.get(id).zeilen.push(z);
+  }
+  return bloecke;
+}
+
 function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktionen, onOeffnen, onAbhaken }) {
+  // Projekte sind im Cockpit aufgeklappt (Teilaufgaben abhaken); Klick aufs Projekt klappt zu.
+  const [zu, setZu] = useState(() => new Set());
+  const umschalten = (id) => setZu((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const total = offen.length + erledigt.length;
   const anteil = total ? erledigt.length / total : 0;
   return (
@@ -94,9 +115,26 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
               <span className="tp-mandant-stand">{gOffen === 0 ? 'erledigt' : `${gOffen} offen`}</span>
             </div>
             <ul className="tp-liste">
-              {g.zeilen.map(({ p, erledigt: e }) => (
-                <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />
-              ))}
+              {nachProjekt(g.zeilen).map((b) => {
+                if (b.art === 'einzeln') {
+                  const { p, erledigt: e } = b.z;
+                  return <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />;
+                }
+                const offenImProjekt = b.zeilen.filter((z) => !z.erledigt).length;
+                const geschlossen = zu.has(b.id);
+                return [
+                  <li key={`projekt-${b.id}`} className="tp-projektzeile">
+                    <button type="button" onClick={() => umschalten(b.id)} aria-expanded={!geschlossen} title={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'}>
+                      <span className="tp-projekt-pfeil" aria-hidden="true">{geschlossen ? '▸' : '▾'}</span>
+                      <span className="tp-projekt-titel">{b.titel}</span>
+                      <span className="tp-projekt-anzahl">{b.zeilen.length} {b.zeilen.length === 1 ? 'Teilaufgabe' : 'Teilaufgaben'}{offenImProjekt < b.zeilen.length ? ` · ${b.zeilen.length - offenImProjekt} erledigt` : ''}</span>
+                    </button>
+                  </li>,
+                  ...(geschlossen ? [] : b.zeilen.map(({ p, erledigt: e }) => (
+                    <Zeile key={p.id} p={p} heute={heute} erledigt={e} inProjekt aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />
+                  ))),
+                ];
+              })}
             </ul>
           </div>
         );

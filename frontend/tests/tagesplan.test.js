@@ -42,3 +42,13 @@ test('Titel für den nächsten Arbeitstag', () => {
   assert.equal(morgenTitel('2026-11-05', '2026-11-06'), 'Morgen');
   assert.equal(morgenTitel('2026-11-06', '2026-11-09'), 'Montag');
 });
+
+test('Geplantes Projekt bringt seine aktive Teilaufgabe nach Heute', () => {
+  const offene = [
+    p(20, { teilaufgaben_gesamt: 3, bearbeitungstag: heute, titel: 'Jahresabschluss' }),
+    p(21, { uebergeordnete_pendenz_id: 20, status: 'Offen' }),
+    p(22, { uebergeordnete_pendenz_id: 20, status: 'Später' }),
+  ];
+  const t = tagesplan(offene, [], { heute });
+  assert.deepEqual(t.heute.offen.map((x) => x.id), [21]);
+});
