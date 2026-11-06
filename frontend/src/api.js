@@ -438,6 +438,109 @@ const api = {
     }),
   },
 
+  // Buero-Einstellungen (Absender, Offert-Texte) -- Schluessel/Wert.
+  buero: {
+    lesen: async (schluessel) => {
+      const { data, error } = await supabase.from('buero_einstellungen').select('wert').eq('schluessel', schluessel).maybeSingle();
+      pruefeFehler(error);
+      return data?.wert ?? {};
+    },
+    speichern: async (schluessel, wert) => {
+      const { error } = await supabase.from('buero_einstellungen')
+        .upsert({ schluessel, wert, geaendert_am: new Date().toISOString() });
+      pruefeFehler(error);
+    },
+  },
+
+  // Offerten (v7).
+  offerten: {
+    liste: async () => {
+      const { data, error } = await supabase.from('offerten')
+        .select('*, mandanten(name, kunden_nr, potenziell), mitarbeitende(name), offert_positionen(menge, preis_pro_einheit, turnus)')
+        .order('datum', { ascending: false }).order('id', { ascending: false });
+      pruefeFehler(error);
+      return data;
+    },
+    holen: async (id) => {
+      const { data, error } = await supabase.from('offerten').select('*, offert_positionen(*)').eq('id', id).single();
+      pruefeFehler(error);
+      const { offert_positionen: positionen, ...kopf } = data;
+      return { kopf, positionen: [...positionen].sort((a, b) => a.reihenfolge - b.reihenfolge || a.id - b.id) };
+    },
+    // Kopf speichern und Positionen vollstaendig ersetzen (eine Offerte hat wenige Zeilen).
+    speichern: async (id, kopf, positionen) => {
+      if (!kopf.mandant_id) throw new Error('Bitte einen Mandanten wählen.');
+      if (!kopf.nummer) throw new Error('Angebot-Nr. fehlt.');
+      const zeile = {
+        nummer: String(kopf.nummer).trim(), mandant_id: Number(kopf.mandant_id), datum: kopf.datum, gueltig_bis: kopf.gueltig_bis,
+        bearbeiter_id: zahlOderNull(kopf.bearbeiter_id), mwst_pflichtig: !!kopf.mwst_pflichtig,
+        mwst_satz: zahlOderNull(kopf.mwst_satz) ?? 8.1, rabatt_prozent: zahlOderNull(kopf.rabatt_prozent) ?? 0,
+        skonto_prozent: zahlOderNull(kopf.skonto_prozent) ?? 0, skonto_tage: zahlOderNull(kopf.skonto_tage),
+        notiz: textOderNull(kopf.notiz),
+      };
+      const q = id ? supabase.from('offerten').update(zeile).eq('id', id) : supabase.from('offerten').insert(zeile);
+      const { data, error } = await q.select().single();
+      if (error?.message?.includes('offerten_nummer_key')) throw new Error(`Die Angebot-Nr. ${zeile.nummer} ist bereits vergeben.`);
+      pruefeFehler(error);
+      const { error: fehlerLoeschen } = await supabase.from('offert_positionen').delete().eq('offerte_id', data.id);
+      pruefeFehler(fehlerLoeschen);
+      if (positionen.length) {
+        const { error: fehlerPos } = await supabase.from('offert_positionen').insert(positionen.map((p, i) => ({
+          offerte_id: data.id, reihenfolge: i + 1, leistung_id: p.leistung_id ?? null, abacus_modul_id: p.abacus_modul_id ?? null,
+          bezeichnung: p.bezeichnung, einheit: p.einheit ?? null, turnus: p.turnus === 'jaehrlich' ? 'jaehrlich' : 'monatlich',
+          menge: zahlOderNull(p.menge) ?? 0, preis_pro_einheit: zahlOderNull(p.preis_pro_einheit) ?? 0,
+          minuten_pro_einheit: zahlOderNull(p.minuten_pro_einheit), angebot_gruppe: p.angebot_gruppe ?? null, ist_lizenz: !!p.ist_lizenz,
+        })));
+        pruefeFehler(fehlerPos);
+      }
+      return data;
+    },
+    status: async (id, status) => {
+      const { error } = await supabase.from('offerten').update({ status }).eq('id', id);
+      pruefeFehler(error);
+    },
+    loeschen: async (id) => {
+      const { error } = await supabase.from('offerten').delete().eq('id', id);
+      pruefeFehler(error);
+    },
+    // Annahme = Mandatseroeffnung: Pauschalen anlegen (bisherige optional per Vortag beenden),
+    // potenziellen Mandanten aktivieren, Offerte als angenommen markieren.
+    annehmen: async (offerte, pauschalen, { ab, bisherigeBeenden }) => {
+      if (!ab) throw new Error('Bitte «Pauschalen gültig ab» angeben.');
+      if (bisherigeBeenden) {
+        const vortag = new Date(`${ab}T12:00:00`);
+        vortag.setDate(vortag.getDate() - 1);
+        const bis = vortag.toISOString().slice(0, 10);
+        const { error } = await supabase.from('mandant_pauschalen').update({ gueltig_bis: bis })
+          .eq('mandant_id', offerte.mandant_id).lt('gueltig_ab', ab).or(`gueltig_bis.is.null,gueltig_bis.gte.${ab}`);
+        pruefeFehler(error);
+      }
+      if (pauschalen.length) {
+        const { error } = await supabase.from('mandant_pauschalen').insert(pauschalen.map((p) => ({
+          ...p, mandant_id: offerte.mandant_id, gueltig_ab: ab, notiz: `aus Offerte ${offerte.nummer}`,
+        })));
+        pruefeFehler(error);
+      }
+      const { error: fehlerMandant } = await supabase.from('mandanten').update({ aktiv: true, potenziell: false }).eq('id', offerte.mandant_id);
+      pruefeFehler(fehlerMandant);
+      const { error } = await supabase.from('offerten')
+        .update({ status: 'Angenommen', angenommen_am: heutigesDatumISO(), pauschalen_ab: ab }).eq('id', offerte.id);
+      pruefeFehler(error);
+    },
+    // Versand per E-Mail mit der Offerte als PDF-Anhang.
+    versenden: async (offerte, { an, betreff, text, pdfBase64, dateiname }) => {
+      if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
+      await sendMailAufrufen({
+        an: an.trim(), betreff, text,
+        anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }],
+      });
+      const patch = { versendet_am: new Date().toISOString(), versendet_an: an.trim() };
+      if (offerte.status === 'Entwurf') patch.status = 'Versendet';
+      const { error } = await supabase.from('offerten').update(patch).eq('id', offerte.id);
+      pruefeFehler(error);
+    },
+  },
+
   // Vereinbarte Pauschalen pro Mandant (v7, Etappe 1).
   pauschalen: {
     ...tabelle('mandant_pauschalen', {

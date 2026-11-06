@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api.js';
 import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
@@ -45,6 +46,7 @@ export default function Mandanten() {
   const [pauschalen, setPauschalen] = useState([]);
   const [pauschalenMandant, setPauschalenMandant] = useState(null);
   const mandanten = useMandanten();
+  const navigate = useNavigate();
   const mitarbeitende = useMitarbeitende();
 
   const laden = useCallback(() => {
@@ -152,6 +154,7 @@ export default function Mandanten() {
         {' · '}{pauschaleMonat > 0 ? `Pauschale CHF ${formatiereCHF(pauschaleMonat)}/Mt.` : 'keine Pauschale'}
       </span>
       <span className="mandant-eckdaten-aktionen">
+        <button type="button" className="btn-klein" onClick={() => navigate(`/offerten/neu?mandant=${gewaehlt.id}`)}>Offerte erstellen</button>
         <button type="button" className="btn-klein" onClick={() => setPauschalenMandant(gewaehlt)}>Pauschalen</button>
         <button type="button" className="btn-klein" onClick={() => setBearbeiteterMandant(gewaehlt)}>Mandant bearbeiten</button>
       </span>

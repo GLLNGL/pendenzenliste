@@ -7,6 +7,7 @@ import {
 
 const STATUS_OPTIONEN = [{ wert: '1', label: 'Aktiv' }, { wert: '0', label: 'Inaktiv' }];
 const wertOderLeer = (w) => (w == null ? '' : String(w));
+const ZEILENUMBRUCH = '\n';
 
 // Preise (v7, Etappe 1): Stundenansaetze, Leistungskatalog und ABACUS-Module -- ersetzt die
 // Blaetter "Dienstleistungen" und "ABACUS Module" des bisherigen Excel-Preiskalkulators.
@@ -15,12 +16,16 @@ export default function Preise() {
   const [leistungen, setLeistungen] = useState([]);
   const [module, setModule] = useState([]);
   const [fehler, setFehler] = useState(null);
-  const [offen, setOffen] = useState(null); // { art: 'ansatz'|'leistung'|'modul', eintrag }
+  const [offen, setOffen] = useState(null); // { art: 'ansatz'|'leistung'|'modul'|'vorlage', eintrag }
+  const [firma, setFirma] = useState({});
+  const [texte, setTexte] = useState({});
 
   const laden = useCallback(() => {
     Promise.all([api.preise.ansaetze.liste(), api.preise.leistungen.liste(), api.preise.abacusModule.liste()])
       .then(([a, l, m]) => { setAnsaetze(a); setLeistungen(l); setModule(m); setFehler(null); })
       .catch((e) => setFehler(e.message));
+    Promise.all([api.buero.lesen('firma'), api.buero.lesen('offerte')])
+      .then(([f, t]) => { setFirma(f); setTexte(t); }).catch(() => {});
   }, []);
 
   useEffect(() => { laden(); }, [laden]);
@@ -127,12 +132,59 @@ export default function Preise() {
     );
   }
 
+  function vorlageFenster() {
+    return (
+      <FormularModal
+        titel="Absender & Texte der Offerte"
+        breit
+        startwerte={{
+          firma: firma.firma ?? '', strasse: firma.strasse ?? '', plzOrt: firma.plzOrt ?? '', telefon: firma.telefon ?? '',
+          email: firma.email ?? '', mwstNr: firma.mwstNr ?? '', untertitel: firma.untertitel ?? '', slogan: firma.slogan ?? '',
+          gueltigTage: wertOderLeer(texte.gueltigTage ?? 30), konditionen: (texte.konditionen || []).join(ZEILENUMBRUCH),
+          schlusssatz: texte.schlusssatz ?? '', mailBetreff: texte.mailBetreff ?? '', mailText: texte.mailText ?? '',
+        }}
+        felder={[
+          { name: 'firma', label: 'Firma', typ: 'text', pflicht: true, halb: true },
+          { name: 'strasse', label: 'Strasse', typ: 'text', halb: true },
+          { name: 'plzOrt', label: 'PLZ/Ort', typ: 'text', halb: true },
+          { name: 'telefon', label: 'Telefon', typ: 'text', halb: true },
+          { name: 'email', label: 'E-Mail', typ: 'text', halb: true },
+          { name: 'mwstNr', label: 'MWST-Nr.', typ: 'text', halb: true },
+          { name: 'untertitel', label: 'Untertitel unter «Angebot»', typ: 'text', halb: true },
+          { name: 'slogan', label: 'Slogan (Fusszeile)', typ: 'text', halb: true },
+          { name: 'gueltigTage', label: 'Gültigkeit neuer Offerten (Tage)', typ: 'zahl', schritt: '1' },
+          { name: 'konditionen', label: 'Konditionen (eine pro Zeile)', typ: 'textarea',
+            hinweis: 'Die Zeile «Dieses Angebot ist gültig bis …» und ein allfälliger Skonto werden automatisch ergänzt.' },
+          { name: 'schlusssatz', label: 'Schlusssatz', typ: 'text' },
+          { name: 'mailBetreff', label: 'E-Mail-Betreff', typ: 'text' },
+          { name: 'mailText', label: 'E-Mail-Text', typ: 'textarea',
+            hinweis: 'Platzhalter: {nummer} {mandant} {ansprechperson} {gueltigBis} {bearbeiter} {firma}' },
+        ]}
+        onSpeichern={(f) => nachAktion(async () => {
+          await api.buero.speichern('firma', {
+            firma: f.firma, strasse: f.strasse, plzOrt: f.plzOrt, telefon: f.telefon, email: f.email,
+            mwstNr: f.mwstNr, untertitel: f.untertitel, slogan: f.slogan,
+          });
+          await api.buero.speichern('offerte', {
+            ...texte, gueltigTage: Number(f.gueltigTage) || 30,
+            konditionen: f.konditionen.split(ZEILENUMBRUCH).map((z) => z.trim()).filter(Boolean),
+            schlusssatz: f.schlusssatz, mailBetreff: f.mailBetreff, mailText: f.mailText,
+          });
+        })}
+        onSchliessen={schliessen}
+      />
+    );
+  }
+
   const bearbeiten = (art, eintrag) => <button type="button" className="btn-klein" onClick={() => setOffen({ art, eintrag })}>Bearbeiten</button>;
   const status = (e) => (e.aktiv ? 'Aktiv' : <span className="tag-inaktiv">INAKTIV</span>);
 
   return (
     <div className="preise-seite">
-      <h1 className="seiten-titel">Preise</h1>
+      <div className="preise-abschnitt-kopf">
+        <h1 className="seiten-titel">Preise &amp; Katalog</h1>
+        <button type="button" className="btn-klein" onClick={() => setOffen({ art: 'vorlage', eintrag: null })}>Absender &amp; Texte der Offerte</button>
+      </div>
       <p className="seiten-untertitel">Grundlage für Offerten, Pauschalen der Mandanten und die Rentabilität. Beträge exkl. MWST.</p>
       {fehler && (
         <div className="hinweis-fehler">
@@ -224,6 +276,7 @@ export default function Preise() {
       {offen?.art === 'ansatz' && ansatzFenster(offen.eintrag)}
       {offen?.art === 'leistung' && leistungFenster(offen.eintrag)}
       {offen?.art === 'modul' && modulFenster(offen.eintrag)}
+      {offen?.art === 'vorlage' && vorlageFenster()}
     </div>
   );
 }

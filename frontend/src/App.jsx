@@ -11,6 +11,9 @@ import Wochenrueckblick from './views/Wochenrueckblick.jsx';
 import Team from './views/Team.jsx';
 import Einstellungen from './views/Einstellungen.jsx';
 import Preise from './views/Preise.jsx';
+import Start from './views/Start.jsx';
+import Offerten from './views/Offerten.jsx';
+import OffertEditor from './views/OffertEditor.jsx';
 import { useIstHandy } from './hooks.js';
 
 export default function App() {
@@ -21,12 +24,15 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Cockpit />} />
+        <Route path="/start" element={<Start />} />
         <Route path="/eingang" element={<Eingang />} />
         <Route path="/pendenzen" element={<AllePendenzen />} />
         <Route path="/mandanten" element={<Mandanten />} />
         <Route path="/regeln" element={<Regeln />} />
         <Route path="/wochenrueckblick" element={<Wochenrueckblick />} />
         <Route path="/archiv" element={<Archiv />} />
+        <Route path="/offerten" element={<Offerten />} />
+        <Route path="/offerten/:id" element={<OffertEditor />} />
         <Route path="/preise" element={<Preise />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />

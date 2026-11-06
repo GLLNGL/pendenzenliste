@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 //     pflicht, hinweis, halb (zwei halbe Felder nebeneinander), sichtbar(formular), schritt, vorschlaege }
 // vorschau(formular) liefert optional eine berechnete Zeile (z.B. Preis pro Einheit).
 // onAendern(name, wert, formular) darf weitere Felder mitsetzen (Rueckgabe: Teil-Objekt).
-export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen }) {
+export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen, speichernText = 'Speichern', breit = false }) {
   const [formular, setFormular] = useState(startwerte);
   const [fehler, setFehler] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(false);
@@ -117,7 +117,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
 
   return (
     <div className="modal-hintergrund" onClick={onSchliessen}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${breit ? 'modal-mittel' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{titel}</span>
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
@@ -142,7 +142,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn" onClick={onSchliessen}>Abbrechen</button>
-              <button type="submit" className="btn btn-primary" disabled={beschaeftigt}>Speichern</button>
+              <button type="submit" className="btn btn-primary" disabled={beschaeftigt}>{beschaeftigt ? 'Bitte warten…' : speichernText}</button>
             </div>
           </div>
         </form>

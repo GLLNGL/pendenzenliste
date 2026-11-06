@@ -27,7 +27,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
 
   try {
-    const { an, betreff, text, icsBase64, icsDateiname } = await req.json();
+    // anhaenge (v7, Offerten): [{ dateiname, base64, typ }] -- z.B. die Offerte als PDF.
+    const { an, betreff, text, icsBase64, icsDateiname, anhaenge } = await req.json();
     if (!an || !text) {
       return new Response(JSON.stringify({ fehler: 'an und text sind erforderlich' }), {
         status: 400,
@@ -52,9 +53,12 @@ Deno.serve(async (req) => {
       to: an,
       subject: betreff || '(kein Betreff)',
       text,
-      attachments: icsBase64
-        ? [{ filename: icsDateiname || 'termin.ics', content: icsBase64, encoding: 'base64', contentType: 'text/calendar' }]
-        : undefined,
+      attachments: [
+        ...(icsBase64 ? [{ filename: icsDateiname || 'termin.ics', content: icsBase64, encoding: 'base64', contentType: 'text/calendar' }] : []),
+        ...(Array.isArray(anhaenge) ? anhaenge.filter((a) => a?.base64).map((a) => ({
+          filename: a.dateiname || 'anhang.pdf', content: a.base64, encoding: 'base64', contentType: a.typ || 'application/pdf',
+        })) : []),
+      ],
     });
 
     return new Response(JSON.stringify({ ok: true }), {

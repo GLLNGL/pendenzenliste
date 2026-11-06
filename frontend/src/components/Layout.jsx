@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
+import { modulFuerPfad } from '../lib/module.js';
 import api from '../api.js';
 import PendenzModal from './PendenzModal.jsx';
 import { aufMandantenAenderungHoeren, aufMitarbeitendeAenderungHoeren, aufAenderungHoeren, meldeAenderung } from '../events.js';
@@ -8,18 +9,6 @@ import { heutigesDatumISO } from '../format.js';
 
 const WIEDERKEHR_SCHLUESSEL = 'wiederkehr-zuletzt-erzeugt';
 
-const NAV_EINTRAEGE = [
-  { pfad: '/', label: 'Cockpit' },
-  { pfad: '/eingang', label: 'Eingang' },
-  { pfad: '/pendenzen', label: 'Alle Pendenzen' },
-  { pfad: '/mandanten', label: 'Mandanten' },
-  { pfad: '/regeln', label: 'Wiederkehrende' },
-  { pfad: '/wochenrueckblick', label: 'Wochenrückblick' },
-  { pfad: '/archiv', label: 'Archiv' },
-  { pfad: '/preise', label: 'Preise' },
-  { pfad: '/team', label: 'Team' },
-  { pfad: '/einstellungen', label: 'Einstellungen' },
-];
 
 function editierbaresElementFokussiert() {
   const el = document.activeElement;
@@ -30,6 +19,8 @@ function editierbaresElementFokussiert() {
 
 export default function Layout() {
   const { benutzer, abmelden } = useAuth();
+  const { pathname } = useLocation();
+  const modul = modulFuerPfad(pathname);
   const [mandanten, setMandanten] = useState([]);
   const [mitarbeitende, setMitarbeitende] = useState([]);
   const [schnellErfassungOffen, setSchnellErfassungOffen] = useState(false);
@@ -91,9 +82,12 @@ export default function Layout() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="sidebar-titel">Pendenzenliste</div>
+        <Link to="/start" className="sidebar-titel sidebar-module-link" title="Alle Module">
+          <span className="sidebar-module-symbol" aria-hidden="true">▦</span> Module
+        </Link>
+        {modul && <div className="sidebar-modul-name"><span aria-hidden="true">{modul.symbol}</span> {modul.name}</div>}
         <nav className="sidebar-nav">
-          {NAV_EINTRAEGE.map((eintrag) => (
+          {(modul?.eintraege ?? []).map((eintrag) => (
             <NavLink key={eintrag.pfad} to={eintrag.pfad} end={eintrag.pfad === '/'} className={({ isActive }) => (isActive ? 'aktiv' : '')}>
               <span>{eintrag.label}</span>
               {eintrag.pfad === '/eingang' && eingangAnzahl > 0 && (

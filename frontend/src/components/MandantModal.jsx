@@ -12,13 +12,13 @@ function statusVon(mandant) {
   return mandant?.potenziell ? 'potenziell' : 'aktiv';
 }
 
-export default function MandantModal({ mandant, alleMandanten = [], onSchliessen, onGespeichert }) {
+export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatus = 'aktiv', onSchliessen, onGespeichert }) {
   const [formular, setFormular] = useState(() => ({
     name: mandant?.name ?? '',
     kuerzel: mandant?.kuerzel ?? '',
     email: mandant?.email ?? '',
     geschaeftsfuehrungEmail: mandant?.geschaeftsfuehrung_email ?? '',
-    status: statusVon(mandant),
+    status: mandant ? statusVon(mandant) : vorgabeStatus,
     kundenNr: mandant?.kunden_nr ?? (mandant ? '' : naechsteKundenNr(alleMandanten)),
     ansprechperson: mandant?.ansprechperson ?? '',
     strasse: mandant?.strasse ?? '',
