@@ -54,6 +54,11 @@ Deno.serve(async (req) => {
       pass: Deno.env.get('IMAP_PASS') || Deno.env.get('SMTP_PASS') || '',
     },
     logger: false,
+    // Antwortet der Mailserver nicht (z.B. voruebergehende Sperre nach vielen Anmeldungen),
+    // nach kurzer Zeit abbrechen statt bis zum Zeitlimit von Supabase zu haengen.
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 45000,
   });
 
   let schritt = 'Anmelden am Postfach';
