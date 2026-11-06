@@ -2405,3 +2405,7 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .tp-zeile.tp-teilaufgabe .tp-titel { font-size: var(--fs-klein); }
 .tp-zeile.tp-teilaufgabe::before { content: ''; position: absolute; left: 32px; top: 0; bottom: 0; border-left: 1px solid var(--text-faint); }
 .tp-projekt-pfeil { font-size: 14px; width: 14px; }
+/* Teilaufgaben weiss lassen (grau ist dem Mandanten vorbehalten) -- nur kleinere Schrift. */
+.tp-mandant .tp-zeile.tp-teilaufgabe, .tagesliste-eintrag.schritt { background: var(--surface); }
+.tp-mandant .tp-zeile.tp-teilaufgabe:hover, .tagesliste-eintrag.schritt:hover { background: var(--surface-hover); }
+.tp-zeile.tp-teilaufgabe .tp-titel { font-size: 12px; }
