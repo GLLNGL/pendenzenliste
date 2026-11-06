@@ -2384,3 +2384,10 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .pendenz-planen-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 2px; }
 .pendenz-planen-knoepfe input[type='date'] { width: 140px; padding: 3px 6px; font-size: var(--fs-klein); }
 .btn-klein.gewaehlt { border-color: var(--text); font-weight: 600; }
+/* Cockpit-Karten: Aufgaben unter dem Mandanten zusammengefasst. */
+.tp-mandant + .tp-mandant { border-top: 1px solid var(--border); }
+.tp-mandant-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 16px 7px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.tp-mandant-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.tp-mandant-stand { font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; }
+.tp-mandant .tp-zeile { padding-left: 22px; }
+.tp-mandant .tp-zeile:last-child { border-bottom: none; }

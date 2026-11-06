@@ -20,7 +20,18 @@ function minutenSumme(liste) {
   return liste.reduce((s, p) => s + (p.aufwand_minuten || 0), 0);
 }
 
-// Eine Zeile: abhaken, Titel (Projekt darueber), Mandant, Aufwand; rechts kurze Planen-Knoepfe.
+// Pendenzen pro Mandant (alphabetisch, "Intern" zuletzt) -- offene vor erledigten.
+function nachMandant(offen, erledigt) {
+  const gruppen = new Map();
+  for (const [p, istErledigt] of [...offen.map((x) => [x, false]), ...erledigt.map((x) => [x, true])]) {
+    const schluessel = p.mandant_id ?? 'intern';
+    if (!gruppen.has(schluessel)) gruppen.set(schluessel, { schluessel, name: p.mandant_name || 'Intern (eigenes Büro)', zeilen: [] });
+    gruppen.get(schluessel).zeilen.push({ p, erledigt: istErledigt });
+  }
+  return [...gruppen.values()].sort((a, b) => (a.schluessel === 'intern') - (b.schluessel === 'intern') || a.name.localeCompare(b.name, 'de-CH'));
+}
+
+// Eine Zeile: abhaken, Titel (Projekt darueber), Hinweise, Aufwand; rechts kurze Planen-Knoepfe.
 function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
   const ueberfaellig = !erledigt && p.faelligkeit && p.faelligkeit < heute;
   const nachfassen = !erledigt && p.status === 'Warten auf';
@@ -38,12 +49,13 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
       <button type="button" className="tp-text" onClick={() => onOeffnen(p)}>
         {p.eltern_titel && <span className="tp-projekt">{p.eltern_titel}</span>}
         <span className="tp-titel">{p.titel}</span>
-        <span className="tp-info">
-          {p.mandant_name || 'Intern'}
-          {nachfassen && ` · nachfassen bei ${p.warten_auf_person}`}
-          {ueberfaellig && <span className="tp-ueberfaellig"> · Frist {formatiereDatum(p.faelligkeit)}</span>}
-          {!ueberfaellig && p.faelligkeit && p.harte_frist && ` · harte Frist ${formatiereDatum(p.faelligkeit)}`}
-        </span>
+        {(nachfassen || ueberfaellig || (p.faelligkeit && p.harte_frist)) && (
+          <span className="tp-info">
+            {nachfassen && `nachfassen bei ${p.warten_auf_person}`}
+            {ueberfaellig && <span className="tp-ueberfaellig">{nachfassen ? ' · ' : ''}Frist {formatiereDatum(p.faelligkeit)}</span>}
+            {!ueberfaellig && p.faelligkeit && p.harte_frist && `${nachfassen ? ' · ' : ''}harte Frist ${formatiereDatum(p.faelligkeit)}`}
+          </span>
+        )}
       </button>
       <span className="tp-aufwand">{p.aufwand_minuten ? formatiereAufwand(p.aufwand_minuten) : ''}</span>
       {!erledigt && aktionen?.length > 0 && (
@@ -73,12 +85,24 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
         </div>
       </header>
       {total > 0 && <div className="tp-fortschritt"><div style={{ width: `${Math.round(anteil * 100)}%` }} /></div>}
-      <ul className="tp-liste">
-        {offen.map((p) => <Zeile key={p.id} p={p} heute={heute} aktionen={aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />)}
-        {erledigt.map((p) => <Zeile key={p.id} p={p} heute={heute} erledigt onOeffnen={onOeffnen} onAbhaken={onAbhaken} />)}
-        {total === 0 && <li className="tp-leer">{leerText}</li>}
-        {total > 0 && offen.length === 0 && <li className="tp-alles">Alles erledigt.</li>}
-      </ul>
+      {nachMandant(offen, erledigt).map((g) => {
+        const gOffen = g.zeilen.filter((z) => !z.erledigt).length;
+        return (
+          <div key={g.schluessel} className="tp-mandant">
+            <div className="tp-mandant-kopf">
+              <span className="tp-mandant-name">{g.name}</span>
+              <span className="tp-mandant-stand">{gOffen === 0 ? 'erledigt' : `${gOffen} offen`}</span>
+            </div>
+            <ul className="tp-liste">
+              {g.zeilen.map(({ p, erledigt: e }) => (
+                <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      {total === 0 && <div className="tp-leer">{leerText}</div>}
+      {total > 0 && offen.length === 0 && <div className="tp-alles">Alles erledigt.</div>}
     </section>
   );
 }
