@@ -2409,3 +2409,31 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .tp-mandant .tp-zeile.tp-teilaufgabe, .tagesliste-eintrag.schritt { background: var(--surface); }
 .tp-mandant .tp-zeile.tp-teilaufgabe:hover, .tagesliste-eintrag.schritt:hover { background: var(--surface-hover); }
 .tp-zeile.tp-teilaufgabe .tp-titel { font-size: 12px; }
+
+/* Cockpit: pro Mandant eine Kachel (beschriftet), darin Projekt und Teilaufgaben. */
+.tp-kacheln { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--surface-2); }
+.tp-mandant.tp-kachel { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.tp-mandant.tp-kachel + .tp-mandant.tp-kachel { border-top: 1px solid var(--border); }
+.tp-kachel .tp-mandant-kopf { background: var(--surface); padding: 10px 14px 8px; border-bottom: 2px solid var(--text); }
+.tp-kachel .tp-mandant-name { font-size: 14px; letter-spacing: 0.01em; }
+.tp-kachel .tp-zeile { padding-left: 14px; }
+.tp-kachel .tp-projektzeile button { padding-left: 14px; font-weight: 600; }
+.tp-kachel .tp-projekt-titel { font-weight: 600; }
+.tp-kachel .tp-zeile.tp-teilaufgabe { padding-left: 36px; padding-top: 6px; padding-bottom: 6px; }
+.tp-kachel .tp-zeile.tp-teilaufgabe::before { left: 23px; }
+.tp-kachel .tp-zeile.tp-teilaufgabe .tp-haken { width: 16px; height: 16px; font-size: 10px; margin-top: 0; }
+.tp-kachel .tp-zeile.tp-teilaufgabe { grid-template-columns: 18px minmax(0, 1fr) auto; }
+.tp-teil-marke { color: var(--text-muted); }
+.tp-kachel .tp-zeile.tp-teilaufgabe .tp-titel { font-size: 12px; color: var(--text); }
+.tp-kachel .tp-zeile.tp-teilaufgabe .tp-aufwand { font-size: var(--fs-label); }
+.ablage-knoepfe { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.feld > .ablage-knoepfe { margin-top: 4px; }
+a.btn-klein { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; }
+/* Diktat-Mikrofon neben Feldbeschriftungen. */
+.label-mit-diktat { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.diktat { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
+.diktat-knopf { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; width: 26px; height: 26px; padding: 0; font-size: 13px; line-height: 1; cursor: pointer; }
+.diktat-knopf:hover { border-color: var(--text-muted); }
+.diktat-knopf.aktiv { background: var(--danger); border-color: var(--danger); color: #fff; animation: timer-puls 1.4s ease-in-out infinite; }
+.diktat-hinweis { font-size: var(--fs-label); color: var(--danger); }
+.diktat-fehler { font-size: var(--fs-label); color: var(--danger); }

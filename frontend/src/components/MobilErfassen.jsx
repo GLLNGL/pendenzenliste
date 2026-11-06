@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import api from '../api.js';
 import { heutigesDatumISO } from '../format.js';
 import { meldeAenderung } from '../events.js';
+import DiktatKnopf from './DiktatKnopf.jsx';
+import { textAnhaengen } from '../lib/diktat.js';
 
 // Die einzige Aufgabe dieser Ansicht: unterwegs in Sekunden etwas aufnotieren. Nur Titel und
 // Bemerkung -- Mandant, Prioritaet usw. lassen sich spaeter am Buero-PC in Ruhe nachtragen.
@@ -52,7 +54,10 @@ export default function MobilErfassen() {
 
       <form onSubmit={speichern}>
         <div className="feld">
-          <label htmlFor="mobil-titel">Titel</label>
+          <label htmlFor="mobil-titel" className="label-mit-diktat">
+            Titel
+            <DiktatKnopf titel="Titel diktieren" onText={(t) => setTitel((alt) => textAnhaengen(alt, t))} />
+          </label>
           <input
             id="mobil-titel"
             ref={titelRef}
@@ -66,7 +71,10 @@ export default function MobilErfassen() {
         </div>
 
         <div className="feld">
-          <label htmlFor="mobil-bemerkung">Bemerkung</label>
+          <label htmlFor="mobil-bemerkung" className="label-mit-diktat">
+            Bemerkung
+            <DiktatKnopf titel="Bemerkung diktieren" onText={(t) => setBemerkung((alt) => textAnhaengen(alt, t))} />
+          </label>
           <textarea
             id="mobil-bemerkung"
             value={bemerkung}

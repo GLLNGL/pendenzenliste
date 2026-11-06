@@ -68,7 +68,7 @@ function textOderNull(wert) {
 function mandantAdresse(daten) {
   const patch = {};
   for (const [feld, spalte] of [['kundenNr', 'kunden_nr'], ['ansprechperson', 'ansprechperson'], ['strasse', 'strasse'],
-    ['plz', 'plz'], ['ort', 'ort'], ['telefon', 'telefon']]) {
+    ['plz', 'plz'], ['ort', 'ort'], ['telefon', 'telefon'], ['ablagePfad', 'ablage_pfad'], ['ablageLink', 'ablage_link']]) {
     if (daten[feld] !== undefined) patch[spalte] = textOderNull(daten[feld]);
   }
   if (daten.potenziell !== undefined) patch.potenziell = !!daten.potenziell;

@@ -25,6 +25,8 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
     plz: mandant?.plz ?? '',
     ort: mandant?.ort ?? '',
     telefon: mandant?.telefon ?? '',
+    ablagePfad: mandant?.ablage_pfad ?? '',
+    ablageLink: mandant?.ablage_link ?? '',
     notizen: mandant?.notizen ?? '',
     // Mandats-Eckdaten -- Grundlage fuer die wiederkehrenden Pendenzen (Vorlauf je Mandant).
     mwstPeriode: mandant?.mwst_periode ?? '',
@@ -77,6 +79,8 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
         plz: formular.plz,
         ort: formular.ort,
         telefon: formular.telefon,
+        ablagePfad: formular.ablagePfad,
+        ablageLink: formular.ablageLink,
         notizen: formular.notizen.trim() || null,
         mwstPeriode: formular.mwstPeriode || null,
         lohnzahltag: formular.lohnzahltag,
@@ -150,6 +154,30 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
             <div className="feld">
               <label htmlFor="mandant-telefon">Telefon</label>
               <input id="mandant-telefon" type="tel" value={formular.telefon} onChange={(e) => feldAendern('telefon', e.target.value)} />
+            </div>
+
+            <div className="feld-gruppe-titel">Ablage</div>
+            <div className="feld">
+              <label htmlFor="mandant-ablage-pfad">Ordner im Windows Explorer</label>
+              <input
+                id="mandant-ablage-pfad"
+                type="text"
+                value={formular.ablagePfad}
+                onChange={(e) => feldAendern('ablagePfad', e.target.value.replace(/^"|"$/g, ''))}
+                placeholder="C:Users…OneDrive - EST Controlling GmbHEST – Mandantenablage - …Mandant"
+              />
+              <p className="feld-hinweis">Im Explorer den Ordner öffnen, oben in die Adresszeile klicken, Pfad kopieren (Ctrl+C) und hier einfügen.</p>
+            </div>
+            <div className="feld">
+              <label htmlFor="mandant-ablage-link">Link auf den Ordner (SharePoint / OneDrive)</label>
+              <input
+                id="mandant-ablage-link"
+                type="url"
+                value={formular.ablageLink}
+                onChange={(e) => feldAendern('ablageLink', e.target.value)}
+                placeholder="https://estcontrollinggmbh.sharepoint.com/sites/ESTMandantenablage/…"
+              />
+              <p className="feld-hinweis">Im Explorer Rechtsklick auf den Ordner → «Link kopieren» bzw. «Online anzeigen» und die Adresse kopieren. Öffnet die Ablage mit einem Klick; Dokumente lassen sich dort per Drag &amp; Drop ablegen.</p>
             </div>
             <div className="feld">
               <label htmlFor="mandant-email">Ansprechpartner/in E-Mail</label>

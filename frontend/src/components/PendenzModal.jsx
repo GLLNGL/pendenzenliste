@@ -1,5 +1,8 @@
 import { useLeistungen } from '../hooks.js';
 import PendenzZeit from './PendenzZeit.jsx';
+import AblageKnoepfe from './AblageKnoepfe.jsx';
+import DiktatKnopf from './DiktatKnopf.jsx';
+import { textAnhaengen } from '../lib/diktat.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand, statusSlug } from '../constants.js';
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
@@ -358,7 +361,10 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
           <div className="modal-koerper">
             {pendenz && !istProjekt && <PendenzZeit pendenz={pendenz} kompakt />}
             <div className="feld">
-              <label htmlFor="titel">Nächster Schritt *</label>
+              <label htmlFor="titel" className="label-mit-diktat">
+                Nächster Schritt *
+                <DiktatKnopf titel="Nächsten Schritt diktieren" onText={(t) => setFormular((f) => ({ ...f, titel: textAnhaengen(f.titel, t) }))} />
+              </label>
               <input
                 id="titel"
                 ref={titelRef}
@@ -379,6 +385,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>
+              <AblageKnoepfe mandant={mandanten.find((m) => String(m.id) === String(formular.mandantId))} />
             </div>
 
             <div className="feld-reihe">
@@ -482,7 +489,10 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
             </div>
 
             <div className="feld">
-              <label htmlFor="beschreibung">Beschreibung</label>
+              <label htmlFor="beschreibung" className="label-mit-diktat">
+                Beschreibung
+                <DiktatKnopf titel="Beschreibung diktieren" onText={(t) => setFormular((f) => ({ ...f, beschreibung: textAnhaengen(f.beschreibung, t) }))} />
+              </label>
               <textarea id="beschreibung" value={formular.beschreibung} onChange={(e) => feldAendern('beschreibung', e.target.value)} />
             </div>
 

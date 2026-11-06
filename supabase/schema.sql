@@ -1100,6 +1100,14 @@ end $$;
 -- ==========================================================================
 alter table public.pendenzen alter column faelligkeit drop not null;
 
+-- ==========================================================================
+-- Ablage pro Mandant (v7): Windows-Pfad (zum Kopieren in den Explorer) und Link auf den
+-- SharePoint-/OneDrive-Ordner (oeffnet im Browser, Ablegen per Drag & Drop). Eine Web-App darf
+-- Explorer-Ordner nicht selbst oeffnen -- darum beides.
+-- ==========================================================================
+alter table public.mandanten add column if not exists ablage_pfad text;
+alter table public.mandanten add column if not exists ablage_link text;
+
 -- --------------------------------------------------------------------------
 -- View und Legacy-RPC bewusst am Dateiende: der View liest p.* und muss darum nach allen
 -- "alter table pendenzen add column" (auch spaeteren Etappen) neu erstellt werden, sonst

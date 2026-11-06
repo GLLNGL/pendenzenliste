@@ -48,7 +48,7 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt =
       </button>
       <button type="button" className="tp-text" onClick={() => onOeffnen(p)}>
         {p.eltern_titel && !inProjekt && <span className="tp-projekt">{p.eltern_titel}</span>}
-        <span className="tp-titel">{p.titel}</span>
+        <span className="tp-titel">{inProjekt && <span className="tp-teil-marke" aria-label="Teilaufgabe">↳ </span>}{p.titel}</span>
         {(nachfassen || ueberfaellig || (p.faelligkeit && p.harte_frist)) && (
           <span className="tp-info">
             {nachfassen && `nachfassen bei ${p.warten_auf_person}`}
@@ -106,10 +106,12 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
         </div>
       </header>
       {total > 0 && <div className="tp-fortschritt"><div style={{ width: `${Math.round(anteil * 100)}%` }} /></div>}
+      {total > 0 && (
+      <div className="tp-kacheln">
       {nachMandant(offen, erledigt).map((g) => {
         const gOffen = g.zeilen.filter((z) => !z.erledigt).length;
         return (
-          <div key={g.schluessel} className="tp-mandant">
+          <div key={g.schluessel} className="tp-mandant tp-kachel">
             <div className="tp-mandant-kopf">
               <span className="tp-mandant-name">{g.name}</span>
               <span className="tp-mandant-stand">{gOffen === 0 ? 'erledigt' : `${gOffen} offen`}</span>
@@ -139,6 +141,8 @@ function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktio
           </div>
         );
       })}
+      </div>
+      )}
       {total === 0 && <div className="tp-leer">{leerText}</div>}
       {total > 0 && offen.length === 0 && <div className="tp-alles">Alles erledigt.</div>}
     </section>

@@ -5,6 +5,7 @@ import PendenzArbeitsliste from '../components/PendenzArbeitsliste.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
 import PauschalenModal from '../components/PauschalenModal.jsx';
+import AblageKnoepfe from '../components/AblageKnoepfe.jsx';
 import { aktivePauschalen, pauschalenSumme, formatiereCHF } from '../lib/preise.js';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
@@ -154,6 +155,7 @@ export default function Mandanten() {
         {' · '}{pauschaleMonat > 0 ? `Pauschale CHF ${formatiereCHF(pauschaleMonat)}/Mt.` : 'keine Pauschale'}
       </span>
       <span className="mandant-eckdaten-aktionen">
+        <AblageKnoepfe mandant={gewaehlt} />
         <button type="button" className="btn-klein" onClick={() => navigate(`/offerten/neu?mandant=${gewaehlt.id}`)}>Offerte erstellen</button>
         <button type="button" className="btn-klein" onClick={() => navigate(`/rapporte/neu?mandant=${gewaehlt.id}`)}>Rapport</button>
         <button type="button" className="btn-klein" onClick={() => setPauschalenMandant(gewaehlt)}>Preise &amp; Pauschalen</button>
