@@ -603,40 +603,6 @@ create trigger trg_pendenz_emails_aktivitaet
   for each row execute procedure public.pendenz_aktivitaet_vermerken();
 
 -- ==========================================================================
--- pendenzen_angereichert -- View mit denselben Zusatzspalten, die der bisherige Express-Server
--- bei jeder Liste immer mitgeliefert hat (TEILAUFGABEN_SPALTEN/EMAIL_SPALTEN in
--- backend/src/routes/pendenzen.js): Mandant-/Bearbeiter-Name, Teilaufgaben-Zaehler,
--- Hauptaufgaben-Titel (falls Teilaufgabe), E-Mail-Verlauf-Kurzinfo. Frontend liest ab jetzt aus
--- dieser View statt aus der rohen Tabelle. "security_invoker" sorgt dafuer, dass die View mit
--- den RLS-Rechten der ABFRAGENDEN Person laeuft, nicht denen der Besitzerin (sonst wuerde RLS
--- fuer diese View wirkungslos).
--- ==========================================================================
-
--- "create or replace view" erlaubt nur neu angehaengte Spalten am ENDE der Ausgabe-Spaltenliste
--- -- faellt eine neue Spalte der zugrunde liegenden Tabelle (ueber "p.*") mitten in die
--- bestehende Liste (z.B. vor "mandant_name"), schlaegt "or replace" mit einem Fehler fehl
--- ("cannot change name of view column"). Darum hier bewusst drop + create statt replace --
--- bleibt idempotent, nur in zwei Schritten.
-drop view if exists public.pendenzen_angereichert;
-
-create view public.pendenzen_angereichert
-with (security_invoker = true) as
-select
-  p.*,
-  m.name as mandant_name, m.kuerzel as mandant_kuerzel, m.email as mandant_email,
-  m.geschaeftsfuehrung_email as mandant_geschaeftsfuehrung_email,
-  b.name as bearbeiter_name, b.email as bearbeiter_email,
-  (select count(*) from public.pendenzen c where c.uebergeordnete_pendenz_id = p.id) as teilaufgaben_gesamt,
-  (select count(*) from public.pendenzen c where c.uebergeordnete_pendenz_id = p.id and c.status = 'Erledigt') as teilaufgaben_erledigt,
-  eltern.titel as eltern_titel,
-  (select count(*) from public.pendenz_emails e where e.pendenz_id = p.id) as email_anzahl,
-  (select max(e.gesendet_am) from public.pendenz_emails e where e.pendenz_id = p.id) as email_zuletzt_gesendet_am
-from public.pendenzen p
-left join public.mandanten m on m.id = p.mandant_id
-left join public.mitarbeitende b on b.id = p.bearbeiter_id
-left join public.pendenzen eltern on eltern.id = p.uebergeordnete_pendenz_id;
-
--- ==========================================================================
 -- Row Level Security -- Team-Zugriff: jede angemeldete Person (= jeder Eintrag in
 -- mitarbeitende) darf alles lesen/schreiben. Es gibt keine oeffentliche Registrierung
 -- (siehe handle_new_user oben + Migrationsplan Phase 2), darum reicht "angemeldet" als
@@ -685,42 +651,6 @@ create policy team_voller_zugriff on public.pendenz_notizen
 -- Als RPC-Funktionen statt Views, damit sie ueber supabase.rpc(...) mit einem Aufruf
 -- konsumierbar sind.
 -- ==========================================================================
-
--- Seit Etappe 3 vom Frontend nicht mehr verwendet (Cockpit rechnet in lib/cockpit.js);
--- bleibt als Referenz bestehen, damit eine aeltere geoeffnete App-Version nicht bricht.
-create or replace function public.cockpit_daten()
-returns jsonb
-language sql
-stable
-as $$
-  select jsonb_build_object(
-    'ueberfaellig', coalesce((
-      select jsonb_agg(p order by p.faelligkeit asc)
-      from public.pendenzen_angereichert p
-      where p.geplant and p.status != 'Erledigt' and p.faelligkeit < current_date
-    ), '[]'::jsonb),
-    'heuteFaellig', coalesce((
-      select jsonb_agg(p)
-      from public.pendenzen_angereichert p
-      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date
-    ), '[]'::jsonb),
-    'morgenFaellig', coalesce((
-      select jsonb_agg(p)
-      from public.pendenzen_angereichert p
-      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date + 1
-    ), '[]'::jsonb),
-    'heuteZuBearbeiten', coalesce((
-      select jsonb_agg(p order by p.bearbeitungstag asc)
-      from public.pendenzen_angereichert p
-      where p.geplant and p.status != 'Erledigt' and p.bearbeitungstag is not null and p.bearbeitungstag <= current_date
-    ), '[]'::jsonb),
-    'nachfassen', coalesce((
-      select jsonb_agg(p order by p.wiedervorlage asc)
-      from public.pendenzen_angereichert p
-      where p.geplant and p.status = 'Warten auf' and p.wiedervorlage is not null and p.wiedervorlage <= current_date
-    ), '[]'::jsonb)
-  );
-$$;
 
 -- Rueckgabetyp hat sich mit Etappe 1 geaendert (neue Mandanten-Spalten) -- "create or replace"
 -- erlaubt das nicht, darum zuerst entfernen.
@@ -886,3 +816,138 @@ create policy team_voller_zugriff on public.abacus_module
 drop policy if exists team_voller_zugriff on public.mandant_pauschalen;
 create policy team_voller_zugriff on public.mandant_pauschalen
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
+
+-- ==========================================================================
+-- Zeiterfassung (v7, Etappe 2). Jede erfasste Zeit gehoert zu einem Mandanten (oder ist
+-- interne Buero-Zeit) und ist entweder Pauschale (Teil einer vereinbarten Pauschal-Leistung,
+-- nicht separat verrechnet) oder Extra (zum Stundenansatz verrechnet).
+--   minuten null + timer_start gesetzt = Timer laeuft (pro Person hoechstens einer).
+--   stundenansatz_chf wird bei Extra beim Erfassen festgehalten -- spaetere Preisaenderungen
+--   veraendern bereits erfasste Zeit nicht.
+--   rapport_id wird in Etappe 3 (Detailrapport) gesetzt; solange null = noch nicht verrechnet.
+-- ==========================================================================
+
+create table if not exists public.zeiteintraege (
+  id                 bigint generated by default as identity primary key,
+  mandant_id         bigint references public.mandanten(id) on delete restrict,
+  pendenz_id         bigint references public.pendenzen(id) on delete set null,
+  mitarbeiter_id     bigint references public.mitarbeitende(id) on delete set null,
+  datum              date not null default current_date,
+  minuten            integer check (minuten >= 0 and minuten <= 1440),
+  timer_start        timestamptz,
+  art                text not null default 'pauschal' check (art in ('pauschal', 'extra', 'intern')),
+  leistung_id        bigint references public.leistungen(id) on delete set null,
+  stundenansatz_chf  numeric(10,2) check (stundenansatz_chf >= 0),
+  beschreibung       text,
+  rapport_id         bigint,
+  erstellt_am        timestamptz not null default now(),
+  geaendert_am       timestamptz not null default now(),
+  constraint zeiteintraege_dauer_oder_timer check (minuten is not null or timer_start is not null),
+  constraint zeiteintraege_intern_ohne_mandant check ((art = 'intern') = (mandant_id is null)),
+  constraint zeiteintraege_extra_ansatz check (art <> 'extra' or minuten is null or stundenansatz_chf is not null)
+);
+create index if not exists idx_zeiteintraege_mandant_datum on public.zeiteintraege (mandant_id, datum);
+create index if not exists idx_zeiteintraege_pendenz on public.zeiteintraege (pendenz_id);
+create index if not exists idx_zeiteintraege_datum on public.zeiteintraege (datum);
+create unique index if not exists idx_zeiteintraege_ein_timer
+  on public.zeiteintraege (mitarbeiter_id) where minuten is null;
+
+create or replace function public.zeiteintraege_geaendert()
+returns trigger as $$
+begin
+  new.geaendert_am := now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_zeiteintraege_geaendert on public.zeiteintraege;
+create trigger trg_zeiteintraege_geaendert
+  before update on public.zeiteintraege
+  for each row execute procedure public.zeiteintraege_geaendert();
+
+-- Standard-Leistung an Pendenz und Wiederkehr-Regel: wird beim Erfassen der Zeit vorgeschlagen
+-- (die Regel gibt sie an ihre erzeugten Pendenzen weiter).
+alter table public.pendenzen add column if not exists leistung_id bigint references public.leistungen(id) on delete set null;
+alter table public.wiederkehr_regeln add column if not exists leistung_id bigint references public.leistungen(id) on delete set null;
+
+alter table public.zeiteintraege enable row level security;
+drop policy if exists team_voller_zugriff on public.zeiteintraege;
+create policy team_voller_zugriff on public.zeiteintraege
+  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+
+
+-- --------------------------------------------------------------------------
+-- View und Legacy-RPC bewusst am Dateiende: der View liest p.* und muss darum nach allen
+-- "alter table pendenzen add column" (auch spaeteren Etappen) neu erstellt werden, sonst
+-- fehlen neue Spalten beim ersten Ausfuehren.
+-- --------------------------------------------------------------------------
+
+-- ==========================================================================
+-- pendenzen_angereichert -- View mit denselben Zusatzspalten, die der bisherige Express-Server
+-- bei jeder Liste immer mitgeliefert hat (TEILAUFGABEN_SPALTEN/EMAIL_SPALTEN in
+-- backend/src/routes/pendenzen.js): Mandant-/Bearbeiter-Name, Teilaufgaben-Zaehler,
+-- Hauptaufgaben-Titel (falls Teilaufgabe), E-Mail-Verlauf-Kurzinfo. Frontend liest ab jetzt aus
+-- dieser View statt aus der rohen Tabelle. "security_invoker" sorgt dafuer, dass die View mit
+-- den RLS-Rechten der ABFRAGENDEN Person laeuft, nicht denen der Besitzerin (sonst wuerde RLS
+-- fuer diese View wirkungslos).
+-- ==========================================================================
+
+-- "create or replace view" erlaubt nur neu angehaengte Spalten am ENDE der Ausgabe-Spaltenliste
+-- -- faellt eine neue Spalte der zugrunde liegenden Tabelle (ueber "p.*") mitten in die
+-- bestehende Liste (z.B. vor "mandant_name"), schlaegt "or replace" mit einem Fehler fehl
+-- ("cannot change name of view column"). Darum hier bewusst drop + create statt replace --
+-- bleibt idempotent, nur in zwei Schritten.
+drop view if exists public.pendenzen_angereichert;
+
+create view public.pendenzen_angereichert
+with (security_invoker = true) as
+select
+  p.*,
+  m.name as mandant_name, m.kuerzel as mandant_kuerzel, m.email as mandant_email,
+  m.geschaeftsfuehrung_email as mandant_geschaeftsfuehrung_email,
+  b.name as bearbeiter_name, b.email as bearbeiter_email,
+  (select count(*) from public.pendenzen c where c.uebergeordnete_pendenz_id = p.id) as teilaufgaben_gesamt,
+  (select count(*) from public.pendenzen c where c.uebergeordnete_pendenz_id = p.id and c.status = 'Erledigt') as teilaufgaben_erledigt,
+  eltern.titel as eltern_titel,
+  (select count(*) from public.pendenz_emails e where e.pendenz_id = p.id) as email_anzahl,
+  (select max(e.gesendet_am) from public.pendenz_emails e where e.pendenz_id = p.id) as email_zuletzt_gesendet_am
+from public.pendenzen p
+left join public.mandanten m on m.id = p.mandant_id
+left join public.mitarbeitende b on b.id = p.bearbeiter_id
+left join public.pendenzen eltern on eltern.id = p.uebergeordnete_pendenz_id;
+
+-- Seit Etappe 3 vom Frontend nicht mehr verwendet (Cockpit rechnet in lib/cockpit.js);
+-- bleibt als Referenz bestehen, damit eine aeltere geoeffnete App-Version nicht bricht.
+create or replace function public.cockpit_daten()
+returns jsonb
+language sql
+stable
+as $$
+  select jsonb_build_object(
+    'ueberfaellig', coalesce((
+      select jsonb_agg(p order by p.faelligkeit asc)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit < current_date
+    ), '[]'::jsonb),
+    'heuteFaellig', coalesce((
+      select jsonb_agg(p)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date
+    ), '[]'::jsonb),
+    'morgenFaellig', coalesce((
+      select jsonb_agg(p)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status != 'Erledigt' and p.faelligkeit = current_date + 1
+    ), '[]'::jsonb),
+    'heuteZuBearbeiten', coalesce((
+      select jsonb_agg(p order by p.bearbeitungstag asc)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status != 'Erledigt' and p.bearbeitungstag is not null and p.bearbeitungstag <= current_date
+    ), '[]'::jsonb),
+    'nachfassen', coalesce((
+      select jsonb_agg(p order by p.wiedervorlage asc)
+      from public.pendenzen_angereichert p
+      where p.geplant and p.status = 'Warten auf' and p.wiedervorlage is not null and p.wiedervorlage <= current_date
+    ), '[]'::jsonb)
+  );
+$$;
