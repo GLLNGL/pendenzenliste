@@ -6,12 +6,22 @@ async function elementZuPdf(element) {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
   const html = document.documentElement;
   const zoomVorher = html.style.zoom;
+  // Die Vorschau ist verkleinert (transform: scale) -- aufgenommen wird eine unskalierte Kopie
+  // ausserhalb des sichtbaren Bereichs, damit das PDF die volle Aufloesung hat.
+  const huelle = document.createElement('div');
+  huelle.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff;';
+  const kopie = element.cloneNode(true);
+  kopie.style.transform = 'none';
+  kopie.style.boxShadow = 'none';
+  huelle.appendChild(kopie);
+  document.body.appendChild(huelle);
   html.style.zoom = '1';
   let canvas;
   try {
-    canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 794 });
+    canvas = await html2canvas(kopie, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 794 });
   } finally {
     html.style.zoom = zoomVorher;
+    huelle.remove();
   }
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const breite = 210;
