@@ -288,8 +288,8 @@ const api = {
           const koerper = await error.context.json().catch(() => null);
           throw new Error(koerper?.fehler || error.message);
         }
-        if (/not found|404|Failed to send/i.test(error.message)) {
-          throw new Error('Die Funktion «mail-eingang» ist in Supabase noch nicht eingerichtet.');
+        if (/Failed to send/i.test(error.message)) {
+          throw new Error('Keine Antwort von der Funktion «mail-eingang» (nicht eingerichtet oder Zeitüberschreitung beim Mailserver).');
         }
         throw new Error(error.message);
       }
