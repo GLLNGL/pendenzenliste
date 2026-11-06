@@ -2209,3 +2209,7 @@ table.tabelle tr.klickbar { cursor: pointer; }
 .rapport-eintraege tr.ausgeschlossen td { color: var(--text-faint); text-decoration: line-through; }
 
 .rapport-fest { font-weight: 600; padding: 4px 0; }
+.timer-seit { font-weight: 400; color: var(--text-muted); font-size: var(--fs-label); }
+.pendenz-zeit-kompakt { margin: 0 0 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.pendenz-zeit-kompakt .pendenz-zeit-liste { max-height: 120px; overflow-y: auto; }
+.pendenz-zeit-zeile { grid-template-columns: 150px 1fr auto 44px; }

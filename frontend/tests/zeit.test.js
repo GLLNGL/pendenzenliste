@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   laufendeMinuten, formatiereDauer, parseDauer, leistungVorschlag, artVorschlag, ansatzFuer,
-  betragExtra, zusammenfassung, zeitraum,
+  betragExtra, zusammenfassung, zeitraum, minutenZwischen, uhrzeitPlus,
 } from '../src/lib/zeit.js';
 
 test('Timer-Minuten: angefangene Minute zählt, mindestens 1', () => {
@@ -59,4 +59,13 @@ test('Zeiträume', () => {
   assert.deepEqual(zeitraum('vorwoche', '2026-11-02'), { von: '2026-10-26', bis: '2026-11-01' });
   assert.deepEqual(zeitraum('monat', '2026-02-10'), { von: '2026-02-01', bis: '2026-02-28' });
   assert.deepEqual(zeitraum('vormonat', '2026-01-15'), { von: '2025-12-01', bis: '2025-12-31' });
+});
+
+test('Von/Bis-Uhrzeiten', () => {
+  assert.equal(minutenZwischen('09:00', '10:00'), 60);
+  assert.equal(minutenZwischen('9:05', '10:20'), 75);
+  assert.equal(minutenZwischen('10:00', '09:00'), null);
+  assert.equal(minutenZwischen('', '10:00'), null);
+  assert.equal(uhrzeitPlus('09:00', 90), '10:30');
+  assert.equal(uhrzeitPlus('23:30', 60), '');
 });

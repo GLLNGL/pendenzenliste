@@ -43,6 +43,9 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
 
   function speichern(e) {
     e.preventDefault();
+    // Kann innerhalb eines anderen Formulars (z.B. Pendenz-Fenster) geoeffnet sein -- dessen
+    // onSubmit darf nicht mitlaufen.
+    e.stopPropagation();
     const fehlend = felder.filter((f) => f.pflicht && (!f.sichtbar || f.sichtbar(formular))
       && (formular[f.name] === '' || formular[f.name] == null));
     if (fehlend.length) { setFehler(`Bitte ausfüllen: ${fehlend.map((f) => labelVon(f)).join(', ')}`); return; }
@@ -76,7 +79,10 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
       );
     }
     let element;
-    if (feld.typ === 'select') {
+    if (feld.typ === 'eigen') {
+      // Eigenes Eingabeelement (z.B. Mandanten-Suche): render({ id, wert, setzen, formular })
+      element = feld.render({ id, wert: formular[feld.name], setzen: (v) => aendern(feld.name, v), formular });
+    } else if (feld.typ === 'select') {
       element = (
         <select {...gemeinsam} value={wert} onChange={(e) => aendern(feld.name, e.target.value)}>
           {feld.leer !== false && <option value="">{feld.leer || '– wählen –'}</option>}
@@ -86,7 +92,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
     } else if (feld.typ === 'textarea') {
       element = <textarea {...gemeinsam} value={wert} onChange={(e) => aendern(feld.name, e.target.value)} />;
     } else {
-      const typ = feld.typ === 'zahl' ? 'number' : feld.typ === 'datum' ? 'date' : 'text';
+      const typ = feld.typ === 'zahl' ? 'number' : feld.typ === 'datum' ? 'date' : feld.typ === 'uhrzeit' ? 'time' : 'text';
       element = (
         <input
           {...gemeinsam}

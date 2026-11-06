@@ -1,4 +1,5 @@
 import { useLeistungen } from '../hooks.js';
+import PendenzZeit from './PendenzZeit.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand, statusSlug } from '../constants.js';
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
@@ -356,6 +357,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
         <form onSubmit={speichern} noValidate>
           <div className="modal-koerper">
+            {pendenz && !istProjekt && <PendenzZeit pendenz={pendenz} kompakt />}
             <div className="feld">
               <label htmlFor="titel">Nächster Schritt *</label>
               <input

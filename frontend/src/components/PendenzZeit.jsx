@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
 import { useLaufenderTimer, timerStarten } from '../lib/timer.js';
 import { aufZeitAenderungHoeren } from '../events.js';
 import { formatiereDatum } from '../format.js';
-import { formatiereDauer, formatiereStundenSumme, artLabel, laufendeMinuten, zusammenfassung } from '../lib/zeit.js';
+import { formatiereDauer, formatiereStundenSumme, artLabel, laufendeMinuten, zusammenfassung, uhrzeitAus, uhrzeitPlus } from '../lib/zeit.js';
 
 // Abschnitt "Zeit" in der Detailansicht einer Pendenz: erfasste Zeit, Timer Start/Stopp,
 // Zeit von Hand erfassen; Klick auf einen Eintrag korrigiert ihn.
-export default function PendenzZeit({ pendenz }) {
+export default function PendenzZeit({ pendenz, kompakt = false }) {
   const [eintraege, setEintraege] = useState([]);
   const [offen, setOffen] = useState(null); // { eintrag } | { neu: true }
   const [fehler, setFehler] = useState(null);
@@ -35,7 +36,7 @@ export default function PendenzZeit({ pendenz }) {
   }
 
   return (
-    <div className="pendenz-vorschau-fortschritt pendenz-zeit">
+    <div className={`pendenz-vorschau-fortschritt pendenz-zeit ${kompakt ? 'pendenz-zeit-kompakt' : ''}`} onClick={(e) => e.stopPropagation()}>
       <div className="pendenz-vorschau-teilaufgaben-titel">
         Zeit
         {summe.gesamt > 0 && (
@@ -48,7 +49,7 @@ export default function PendenzZeit({ pendenz }) {
       <div className="pendenz-zeit-knoepfe">
         {laeuftHier ? (
           <button type="button" className="btn-klein btn-klein-primaer" onClick={() => setOffen({ eintrag: timer })}>
-            ■ Stopp ({formatiereDauer(laufendeMinuten(timer.timer_start))})
+            ■ Stopp · läuft seit {uhrzeitAus(timer.timer_start)} ({formatiereDauer(laufendeMinuten(timer.timer_start))})
           </button>
         ) : (
           <button type="button" className="btn-klein" onClick={starten} title={timer ? 'Der laufende Timer wird dabei gestoppt und gespeichert.' : undefined}>
@@ -64,7 +65,7 @@ export default function PendenzZeit({ pendenz }) {
         <div className="pendenz-zeit-liste">
           {eintraege.filter((e) => e.minuten != null).slice(0, 8).map((e) => (
             <button type="button" key={e.id} className="pendenz-zeit-zeile" onClick={() => setOffen({ eintrag: e })} title="Bearbeiten">
-              <span>{formatiereDatum(e.datum)}</span>
+              <span>{formatiereDatum(e.datum)}{e.timer_start ? ` ${uhrzeitAus(e.timer_start)}–${uhrzeitPlus(uhrzeitAus(e.timer_start), e.minuten)}` : ''}</span>
               <span className="pendenz-zeit-person">{e.mitarbeitende?.name ?? ''}</span>
               <span className={`zeit-art zeit-art-${e.art}`}>{artLabel(e.art)}</span>
               <span className="pendenz-zeit-dauer">{formatiereDauer(e.minuten)}</span>
@@ -72,13 +73,14 @@ export default function PendenzZeit({ pendenz }) {
           ))}
         </div>
       )}
-      {offen && (
+      {offen && createPortal(
         <ZeitModal
           eintrag={offen.eintrag ?? null}
           pendenz={offen.neu ? pendenz : null}
           onSchliessen={() => setOffen(null)}
           onGespeichert={() => setOffen(null)}
-        />
+        />,
+        document.body,
       )}
     </div>
   );

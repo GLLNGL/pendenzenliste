@@ -4,7 +4,7 @@
 
 const MODULE = [
   {
-    id: 'pendenzen', nr: 10, name: 'Pendenzen', symbol: '✓', beschreibung: 'Cockpit, Eingang, Planung, Wiederkehrende, Archiv',
+    id: 'pendenzen', nr: 10, name: 'Pendenzen', symbol: '✓', beschreibung: 'Cockpit, Eingang, Planung, Archiv, Zeitjournal',
     gruppen: [
       { nr: 1, name: 'Tagesarbeit', eintraege: [
         { nr: 11, pfad: '/', label: 'Cockpit' },
@@ -18,13 +18,19 @@ const MODULE = [
       { nr: 3, name: 'Auswertungen', eintraege: [
         { nr: 31, pfad: '/archiv', label: 'Archiv' },
       ] },
+      { nr: 4, name: 'Zeit', eintraege: [
+        { nr: 41, pfad: '/zeit', label: 'Zeitjournal' },
+      ] },
     ],
   },
   {
-    id: 'kunden', nr: 20, name: 'Kundenstamm', symbol: '◉', beschreibung: 'Mandanten, Interessenten, Adressen und Pauschalen',
+    id: 'kunden', nr: 20, name: 'Kundenstamm', symbol: '◉', beschreibung: 'Mandanten, Pauschalen, Detailrapporte für die Verrechnung',
     gruppen: [
       { nr: 1, name: 'Stammdaten', eintraege: [
         { nr: 11, pfad: '/mandanten', label: 'Mandanten' },
+      ] },
+      { nr: 2, name: 'Verrechnung', eintraege: [
+        { nr: 21, pfad: '/rapporte', label: 'Detailrapporte' },
       ] },
     ],
   },
@@ -36,17 +42,6 @@ const MODULE = [
       ] },
       { nr: 2, name: 'Stammdaten', eintraege: [
         { nr: 21, pfad: '/preise', label: 'Preise & Katalog' },
-      ] },
-    ],
-  },
-  {
-    id: 'zeit', nr: 40, name: 'Zeiterfassung', symbol: '◷', beschreibung: 'Stunden pro Mandant (Pauschale/Extra), Detailrapport – Rentabilität folgt',
-    gruppen: [
-      { nr: 1, name: 'Erfassung', eintraege: [
-        { nr: 11, pfad: '/zeit', label: 'Zeitjournal' },
-      ] },
-      { nr: 2, name: 'Verrechnung', eintraege: [
-        { nr: 21, pfad: '/rapporte', label: 'Detailrapporte' },
       ] },
     ],
   },

@@ -55,6 +55,7 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
 
   async function speichern(e) {
     e.preventDefault();
+    e.stopPropagation();
     if (!formular.name.trim()) { setFehler('Name ist erforderlich'); return; }
     if ((formular.abschlussWunschTag === '') !== (formular.abschlussWunschMonat === '')) {
       setFehler('Abschluss-Wunschtermin: bitte Tag und Monat angeben (oder beides leer lassen).');

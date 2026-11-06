@@ -120,7 +120,33 @@ function zeitraum(art, heuteIso) {
   }
 }
 
+// Uhrzeit "HH:MM" (lokal) aus einem Zeitstempel bzw. Date.
+function uhrzeitAus(zeit) {
+  const d = new Date(zeit);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+const UHRZEIT = /^\d{1,2}:\d{2}$/;
+
+// Minuten zwischen zwei Uhrzeiten "09:00" und "10:15"; null, wenn ungueltig oder Ende <= Beginn.
+function minutenZwischen(von, bis) {
+  const m = (t) => (UHRZEIT.test(t || '') ? Number(t.split(':')[0]) * 60 + Number(t.split(':')[1]) : null);
+  const a = m(von);
+  const b = m(bis);
+  if (a == null || b == null || b <= a) return null;
+  return b - a;
+}
+
+// "HH:MM" plus Minuten -> "HH:MM" (fuer "bis" aus Beginn + Dauer).
+function uhrzeitPlus(von, minuten) {
+  if (!UHRZEIT.test(von || '') || minuten == null) return '';
+  const gesamt = Number(von.split(':')[0]) * 60 + Number(von.split(':')[1]) + Number(minuten);
+  if (gesamt >= 24 * 60) return '';
+  return `${String(Math.floor(gesamt / 60)).padStart(2, '0')}:${String(gesamt % 60).padStart(2, '0')}`;
+}
+
 export {
+  uhrzeitAus, minutenZwischen, uhrzeitPlus,
   ZEIT_ARTEN, artLabel, laufendeMinuten, formatiereDauer, formatiereStundenSumme, parseDauer,
   pauschalLeistungIds, leistungVorschlag, artVorschlag, ansatzFuer, betragExtra, zusammenfassung, zeitraum,
   preisProEinheit,

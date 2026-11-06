@@ -624,6 +624,8 @@ const api = {
       const zeile = {
         mandant_id: mandantId, pendenz_id: zahlOderNull(d.pendenzId), leistung_id: leistungId, art,
         datum: d.datum, minuten, stundenansatz_chf: ansatz, beschreibung: textOderNull(d.beschreibung),
+        // Beginn (Von-Uhrzeit bzw. Timer-Start) -- fuer die Anzeige "09:00–10:00".
+        ...(d.beginn ? { timer_start: d.beginn } : {}),
       };
       let q;
       if (id) {
