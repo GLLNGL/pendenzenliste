@@ -1,0 +1,196 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../api.js';
+import PendenzModal from '../components/PendenzModal.jsx';
+import { useMandanten, useMitarbeitende } from '../hooks.js';
+import { useAuth } from '../AuthContext.jsx';
+import { aufAenderungHoeren, meldeAenderung } from '../events.js';
+import { heutigesDatumISO, formatiereDatum } from '../format.js';
+import { formatiereAufwand, formatiereStunden } from '../constants.js';
+import { tagesplan, zuPlanen, morgenTitel } from '../lib/tagesplan.js';
+import { montagDerWoche } from '../lib/wochenrueckblick.js';
+
+const WOCHENTAG_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+function tagText(iso) {
+  const [j, m, t] = iso.split('-').map(Number);
+  return `${WOCHENTAG_KURZ[new Date(Date.UTC(j, m - 1, t)).getUTCDay()]} ${formatiereDatum(iso).slice(0, 6)}`;
+}
+
+function minutenSumme(liste) {
+  return liste.reduce((s, p) => s + (p.aufwand_minuten || 0), 0);
+}
+
+// Eine Zeile: abhaken, Titel (Projekt darueber), Mandant, Aufwand; rechts kurze Planen-Knoepfe.
+function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken }) {
+  const ueberfaellig = !erledigt && p.faelligkeit && p.faelligkeit < heute;
+  const nachfassen = !erledigt && p.status === 'Warten auf';
+  return (
+    <li className={`tp-zeile ${erledigt ? 'erledigt' : ''}`}>
+      <button
+        type="button"
+        className={`tp-haken ${erledigt ? 'aktiv' : ''}`}
+        onClick={() => onAbhaken(p, !erledigt)}
+        aria-label={erledigt ? 'Wieder öffnen' : 'Erledigt'}
+        title={erledigt ? 'Wieder öffnen' : 'Erledigt'}
+      >
+        {erledigt ? '✓' : ''}
+      </button>
+      <button type="button" className="tp-text" onClick={() => onOeffnen(p)}>
+        {p.eltern_titel && <span className="tp-projekt">{p.eltern_titel}</span>}
+        <span className="tp-titel">{p.titel}</span>
+        <span className="tp-info">
+          {p.mandant_name || 'Intern'}
+          {nachfassen && ` · nachfassen bei ${p.warten_auf_person}`}
+          {ueberfaellig && <span className="tp-ueberfaellig"> · Frist {formatiereDatum(p.faelligkeit)}</span>}
+          {!ueberfaellig && p.faelligkeit && p.harte_frist && ` · harte Frist ${formatiereDatum(p.faelligkeit)}`}
+        </span>
+      </button>
+      <span className="tp-aufwand">{p.aufwand_minuten ? formatiereAufwand(p.aufwand_minuten) : ''}</span>
+      {!erledigt && aktionen?.length > 0 && (
+        <span className="tp-aktionen">
+          {aktionen.map((a) => (
+            <button key={a.label} type="button" className="tp-aktion" onClick={() => a.ausfuehren(p)} title={a.titel}>{a.label}</button>
+          ))}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function Karte({ titel, untertitel, offen, erledigt = [], leerText, heute, aktionen, onOeffnen, onAbhaken }) {
+  const total = offen.length + erledigt.length;
+  const anteil = total ? erledigt.length / total : 0;
+  return (
+    <section className="tp-karte">
+      <header className="tp-karte-kopf">
+        <div>
+          <h2 className="tp-karte-titel">{titel}</h2>
+          <div className="tp-karte-untertitel">{untertitel}</div>
+        </div>
+        <div className="tp-karte-stand">
+          {total > 0 && <span>{erledigt.length} von {total} erledigt</span>}
+          {minutenSumme(offen) > 0 && <span className="tp-karte-zeit">noch {formatiereStunden(minutenSumme(offen))}</span>}
+        </div>
+      </header>
+      {total > 0 && <div className="tp-fortschritt"><div style={{ width: `${Math.round(anteil * 100)}%` }} /></div>}
+      <ul className="tp-liste">
+        {offen.map((p) => <Zeile key={p.id} p={p} heute={heute} aktionen={aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />)}
+        {erledigt.map((p) => <Zeile key={p.id} p={p} heute={heute} erledigt onOeffnen={onOeffnen} onAbhaken={onAbhaken} />)}
+        {total === 0 && <li className="tp-leer">{leerText}</li>}
+        {total > 0 && offen.length === 0 && <li className="tp-alles">Alles erledigt.</li>}
+      </ul>
+    </section>
+  );
+}
+
+// Cockpit (v7): nur Heute, Morgen und Wochenziele -- klar getrennt, mit Abhaken. Alles ohne
+// Bearbeitungstag liegt im Ordner "Zu planen".
+export default function TagesCockpit() {
+  const { benutzer } = useAuth();
+  const [daten, setDaten] = useState(null);
+  const [fehler, setFehler] = useState(null);
+  const [aktivePendenz, setAktivePendenz] = useState(null);
+  const mandanten = useMandanten();
+  const mitarbeitende = useMitarbeitende();
+  const heute = heutigesDatumISO();
+
+  const laden = useCallback(() => {
+    Promise.all([
+      api.pendenzen.offene(),
+      api.pendenzen.liste({ status: 'Erledigt', erledigtVon: montagDerWoche(heutigesDatumISO()) }),
+      api.pendenzen.eingangAnzahl(),
+    ]).then(([offene, erledigte, eingang]) => { setDaten({ offene, erledigte, eingang }); setFehler(null); })
+      .catch((e) => setFehler(e.message));
+  }, []);
+
+  useEffect(() => {
+    laden();
+    return aufAenderungHoeren(laden);
+  }, [laden]);
+
+  if (fehler) return <div className="fehleranzeige">Fehler beim Laden: {fehler}</div>;
+  if (!daten) return <div className="ladeindikator">Lade Cockpit…</div>;
+
+  const plan = tagesplan(daten.offene, daten.erledigte, { heute, ichId: benutzer?.id ?? null });
+  const anzahlZuPlanen = zuPlanen(daten.offene).length;
+  const morgenName = morgenTitel(heute, plan.morgen.tag);
+
+  async function abhaken(p, erledigt) {
+    try {
+      await api.pendenzen.statusAendern(p.id, erledigt ? 'Erledigt' : 'Offen');
+      meldeAenderung();
+    } catch (err) {
+      window.alert(err.message);
+    }
+  }
+  async function planen(p, tag) {
+    try {
+      await api.pendenzen.aktualisieren(p.id, { bearbeitungstag: tag });
+      meldeAenderung();
+    } catch (err) {
+      window.alert(err.message);
+    }
+  }
+
+  const zuPlanenAktion = { label: 'Zu planen', titel: 'Bearbeitungstag entfernen – in den Ordner «Zu planen»', ausfuehren: (p) => planen(p, null) };
+
+  return (
+    <div className="tp-seite">
+      <div className="tp-kopf">
+        <h1 className="seiten-titel">Cockpit</h1>
+        <span className="tp-kopf-datum">{tagText(heute)}{heute.slice(0, 4)}</span>
+        <span className="tp-kopf-links">
+          <Link to="/planen">Zu planen <strong>{anzahlZuPlanen}</strong></Link>
+          {daten.eingang > 0 && <Link to="/eingang">Eingang <strong>{daten.eingang}</strong></Link>}
+          <Link to="/uebersicht">Übersicht &amp; Kalender</Link>
+        </span>
+      </div>
+
+      <div className="tp-karten">
+        <Karte
+          titel="Heute"
+          untertitel={`${tagText(heute)} · geplant, fällig, in Arbeit`}
+          offen={plan.heute.offen}
+          erledigt={plan.heute.erledigt}
+          leerText="Für heute ist nichts geplant."
+          heute={heute}
+          aktionen={[{ label: `→ ${morgenName}`, titel: `Auf ${morgenName} verschieben`, ausfuehren: (p) => planen(p, plan.morgen.tag) }, zuPlanenAktion]}
+          onOeffnen={setAktivePendenz}
+          onAbhaken={abhaken}
+        />
+        <Karte
+          titel={morgenName}
+          untertitel={tagText(plan.morgen.tag)}
+          offen={plan.morgen.offen}
+          leerText={`Für ${morgenName === 'Morgen' ? 'morgen' : morgenName} ist noch nichts geplant.`}
+          heute={heute}
+          aktionen={[{ label: '→ Heute', titel: 'Auf heute vorziehen', ausfuehren: (p) => planen(p, heute) }, zuPlanenAktion]}
+          onOeffnen={setAktivePendenz}
+          onAbhaken={abhaken}
+        />
+        <Karte
+          titel="Wochenziele"
+          untertitel={`Woche ab ${formatiereDatum(plan.wochenziele.woche)}`}
+          offen={plan.wochenziele.offen}
+          erledigt={plan.wochenziele.erledigt}
+          leerText="Keine Wochenziele – im Wochenrückblick die 3–5 wichtigsten Ergebnisse festlegen."
+          heute={heute}
+          onOeffnen={setAktivePendenz}
+          onAbhaken={abhaken}
+        />
+      </div>
+
+      {aktivePendenz && (
+        <PendenzModal
+          key={aktivePendenz.id}
+          pendenz={aktivePendenz}
+          mandanten={mandanten}
+          mitarbeitende={mitarbeitende}
+          onSchliessen={() => setAktivePendenz(null)}
+          onGespeichert={() => { setAktivePendenz(null); laden(); }}
+          onGeloescht={() => { setAktivePendenz(null); laden(); }}
+        />
+      )}
+    </div>
+  );
+}

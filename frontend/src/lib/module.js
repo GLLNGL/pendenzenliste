@@ -12,8 +12,10 @@ const MODULE = [
         { nr: 13, pfad: '/pendenzen', label: 'Alle Pendenzen' },
       ] },
       { nr: 2, name: 'Planung', eintraege: [
-        { nr: 21, pfad: '/regeln', label: 'Wiederkehrende' },
-        { nr: 22, pfad: '/wochenrueckblick', label: 'Wochenrückblick' },
+        { nr: 21, pfad: '/planen', label: 'Zu planen' },
+        { nr: 22, pfad: '/regeln', label: 'Wiederkehrende' },
+        { nr: 23, pfad: '/wochenrueckblick', label: 'Wochenrückblick' },
+        { nr: 24, pfad: '/uebersicht', label: 'Übersicht & Kalender' },
       ] },
       { nr: 3, name: 'Auswertungen', eintraege: [
         { nr: 31, pfad: '/archiv', label: 'Archiv' },

@@ -56,6 +56,7 @@ function dateinameFuer(titel) {
 
 // Baut die .ics-Datei fuer eine Pendenz/Teilaufgabe und stoesst den Browser-Download an.
 function ladeICSHerunter(pendenz) {
+  if (!pendenz.faelligkeit) { window.alert('Ohne Frist ist kein Kalendereintrag möglich.'); return; }
   const inhalt = baueICS({
     titel: pendenz.titel,
     beschreibung: pendenz.beschreibung,

@@ -20,7 +20,7 @@ function leeresFormular(vorgabe) {
     mandantId: '',
     bearbeiterId: '',
     beschreibung: '',
-    faelligkeit: heutigesDatumISO(),
+    faelligkeit: '',
     harteFrist: false,
     prioritaet: 'B',
     status: 'Offen',
@@ -132,11 +132,11 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
   }
 
   async function teilaufgabeHinzufuegen() {
-    if (!neueTeilaufgabe.titel.trim() || !neueTeilaufgabe.faelligkeit) return;
+    if (!neueTeilaufgabe.titel.trim()) return;
     try {
       await api.pendenzen.erstellen({
         titel: neueTeilaufgabe.titel.trim(),
-        faelligkeit: neueTeilaufgabe.faelligkeit,
+        faelligkeit: neueTeilaufgabe.faelligkeit || null,
         mandantId: mandantFuerSpeichern(formular.mandantId),
         bearbeiterId: formular.bearbeiterId === '' ? null : Number(formular.bearbeiterId),
         prioritaet: formular.prioritaet,
@@ -232,7 +232,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
     setEmailFehler(null);
     try {
       const payload = { ...emailFormular, pendenzId: pendenz?.id };
-      if (mitKalenderanhang && pendenz) {
+      if (mitKalenderanhang && pendenz && pendenz.faelligkeit) {
         payload.kalender = { titel: pendenz.titel, beschreibung: pendenz.beschreibung, faelligkeit: pendenz.faelligkeit };
       }
       await api.mail.senden(payload);
@@ -271,7 +271,6 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
     const fehlend = [];
     if (formular.mandantId === '') fehlend.push('Mandant (oder «Intern»)');
     if (!formular.titel.trim()) fehlend.push('nächster Schritt');
-    if (!formular.faelligkeit) fehlend.push('Frist');
     if (formular.aufwandMinuten === '' && !istProjekt) fehlend.push('Aufwand');
     if (!formular.prioritaet) fehlend.push('Priorität');
     if (fehlend.length) return `Bitte noch ausfüllen: ${fehlend.join(', ')}.`;
@@ -303,7 +302,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       mandantId: mandantFuerSpeichern(formular.mandantId),
       bearbeiterId,
       beschreibung: formular.beschreibung.trim() || null,
-      faelligkeit: formular.faelligkeit,
+      faelligkeit: formular.faelligkeit || null,
       harteFrist: formular.harteFrist,
       prioritaet: formular.prioritaet,
       status: formular.status,
@@ -384,7 +383,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
 
             <div className="feld-reihe">
               <div className="feld">
-                <label htmlFor="faelligkeit">Frist *</label>
+                <label htmlFor="faelligkeit">Frist (nur bei echtem Termin)</label>
                 <input
                   id="faelligkeit"
                   type="date"

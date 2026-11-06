@@ -220,7 +220,6 @@ async function pendenzenListe(query = {}) {
 
 function pendenzPayloadValidieren(payload, { neuer }) {
   if (neuer && (!payload.titel || !String(payload.titel).trim())) throw new Error('Nächster Schritt ist erforderlich');
-  if (neuer && !payload.faelligkeit) throw new Error('Frist ist erforderlich');
   if (payload.aufwandMinuten != null && payload.aufwandMinuten !== '' && !AUFWAND_MINUTEN.includes(Number(payload.aufwandMinuten))) {
     throw new Error('Ungültiger Aufwand (erlaubt: 15, 30, 60 oder 120 Minuten)');
   }
@@ -871,7 +870,7 @@ const api = {
         mandant_id: daten.mandantId ?? null,
         bearbeiter_id: daten.bearbeiterId ?? null,
         beschreibung: daten.beschreibung || null,
-        faelligkeit: daten.faelligkeit,
+        faelligkeit: daten.faelligkeit || null,
         harte_frist: !!daten.harteFrist,
         prioritaet: daten.prioritaet || 'B',
         status,
@@ -923,7 +922,7 @@ const api = {
       if (daten.mandantId !== undefined) patch.mandant_id = daten.mandantId;
       if (daten.bearbeiterId !== undefined) patch.bearbeiter_id = daten.bearbeiterId;
       if (daten.beschreibung !== undefined) patch.beschreibung = daten.beschreibung || null;
-      if (daten.faelligkeit !== undefined) patch.faelligkeit = daten.faelligkeit;
+      if (daten.faelligkeit !== undefined) patch.faelligkeit = daten.faelligkeit || null;
       if (daten.harteFrist !== undefined) patch.harte_frist = !!daten.harteFrist;
       if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
       if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
@@ -937,7 +936,7 @@ const api = {
       let alteFrist = null;
       if (patch.faelligkeit) {
         const { data: vorher } = await supabase.from('pendenzen').select('faelligkeit, uebergeordnete_pendenz_id').eq('id', id).single();
-        if (vorher && vorher.uebergeordnete_pendenz_id == null && vorher.faelligkeit !== patch.faelligkeit) alteFrist = vorher.faelligkeit;
+        if (vorher?.faelligkeit && vorher.uebergeordnete_pendenz_id == null && vorher.faelligkeit !== patch.faelligkeit) alteFrist = vorher.faelligkeit;
       }
 
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();

@@ -2339,3 +2339,48 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .tagesliste-eintrag.schritt { background: var(--surface-2); }
 .tagesliste-eintrag.schritt:hover { background: var(--surface-3); }
 .tagesliste-projekt-anzahl { font-size: var(--fs-liste-klein); }
+/* Mandant ist die oberste Ebene und hat darum die groesste Schrift. */
+.tagesliste-gruppe-titel { font-size: 14.5px; padding-top: 10px; padding-bottom: 9px; }
+.tagesliste-gruppe-titel .tagesliste-gruppe-anzahl, .tagesliste-gruppe-titel .tagesliste-gruppe-zeit { font-size: var(--fs-liste-klein); }
+
+/* ---------- Cockpit (v7): Heute · Morgen · Wochenziele als klar getrennte Karten ---------- */
+.tp-seite { max-width: 1500px; }
+.tp-kopf { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.tp-kopf-datum { color: var(--text-muted); font-size: var(--fs-text); }
+.tp-kopf-links { margin-left: auto; display: flex; gap: 18px; font-size: var(--fs-text); }
+.tp-kopf-links a { color: var(--text); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.tp-kopf-links a:hover { border-color: var(--text-muted); }
+.tp-karten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .tp-karten { grid-template-columns: 1fr; } }
+.tp-karte { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.tp-karte-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+.tp-karte-titel { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
+.tp-karte-untertitel { margin-top: 2px; font-size: var(--fs-klein); color: var(--text-muted); }
+.tp-karte-stand { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: var(--fs-klein); color: var(--text-muted); white-space: nowrap; }
+.tp-karte-zeit { font-size: var(--fs-label); }
+.tp-fortschritt { height: 3px; background: var(--surface-3); }
+.tp-fortschritt > div { height: 100%; background: var(--text-muted); transition: width 0.2s; }
+.tp-liste { list-style: none; margin: 0; padding: 0; }
+.tp-zeile { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); position: relative; }
+.tp-zeile:last-child { border-bottom: none; }
+.tp-zeile:hover { background: var(--surface-hover); }
+.tp-haken { width: 20px; height: 20px; margin-top: 1px; border: 1.5px solid #9aa3b2; border-radius: 50%; background: var(--surface); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; padding: 0; }
+.tp-haken:hover { border-color: var(--text); }
+.tp-haken.aktiv { background: var(--text-muted); border-color: var(--text-muted); }
+.tp-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 0; border: none; background: none; text-align: left; cursor: pointer; font: inherit; color: var(--text); }
+.tp-projekt { font-size: var(--fs-label); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.tp-titel { font-size: var(--fs-text); line-height: 1.35; }
+.tp-info { font-size: var(--fs-klein); color: var(--text-muted); }
+.tp-ueberfaellig { color: var(--danger); }
+.tp-aufwand { font-size: var(--fs-klein); color: var(--text-muted); white-space: nowrap; padding-top: 2px; }
+.tp-zeile.erledigt .tp-titel { text-decoration: line-through; color: var(--text-muted); }
+.tp-zeile.erledigt .tp-info, .tp-zeile.erledigt .tp-projekt { color: var(--text-faint); }
+.tp-aktionen { display: none; position: absolute; right: 12px; top: 8px; gap: 4px; background: var(--surface-hover); padding-left: 6px; }
+.tp-zeile:hover .tp-aktionen { display: flex; }
+.tp-aktion { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 2px 8px; font-size: var(--fs-label); color: var(--text); cursor: pointer; white-space: nowrap; }
+.tp-aktion:hover { border-color: var(--text-muted); }
+.tp-leer, .tp-alles { padding: 22px 16px; color: var(--text-muted); font-size: var(--fs-klein); text-align: center; }
+.tp-alles { padding: 10px 16px; border-top: 1px solid var(--border); }
+.pendenz-planen-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 2px; }
+.pendenz-planen-knoepfe input[type='date'] { width: 140px; padding: 3px 6px; font-size: var(--fs-klein); }
+.btn-klein.gewaehlt { border-color: var(--text); font-weight: 600; }

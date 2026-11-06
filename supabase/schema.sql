@@ -1093,6 +1093,13 @@ begin
     where not exists (select 1 from public.leistungen where name = 'Administration');
 end $$;
 
+-- ==========================================================================
+-- Frist freiwillig (v7): Pendenzen ohne echte Frist brauchen kein Fantasie-Datum mehr. Ob eine
+-- Pendenz verplant ist, entscheidet der Bearbeitungstag (Ordner "Zu planen" = ohne
+-- Bearbeitungstag). Bestehende Fristen bleiben unveraendert.
+-- ==========================================================================
+alter table public.pendenzen alter column faelligkeit drop not null;
+
 -- --------------------------------------------------------------------------
 -- View und Legacy-RPC bewusst am Dateiende: der View liest p.* und muss darum nach allen
 -- "alter table pendenzen add column" (auch spaeteren Etappen) neu erstellt werden, sonst

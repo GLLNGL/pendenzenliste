@@ -6,6 +6,7 @@ import { statusWechseln } from '../lib/wip.js';
 import { aufAenderungHoeren } from '../events.js';
 import Badge from './Badge.jsx';
 import PendenzZeit from './PendenzZeit.jsx';
+import PendenzPlanen from './PendenzPlanen.jsx';
 
 // Dritte Spalte neben einer Pendenzenliste: Klick auf den Titel einer Zeile zeigt hier
 // Beschreibung und Eckdaten der Pendenz, ohne gleich das volle Bearbeiten-Fenster zu oeffnen.
@@ -103,7 +104,7 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
         {mandantText && <div className="pendenz-vorschau-mandant">{mandantText}</div>}
 
         <div className="pendenz-vorschau-daten">
-          <span>Frist {formatiereDatum(pendenz.faelligkeit)}{pendenz.harte_frist ? ' (hart)' : ''}</span>
+          <span>{pendenz.faelligkeit ? `Frist ${formatiereDatum(pendenz.faelligkeit)}${pendenz.harte_frist ? ' (hart)' : ''}` : 'ohne Frist'}</span>
           <span>{pendenz.block}</span>
           {pendenz.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(pendenz.bearbeitungstag)}</span>}
           {pendenz.status === 'Warten auf' && (
@@ -167,6 +168,7 @@ export default function PendenzVorschau({ pendenz, onOeffnen, onStatusAendern })
         </div>
       )}
 
+      {!(pendenz.teilaufgaben_gesamt > 0) && pendenz.status !== 'Erledigt' && <PendenzPlanen key={`planen-${pendenz.id}`} pendenz={pendenz} />}
       {!(pendenz.teilaufgaben_gesamt > 0) && <PendenzZeit key={pendenz.id} pendenz={pendenz} />}
 
       <div className="pendenz-vorschau-fortschritt">
