@@ -2252,3 +2252,12 @@ table.tabelle tr.klickbar { cursor: pointer; }
   .tagesliste-kopf, .tagesliste-eintrag { grid-template-columns: minmax(0, 1fr) 64px 86px; column-gap: 12px; }
   .tagesliste-kopf.mit-frist, .tagesliste-eintrag.mit-frist { grid-template-columns: minmax(0, 1fr) 88px 64px 86px; }
 }
+
+/* Projekte: Schritte eingeklappt, Umschalter links vor dem Projekt-Kopf. */
+.tagesliste li.mit-umschalter { position: relative; }
+.tagesliste-umschalter {
+  position: absolute; left: 3px; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 18px; height: 22px; padding: 0; border: none; border-radius: 4px; background: none;
+  color: var(--text-muted); font-size: 12px; line-height: 1; cursor: pointer;
+}
+.tagesliste-umschalter:hover { background: var(--surface-3); color: var(--accent); }

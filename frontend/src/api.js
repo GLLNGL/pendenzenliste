@@ -7,7 +7,7 @@ import { supabase } from './lib/supabaseClient.js';
 import { STATUS_WERTE, OFFENE_STATUS, PRIORITAETEN, RHYTHMEN, FAELLIGKEIT_TYPEN, AUFWAND_MINUTEN, BLOECKE, MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from './constants.js';
 import { naechstePendenzen, faelligeVorkommen, heutigesDatumUTC } from './lib/recurrence.js';
 import { REGEL_TYPEN } from './lib/regelVorlagen.js';
-import { heutigesDatumISO } from './format.js';
+import { heutigesDatumISO, datumPlusTage } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
 import { laufendeMinuten, ansatzFuer } from './lib/zeit.js';
 
@@ -933,6 +933,13 @@ const api = {
       // Eingang-Notiz automatisch den Eingang, sobald sie im normalen Formular gespeichert wird.
       patch.geplant = true;
 
+      // Frist eines Projekts geaendert: vorher die alte Frist merken, damit die Schritte mitgehen.
+      let alteFrist = null;
+      if (patch.faelligkeit) {
+        const { data: vorher } = await supabase.from('pendenzen').select('faelligkeit, uebergeordnete_pendenz_id').eq('id', id).single();
+        if (vorher && vorher.uebergeordnete_pendenz_id == null && vorher.faelligkeit !== patch.faelligkeit) alteFrist = vorher.faelligkeit;
+      }
+
       const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
       pruefeFehler(error);
       // Schritte, die schon waehrend des Einplanens aus dem Eingang angelegt wurden, werden
@@ -940,6 +947,19 @@ const api = {
       const { error: fehlerSchritte } = await supabase.from('pendenzen').update({ geplant: true })
         .eq('uebergeordnete_pendenz_id', id).eq('geplant', false);
       pruefeFehler(fehlerSchritte);
+      // Offene Schritte uebernehmen die Fristaenderung: Schritte mit derselben Frist wie das
+      // Projekt erhalten die neue Frist, eigene Fristen verschieben sich um gleich viele Tage.
+      if (alteFrist) {
+        const tage = Math.round((Date.parse(`${patch.faelligkeit}T00:00:00Z`) - Date.parse(`${alteFrist}T00:00:00Z`)) / 86400000);
+        const { data: schritte, error: fehlerLesen } = await supabase.from('pendenzen').select('id, faelligkeit')
+          .eq('uebergeordnete_pendenz_id', id).neq('status', 'Erledigt');
+        pruefeFehler(fehlerLesen);
+        for (const s of schritte) {
+          const { error: fehlerFrist } = await supabase.from('pendenzen')
+            .update({ faelligkeit: datumPlusTage(s.faelligkeit, tage) }).eq('id', s.id);
+          pruefeFehler(fehlerFrist);
+        }
+      }
       return data;
     },
     // Schnell-Statuswechsel (Dropdown in Liste/Vorschau, Abhaken). "Warten auf" geht hier nur,

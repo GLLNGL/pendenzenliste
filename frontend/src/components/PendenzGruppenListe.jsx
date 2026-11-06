@@ -25,6 +25,18 @@ function gruppiertNachMandant(liste) {
 
 const DATUM_TITEL = { faelligkeit: 'Frist', erledigt_am: 'Erledigt am' };
 
+// Aufgeklappte Projekte (Schritte sichtbar) -- in allen Listen gemeinsam gemerkt. Standard:
+// eingeklappt, nur der Projekt-Kopf ist zu sehen.
+const PROJEKTE_SCHLUESSEL = 'pendenzen-projekte-offen';
+function offeneProjekteLesen() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(PROJEKTE_SCHLUESSEL));
+    return new Set(Array.isArray(liste) ? liste.map(Number) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 function eingeklapptLesen(schluessel) {
   if (!schluessel) return new Set();
   try {
@@ -51,6 +63,14 @@ function zeitText({ minuten, ohne }) {
 export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mitFrist = false, datum, leerText, speicherSchluessel }) {
   const datumFeld = datum ?? (mitFrist ? 'faelligkeit' : null);
   const [eingeklappt, setEingeklappt] = useState(() => eingeklapptLesen(speicherSchluessel));
+  const [offeneProjekte, setOffeneProjekte] = useState(offeneProjekteLesen);
+
+  function projektUmschalten(projektId) {
+    const neu = new Set(offeneProjekte);
+    if (neu.has(projektId)) neu.delete(projektId); else neu.add(projektId);
+    setOffeneProjekte(neu);
+    try { localStorage.setItem(PROJEKTE_SCHLUESSEL, JSON.stringify([...neu])); } catch { /* ohne Speicher weiter nutzbar */ }
+  }
 
   if (!pendenzen.length) return leerText ? <div className="leer-hinweis">{leerText}</div> : null;
   const heute = heutigesDatumISO();
@@ -105,6 +125,9 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
               // Projekt. Ist der Projekt-Kopf selbst nicht in der Liste (Cockpit, Kalender), wird
               // vor dem ersten Schritt eine Projekt-Titelzeile eingefuegt.
               const kopfInListe = istSchritt && gruppe.items.some((k) => k.id === p.uebergeordnete_pendenz_id);
+              // Schritte unter einem eingeklappten Projekt-Kopf ausblenden.
+              if (kopfInListe && !offeneProjekte.has(p.uebergeordnete_pendenz_id)) return [];
+              const projektOffen = istProjekt && offeneProjekte.has(p.id);
               const vorgaenger = gruppe.items[index - 1];
               const nachfolger = gruppe.items[index + 1];
               const brauchtTitelzeile = istSchritt && !kopfInListe
@@ -121,7 +144,18 @@ export default function PendenzGruppenListe({ pendenzen, aktiveId, onWaehlen, mi
                 );
               }
               zeilen.push(
-                <li key={p.id}>
+                <li key={p.id} className={istProjekt ? 'mit-umschalter' : undefined}>
+                  {istProjekt && (
+                    <button
+                      type="button"
+                      className="tagesliste-umschalter"
+                      onClick={() => projektUmschalten(p.id)}
+                      aria-expanded={projektOffen}
+                      title={projektOffen ? 'Schritte einklappen' : `${p.teilaufgaben_gesamt} Schritte anzeigen`}
+                    >
+                      {projektOffen ? '▾' : '▸'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className={`tagesliste-eintrag ${datumFeld ? 'mit-frist' : ''} ${aktiveId === p.id ? 'aktiv' : ''} ${p.prioritaet === 'A' ? 'prio-a' : ''} ${istProjekt ? 'projekt' : ''} ${istSchritt ? 'schritt' : ''} ${letzterSchritt ? 'letzter' : ''}`}
