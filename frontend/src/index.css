@@ -2174,3 +2174,9 @@ table.tabelle tr.klickbar { cursor: pointer; }
 .modul-baum-programm.aktiv { background: var(--neutral-bg); border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
 .modul-baum-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modul-baum-nr { color: var(--text-muted); font-size: var(--fs-klein); font-variant-numeric: tabular-nums; font-weight: 400; }
+.mobil-zeit { display: flex; flex-direction: column; gap: 12px; }
+.mobil-timer { text-align: center; padding: 18px; border: 1px solid #f3c2c2; background: #fdf1f1; border-radius: 10px; display: flex; flex-direction: column; gap: 8px; }
+.mobil-timer-dauer { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mobil-timer-titel { color: var(--text-muted); }
+.mobil-timer-start { display: flex; flex-direction: column; gap: 10px; }
+.btn.mobil-gross { padding: 12px; font-size: 16px; width: 100%; }

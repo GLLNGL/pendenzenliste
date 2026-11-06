@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
-import { useLaufenderTimer, timerStarten } from './TimerLeiste.jsx';
+import { useLaufenderTimer, timerStarten } from '../lib/timer.js';
 import { aufZeitAenderungHoeren } from '../events.js';
 import { formatiereDatum } from '../format.js';
 import { formatiereDauer, formatiereStundenSumme, artLabel, laufendeMinuten, zusammenfassung } from '../lib/zeit.js';

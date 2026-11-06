@@ -78,6 +78,38 @@ Aus der Pendenzenliste wird ein gesamtheitliches Tool für das Treuhandbüro:
   editierbar, Planzeit/Mt.).
 - Reine Rechenlogik in `lib/preise.js` mit Unit-Tests (`tests/preise.test.js`).
 
+## Navigation analog Abacus – umgesetzt
+
+- Seitenleiste oben: Feld **«Modul»** mit Auswahlliste (Tippen filtert): 10 Pendenzen,
+  20 Kundenstamm, 30 Offerten, 40 Zeiterfassung, 90 Administration (`lib/module.js`,
+  `components/ModulNavigation.jsx`). Darunter der Programmbaum des Moduls: Gruppen
+  einklappbar, Programmnummern rechts (z.B. Offerten 11, Preise & Katalog 21). `/start` zeigt
+  alle Module als Kacheln.
+
+## Offerten (Etappe 5, vorgezogen) – umgesetzt
+
+- Tabellen `offerten`, `offert_positionen` (Momentaufnahme von Bezeichnung, Einheit, Turnus,
+  Preis), `buero_einstellungen` (Absender, Konditionen, Mail-Vorlage).
+- Liste (`views/Offerten.jsx`) und Editor (`views/OffertEditor.jsx`): Mandant per Such-Popup
+  (`MandantSuche`, filtert ab dem ersten Buchstaben: Namensanfang, dann Wortanfang), neuer
+  Interessent direkt aus der Offerte, A4-Vorschau (`OffertDokument`) im Layout des
+  Excel-Angebots, Drucken, PDF (`lib/pdf.js`, jspdf + html2canvas, unskalierte Kopie),
+  Versand per E-Mail mit PDF-Anhang (Edge Function `send-mail` mit `anhaenge`).
+- Annahme = Mandatseröffnung: Pauschalen nach Rabatt ab Datum, bisherige optional beenden,
+  potenzieller Mandant wird aktiv. Kalkulation zeigt Planzeit und Ertrag pro Planstunde.
+
+## Etappe 2 (Zeiterfassung) – umgesetzt
+
+- Timer in der Seitenleiste (läuft auf jeder Seite sichtbar), in der Detailansicht jeder
+  Pendenz (Start/Stopp, erfasste Zeit, Einträge) und im Handy-Tab «Zeit». Ein neuer Timer
+  stoppt einen laufenden automatisch.
+- Zeit-Fenster (`ZeitModal`): Datum, Dauer (h:mm, Stunden oder Minuten), Mandant (leer =
+  intern), Leistung, Art Pauschale/Extra (vorgeschlagen aus den Pauschalen des Mandanten),
+  Ansatz bei Extra (aus Leistung bzw. Standard), Text im Rapport.
+- Zeitjournal (Modul 40, Programm 11): Filter Zeitraum/Mandant/Person/Art, Summen.
+- Standard-Leistung an Pendenz und Wiederkehr-Regel; die Pendenz merkt sich die zuletzt
+  gewählte Leistung.
+
 ## Offene Punkte (zusätzlich zu v6)
 
 1. Planzeit für Lohnbuchhaltung, Lohnausweise und Budgetierung im Katalog ergänzen (im Excel

@@ -105,4 +105,3 @@ export default function MandantSuche({ id, mandanten, wert, onWahl, onNeu, leerT
   );
 }
 
-export { mandantenFiltern };

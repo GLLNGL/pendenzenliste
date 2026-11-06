@@ -1,3 +1,4 @@
+import { useLeistungen } from '../hooks.js';
 import { useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { BLOECKE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, RHYTHMUS_LABEL, formatiereAufwand } from '../constants.js';
@@ -55,6 +56,7 @@ function formularAusRegel(regel) {
     prioritaet: regel.prioritaet || 'B',
     harteFrist: !!regel.harte_frist,
     aufwandMinuten: regel.aufwand_minuten ?? '',
+    leistungId: regel.leistung_id == null ? '' : String(regel.leistung_id),
     checkliste: (regel.checkliste || []).join('\n'),
     aktiv: regel.aktiv ?? true,
   };
@@ -80,6 +82,7 @@ function formularAusVorlage(typ, mandantId, mandant, bisher) {
 }
 
 export default function RegelModal({ regel, mandanten, faelligkeitTypen, rhythmen, onSchliessen, onGespeichert, onGeloescht }) {
+  const leistungen = useLeistungen();
   const [f, setF] = useState(() => (regel
     ? formularAusRegel(regel)
     : formularAusVorlage('Lohnlauf', '', null, formularAusRegel({}))));
@@ -167,6 +170,7 @@ export default function RegelModal({ regel, mandanten, faelligkeitTypen, rhythme
       prioritaet: f.prioritaet,
       harteFrist: f.harteFrist,
       aufwandMinuten: f.aufwandMinuten,
+      leistungId: f.leistungId === '' || f.leistungId == null ? null : Number(f.leistungId),
       checkliste,
       aktiv: f.aktiv ? 1 : 0,
     };
@@ -347,6 +351,15 @@ export default function RegelModal({ regel, mandanten, faelligkeitTypen, rhythme
                   {AUFWAND_MINUTEN.map((m) => <option key={m} value={m}>{formatiereAufwand(m)}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="feld">
+              <label htmlFor="regel-leistung">Leistung (Zeiterfassung)</label>
+              <select id="regel-leistung" value={f.leistungId ?? ''} onChange={(e) => feld('leistungId', e.target.value)}>
+                <option value="">– keine –</option>
+                {leistungen.filter((l) => l.aktiv || String(l.id) === String(f.leistungId ?? '')).map((l) => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+              </select>
+              <p className="feld-hinweis">Wird beim Erfassen der Zeit vorgeschlagen – daraus ergibt sich, ob die Arbeit in der Pauschale ist.</p>
             </div>
 
             <div className="feld">

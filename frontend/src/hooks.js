@@ -42,4 +42,14 @@ function useIstHandy() {
   return istHandy;
 }
 
-export { useMandanten, useMitarbeitende, useIstHandy, HANDY_SCHWELLE };
+// Aktive Leistungen aus dem Katalog (Standard-Leistung fuer die Zeiterfassung). Leer, solange
+// die Tabelle fehlt -- die Fenster funktionieren dann wie bisher.
+function useLeistungen() {
+  const [leistungen, setLeistungen] = useState([]);
+  useEffect(() => {
+    api.preise.leistungen.liste().then(setLeistungen).catch(() => setLeistungen([]));
+  }, []);
+  return leistungen;
+}
+
+export { useMandanten, useMitarbeitende, useLeistungen, useIstHandy, HANDY_SCHWELLE };

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../AuthContext.jsx';
 import MobilErfassen from './MobilErfassen.jsx';
 import MobilKalender from './MobilKalender.jsx';
+import MobilZeit from './MobilZeit.jsx';
 
 // Eigene, bewusst schmale Ansicht fuers Handy: keine Sidebar mit sieben Menuepunkten, keine
 // Mandanten-/Team-/Regeln-Verwaltung -- nur die zwei Dinge, die unterwegs gebraucht werden:
@@ -21,12 +22,17 @@ export default function MobilApp() {
           <button type="button" className={tab === 'kalender' ? 'aktiv' : ''} onClick={() => setTab('kalender')}>
             Kalender
           </button>
+          <button type="button" className={tab === 'zeit' ? 'aktiv' : ''} onClick={() => setTab('zeit')}>
+            Zeit
+          </button>
         </nav>
         <button type="button" className="mobil-abmelden" onClick={abmelden} aria-label="Abmelden">⏻</button>
       </header>
 
       <main className="mobil-hauptbereich">
-        {tab === 'erfassen' ? <MobilErfassen /> : <MobilKalender />}
+        {tab === 'erfassen' && <MobilErfassen />}
+        {tab === 'kalender' && <MobilKalender />}
+        {tab === 'zeit' && <MobilZeit />}
       </main>
     </div>
   );

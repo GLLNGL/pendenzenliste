@@ -1,3 +1,4 @@
+import { useLeistungen } from '../hooks.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, BLOECKE, formatiereAufwand, statusSlug } from '../constants.js';
 import { formatiereDatum, formatiereZeitstempel, heutigesDatumISO } from '../format.js';
@@ -23,6 +24,7 @@ function leeresFormular(vorgabe) {
     prioritaet: 'B',
     status: 'Offen',
     aufwandMinuten: '',
+    leistungId: '',
     block: 'Sonstiges',
     wartenAufPerson: '',
     warteSeit: '',
@@ -47,6 +49,7 @@ function ausPendenz(pendenz) {
     // Person/Nachfassdatum fehlen noch -- siehe statusWechselBrauchtFormular).
     status: pendenz.status,
     aufwandMinuten: pendenz.aufwand_minuten ?? '',
+    leistungId: pendenz.leistung_id == null ? '' : String(pendenz.leistung_id),
     block: pendenz.block || 'Sonstiges',
     wartenAufPerson: pendenz.warten_auf_person ?? '',
     warteSeit: pendenz.warte_seit ?? '',
@@ -63,6 +66,7 @@ function mandantFuerSpeichern(wert) {
 // projektModus: aus der Eingang-Triage "Mehrere Schritte" geoeffnet -- zeigt den Hinweis zur
 // Projekt-Logik bei den Schritten.
 export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, projektModus = false, onSchliessen, onGespeichert, onGeloescht }) {
+  const leistungen = useLeistungen();
   const { benutzer } = useAuth();
   const [formular, setFormular] = useState(() => (pendenz ? ausPendenz(pendenz) : leeresFormular(vorgabe)));
   const [speichertGerade, setSpeichertGerade] = useState(false);
@@ -303,6 +307,7 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
       prioritaet: formular.prioritaet,
       status: formular.status,
       aufwandMinuten: formular.aufwandMinuten === '' ? null : Number(formular.aufwandMinuten),
+      leistungId: formular.leistungId === '' ? null : Number(formular.leistungId),
       block: formular.block,
       // Ausserhalb von "Warten auf" IMMER auf null zuruecksetzen (nicht nur wenn leer) -- sonst
       // bleibt ein frueher gesetztes Nachfassdatum im Hintergrund gespeichert (das Feld ist dann
@@ -420,6 +425,15 @@ export default function PendenzModal({ pendenz, mandanten, mitarbeitende = [], v
                   {AUFWAND_MINUTEN.map((m) => <option key={m} value={m}>{formatiereAufwand(m)}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="feld">
+              <label htmlFor="pendenz-leistung">Leistung (Zeiterfassung)</label>
+              <select id="pendenz-leistung" value={formular.leistungId} onChange={(e) => feldAendern('leistungId', e.target.value)}>
+                <option value="">– keine –</option>
+                {leistungen.filter((l) => l.aktiv || String(l.id) === String(formular.leistungId)).map((l) => <option key={l.id} value={String(l.id)}>{l.name}</option>)}
+              </select>
+              <p className="feld-hinweis">Wird beim Erfassen der Zeit vorgeschlagen – daraus ergibt sich, ob die Arbeit in der Pauschale ist.</p>
             </div>
 
             <div className="feld-reihe">
