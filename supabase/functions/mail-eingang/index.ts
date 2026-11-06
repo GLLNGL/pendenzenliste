@@ -7,11 +7,13 @@
 // (Supabase prueft das JWT). Gespeichert wird mit den Rechten der angemeldeten Person (RLS),
 // ein Service-Schluessel ist nicht noetig.
 //
-// Secrets (Dashboard -> Edge Functions -> Secrets): die bestehenden SMTP_USER / SMTP_PASS
-// (dasselbe Postfach) und optional
-//   IMAP_HOST   (Standard: SMTP_HOST, bei Metanet z.B. sora.metanet.ch)
-//   IMAP_PORT   (Standard: 993)
-//   IMAP_ORDNER (Standard: "Aufträge")
+// Secrets (Dashboard -> Edge Functions -> Secrets) -- das Buero-Postfach, aus dem die Auftraege
+// kommen (unabhaengig vom Postfach fuer den Versand):
+//   IMAP_HOST   z.B. sora.metanet.ch      (fehlt er: SMTP_HOST)
+//   IMAP_USER   z.B. info@estcontrolling.ch (fehlt er: SMTP_USER)
+//   IMAP_PASS   Passwort dieses Postfachs   (fehlt es: SMTP_PASS)
+//   IMAP_PORT   optional, Standard 993
+//   IMAP_ORDNER optional, Standard "Aufträge"
 // SUPABASE_URL und SUPABASE_ANON_KEY stellt Supabase automatisch bereit.
 
 import { ImapFlow } from 'npm:imapflow@1.0.164';
@@ -47,7 +49,10 @@ Deno.serve(async (req) => {
     host: Deno.env.get('IMAP_HOST') || Deno.env.get('SMTP_HOST') || '',
     port: Number(Deno.env.get('IMAP_PORT') || '993'),
     secure: true,
-    auth: { user: Deno.env.get('SMTP_USER') ?? '', pass: Deno.env.get('SMTP_PASS') ?? '' },
+    auth: {
+      user: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') || '',
+      pass: Deno.env.get('IMAP_PASS') || Deno.env.get('SMTP_PASS') || '',
+    },
     logger: false,
   });
 
@@ -73,7 +78,7 @@ Deno.serve(async (req) => {
     if (!ziel) ziel = (await client.mailboxCreate(`${quellPfad}${trenner}Übernommen`)).path;
     if (neuAngelegt) {
       await client.logout();
-      return antwort({ ok: true, neu: 0, hinweis: `Ordner «${ordner}» wurde angelegt – Mails dort hinein ziehen.` });
+      return antwort({ ok: true, neu: 0, hinweis: `Ordner «${ordner}» wurde im Postfach ${Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER')} angelegt – Mails dort hinein ziehen.` });
     }
 
     const { data: mandanten } = await supabase.from('mandanten').select('id, name, email, geschaeftsfuehrung_email').eq('aktiv', true);
@@ -132,7 +137,7 @@ Deno.serve(async (req) => {
       lock.release();
     }
     await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen });
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     return antwort({ fehler: err instanceof Error ? err.message : String(err) }, 500);
