@@ -1,4 +1,4 @@
-// Modul-Struktur analog Abacus: oben die Modulauswahl ("30 Offerten"), darunter der
+// Modul-Struktur analog Abacus: oben die Modulauswahl ("30 Preiskalkulation"), darunter der
 // Programmbaum mit Gruppen und Programmnummern. Die Pfade bleiben unveraendert -- das Modul
 // ergibt sich aus dem Pfad.
 
@@ -38,9 +38,9 @@ const MODULE = [
     ],
   },
   {
-    id: 'offerten', nr: 30, name: 'Offerten', symbol: '✎', beschreibung: 'Offerten erstellen, drucken und per E-Mail senden',
+    id: 'offerten', nr: 30, name: 'Preiskalkulation', symbol: '✎', beschreibung: 'Angebote kalkulieren, drucken und per E-Mail senden',
     gruppen: [
-      { nr: 1, name: 'Offerten', eintraege: [
+      { nr: 1, name: 'Angebot', eintraege: [
         { nr: 11, pfad: '/offerten', label: 'Offerten' },
       ] },
       { nr: 2, name: 'Stammdaten', eintraege: [

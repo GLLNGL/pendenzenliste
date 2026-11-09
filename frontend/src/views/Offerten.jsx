@@ -10,7 +10,7 @@ function statusLesen() {
   try { return localStorage.getItem(FILTER_SCHLUESSEL) || ''; } catch { return ''; }
 }
 
-// Programm "Offerten" im Modul Offerten: Liste aller Offerten, Klick oeffnet den Editor.
+// Programm "Offerten" im Modul Preiskalkulation: Liste aller Offerten, Klick oeffnet den Editor.
 export default function Offerten() {
   const [offerten, setOfferten] = useState([]);
   const [fehler, setFehler] = useState(null);
