@@ -3,7 +3,9 @@
 // geht nur fuer die Auswertung an die Claude-API; abgelegt wird sie von der App in OneDrive.
 //
 // Aufruf aus der App: supabase.functions.invoke('beleg-lesen', { body: { art, dateiname, typ,
-// base64, firma } }) -- nur angemeldete Personen (Supabase prueft das JWT).
+// base64, firma } }) -- nur angemeldete Personen (Supabase prueft das JWT). Im Dashboard heisst
+// die Funktion "rapid-handler". Mit modus: 'buchungen' zaehlt sie stattdessen die Buchungen pro
+// Monat in einem Bankauszug/Buchungsjournal (Preiskalkulation der Offerte).
 //
 // Secret: ANTHROPIC_API_KEY (dasselbe wie fuer "mail-eingang").
 
@@ -34,6 +36,28 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
+// Modus "buchungen" (Preiskalkulation): Buchungen pro Monat in einem Bankauszug oder
+// Buchungsjournal (PDF) zaehlen.
+const SCHEMA_BUCHUNGEN = {
+  type: 'object',
+  properties: {
+    art: { type: 'string', enum: ['bankauszug', 'buchungsjournal', 'anderes'] },
+    monate: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { monat: { type: 'string', description: 'YYYY-MM' }, anzahl: { type: 'integer' } },
+        required: ['monat', 'anzahl'],
+        additionalProperties: false,
+      },
+    },
+    hinweis: { type: ['string', 'null'], description: 'Kurz, falls etwas unklar war (z.B. Seiten unleserlich)' },
+  },
+  required: ['art', 'monate', 'hinweis'],
+  additionalProperties: false,
+};
+const SYSTEM_BUCHUNGEN = 'Du zählst für ein Schweizer Treuhandbüro die Buchungen in einem Bankauszug oder Buchungsjournal, um den Aufwand für die Buchhaltung zu schätzen. Zähle jede einzelne Bewegung (Gutschrift oder Belastung) bzw. jeden Buchungsbeleg genau einmal, gruppiert nach Monat des Buchungsdatums. Nicht zählen: Anfangs- und Schlusssalden, Überträge, Zwischentotale, Seitenköpfe. Bei Splitbuchungen im Journal (mehrere Zeilen mit derselben Beleg-Nummer) zählt der Beleg einmal.';
+
 function antwort(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
@@ -44,7 +68,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
   if (!anthropic) return antwort({ fehler: 'ANTHROPIC_API_KEY fehlt in den Secrets der Edge Functions.' }, 500);
   try {
-    const { art, dateiname, typ, base64, firma } = await req.json();
+    const { art, dateiname, typ, base64, firma, modus } = await req.json();
     if (!base64) return antwort({ fehler: 'Keine Datei erhalten.' }, 400);
     const istPdf = typ === 'application/pdf' || /\.pdf$/i.test(dateiname ?? '');
     if (!istPdf && !BILDTYPEN.includes(typ)) return antwort({ fehler: 'Nur PDF oder Bilder (PNG/JPG) können ausgelesen werden.' }, 400);
@@ -52,6 +76,23 @@ Deno.serve(async (req) => {
     const beleg = istPdf
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
       : { type: 'image', source: { type: 'base64', media_type: typ, data: base64 } };
+    if (modus === 'buchungen') {
+      const ki = await anthropic.beta.messages.create({
+        model: 'claude-opus-5-5',
+        max_tokens: 4000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_BUCHUNGEN } },
+        system: SYSTEM_BUCHUNGEN,
+        messages: [{ role: 'user', content: [beleg, { type: 'text', text: `Dateiname: ${dateiname ?? ''}. Zähle die Buchungen pro Monat.` }] }],
+      // deno-lint-ignore no-explicit-any
+      } as any, { timeout: 120000, maxRetries: 1 });
+      if (ki.stop_reason === 'refusal' || ki.stop_reason === 'max_tokens') return antwort({ fehler: `Auswertung abgebrochen (${ki.stop_reason}).` }, 502);
+      const block = ki.content.find((b: { type: string }) => b.type === 'text') as { text: string } | undefined;
+      if (!block) return antwort({ fehler: 'Keine Antwort der KI erhalten.' }, 502);
+      return antwort({ ok: true, buchungen: JSON.parse(block.text) });
+    }
+
     const rolle = art === 'debitor'
       ? `Das ist eine Ausgangsrechnung (Debitor): ${firma || 'unser Büro'} hat sie gestellt. partner = der Rechnungsempfänger.`
       : `Das ist eine Eingangsrechnung (Kreditor): ${firma || 'unser Büro'} muss sie bezahlen. partner = der Rechnungssteller.`;

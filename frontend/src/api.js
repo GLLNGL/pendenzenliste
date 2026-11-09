@@ -645,6 +645,24 @@ const api = {
     },
   },
 
+  // Preiskalkulation (v7): Buchungen pro Monat in einem PDF-Auszug/-Journal per KI zaehlen.
+  buchungenZaehlen: async (file) => {
+    if (file.size > 25 * 1024 * 1024) throw new Error('PDF grösser als 25 MB – bitte als CSV/Excel exportieren.');
+    const base64 = await blobZuBase64(file);
+    const { data, error } = await supabase.functions.invoke('rapid-handler', {
+      body: { modus: 'buchungen', dateiname: file.name, typ: file.type || 'application/pdf', base64 },
+    });
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        const koerper = await fehlerKoerperLesen(error);
+        throw new Error(koerper?.fehler || error.message);
+      }
+      throw new Error(error.message);
+    }
+    if (!data?.buchungen) throw new Error('Die KI-Funktion kennt das Zählen noch nicht – bitte rapid-handler neu deployen.');
+    return data.buchungen;
+  },
+
   // Zahlungslaeufe (v7): pain.001-Datei aus offenen Kreditorenbelegen.
   zahlungslaeufe: {
     liste: async () => {

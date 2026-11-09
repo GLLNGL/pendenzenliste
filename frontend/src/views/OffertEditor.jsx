@@ -5,6 +5,7 @@ import OffertDokument from '../components/OffertDokument.jsx';
 import FormularModal from '../components/FormularModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
 import MandantSuche from '../components/MandantSuche.jsx';
+import BuchungsAnalyse from '../components/BuchungsAnalyse.jsx';
 import { useMitarbeitende } from '../hooks.js';
 import { useAuth } from '../AuthContext.jsx';
 import { meldeMandantenAenderung } from '../events.js';
@@ -133,6 +134,16 @@ export default function OffertEditor() {
     const leer = { leistung_id: null, abacus_modul_id: null, bezeichnung: '', einheit: '', turnus: 'monatlich', menge: istLizenz ? 1 : '', preis_pro_einheit: 0, minuten_pro_einheit: null, angebot_gruppe: null, ist_lizenz: istLizenz };
     setPositionen((liste) => [...liste, mitSchluessel(leer)]);
     setGeaendert(true);
+  }
+  // Menge aus der Auswertung des Buchungsjournals: bestehende Position anpassen oder neu anlegen.
+  function mengeAusJournal(leistung, menge) {
+    const vorhanden = positionen.find((p) => !p.ist_lizenz && p.leistung_id === leistung.id);
+    if (vorhanden) positionAendern(vorhanden._k, { menge: String(menge) });
+    else {
+      setPositionen((liste) => [...liste, mitSchluessel(positionAusLeistung(leistung, ansaetze, menge))]);
+      setGeaendert(true);
+    }
+    setMeldung(`${menge} Belege pro Monat bei «${leistung.name}» übernommen.`);
   }
   function positionEntfernen(k) {
     setPositionen((liste) => liste.filter((p) => p._k !== k));
@@ -403,6 +414,7 @@ export default function OffertEditor() {
 
           <div className="karte offert-karte">
             <div className="karte-kopf">Dienstleistungen</div>
+            <BuchungsAnalyse leistungen={leistungen} onUebernehmen={mengeAusJournal} />
             {positionsTabelle(dienstleistungen, false)}
             <div className="offert-karte-fuss"><button type="button" className="btn-klein" onClick={() => positionHinzufuegen(false)}>+ Dienstleistung</button></div>
           </div>
