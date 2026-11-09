@@ -587,6 +587,58 @@ const api = {
     },
   },
 
+  // Buchhaltung (v7): eigene Kreditoren-/Debitorenrechnungen. Der Beleg liegt nur in OneDrive.
+  belege: {
+    liste: async (art = null) => {
+      let q = supabase.from('belege').select('*')
+        .order('faelligkeit', { ascending: true, nullsFirst: false }).order('id', { ascending: false });
+      if (art) q = q.eq('art', art);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    speichern: async (id, d) => {
+      const zeile = {
+        art: d.art === 'debitor' ? 'debitor' : 'kreditor', partner: String(d.partner ?? '').trim(),
+        rechnungsnummer: textOderNull(d.rechnungsnummer), rechnungsdatum: d.rechnungsdatum || null,
+        faelligkeit: d.faelligkeit || null, betrag: zahlOderNull(d.betrag), waehrung: (d.waehrung || 'CHF').trim().toUpperCase(),
+        bezahlt_am: d.bezahltAm || null, notiz: textOderNull(d.notiz),
+      };
+      if (d.dateiname !== undefined) zeile.dateiname = d.dateiname || null;
+      if (d.ablagePfad !== undefined) zeile.ablage_pfad = d.ablagePfad || null;
+      if (!zeile.partner) throw new Error(zeile.art === 'debitor' ? 'Bitte den Debitor angeben.' : 'Bitte den Kreditor angeben.');
+      const q = id ? supabase.from('belege').update(zeile).eq('id', id) : supabase.from('belege').insert(zeile);
+      const { data, error } = await q.select().single();
+      pruefeFehler(error);
+      return data;
+    },
+    bezahlt: async (id, datum) => {
+      const { error } = await supabase.from('belege').update({ bezahlt_am: datum }).eq('id', id);
+      pruefeFehler(error);
+    },
+    loeschen: async (id) => {
+      const { error } = await supabase.from('belege').delete().eq('id', id);
+      pruefeFehler(error);
+    },
+    // KI liest die Rechnung aus (Edge Function "beleg-lesen"); die Datei wird dort nicht gespeichert.
+    auslesen: async (file, art, firma) => {
+      if (file.size > 10 * 1024 * 1024) throw new Error('Datei grösser als 10 MB – bitte die Angaben von Hand erfassen.');
+      const base64 = await blobZuBase64(file);
+      const { data, error } = await supabase.functions.invoke('beleg-lesen', {
+        body: { art, dateiname: file.name, typ: file.type, base64, firma },
+      });
+      if (error) {
+        if (error instanceof FunctionsHttpError) {
+          const koerper = await fehlerKoerperLesen(error);
+          throw new Error(koerper?.fehler || error.message);
+        }
+        if (/Failed to send/i.test(error.message)) throw new Error('Funktion «beleg-lesen» nicht erreichbar (noch nicht deployt?).');
+        throw new Error(error.message);
+      }
+      return data?.angaben ?? null;
+    },
+  },
+
   // Onboarding (v7): Katalog der Unterlagen und pro Mandant ein Onboarding mit Checkliste.
   onboarding: {
     unterlagen: {

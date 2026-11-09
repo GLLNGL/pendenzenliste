@@ -105,6 +105,25 @@ async function dateiAblegen(blob, dateiname, ordnerTeile, grundHandle = null) {
   return [grund.name, ...ordnerTeile, name].join('\\');
 }
 
+// Datei aus dem verbundenen OneDrive-Ordner lesen. pfad wie von dateiAblegen zurueckgegeben
+// ("Grundordner\Unterordner\Datei.pdf"). Gibt ein File zurueck.
+async function dateiLesen(pfad) {
+  const grund = await grundOrdnerHolen();
+  if (!grund) throw new Error('OneDrive ist auf diesem Gerät nicht verbunden (Einstellungen › Ablage).');
+  if ((await grund.queryPermission({ mode: 'read' })) !== 'granted'
+    && (await grund.requestPermission({ mode: 'read' })) !== 'granted') throw new Error('Kein Zugriff auf den OneDrive-Ordner erteilt.');
+  const teile = String(pfad).split(/[\\/]+/).filter(Boolean);
+  if (teile[0] === grund.name) teile.shift();
+  const name = teile.pop();
+  let ordner = grund;
+  try {
+    for (const teil of teile) ordner = await ordner.getDirectoryHandle(teil);
+    return await (await ordner.getFileHandle(name)).getFile();
+  } catch {
+    throw new Error(`Beleg nicht gefunden: ${pfad} – verschoben oder umbenannt?`);
+  }
+}
+
 // Normaler Download als Rueckfallebene.
 function herunterladen(blob, dateiname) {
   const url = URL.createObjectURL(blob);
@@ -117,4 +136,4 @@ function herunterladen(blob, dateiname) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, herunterladen };
+export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, dateiLesen, herunterladen };

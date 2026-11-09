@@ -49,6 +49,18 @@ const MODULE = [
     ],
   },
   {
+    id: 'buchhaltung', nr: 40, name: 'Buchhaltung', symbol: '₣', beschreibung: 'Kreditoren, Debitoren und Liquiditätsplan',
+    gruppen: [
+      { nr: 1, name: 'Belege', eintraege: [
+        { nr: 11, pfad: '/kreditoren', label: 'Kreditoren' },
+        { nr: 12, pfad: '/debitoren', label: 'Debitoren' },
+      ] },
+      { nr: 2, name: 'Auswertungen', eintraege: [
+        { nr: 21, pfad: '/liquiditaet', label: 'Liquiditätsplan' },
+      ] },
+    ],
+  },
+  {
     id: 'admin', nr: 90, name: 'Administration', symbol: '⚙', beschreibung: 'Team und Einstellungen',
     gruppen: [
       { nr: 1, name: 'System', eintraege: [

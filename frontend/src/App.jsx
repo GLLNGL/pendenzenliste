@@ -8,6 +8,8 @@ import Eingang from './views/Eingang.jsx';
 import AllePendenzen from './views/AllePendenzen.jsx';
 import Mandanten from './views/Mandanten.jsx';
 import OnboardingUnterlagen from './views/OnboardingUnterlagen.jsx';
+import Belege from './views/Belege.jsx';
+import Liquiditaet from './views/Liquiditaet.jsx';
 import Regeln from './views/Regeln.jsx';
 import Archiv from './views/Archiv.jsx';
 import Wochenrueckblick from './views/Wochenrueckblick.jsx';
@@ -46,6 +48,9 @@ export default function App() {
         <Route path="/zeit" element={<Zeitjournal />} />
         <Route path="/rapporte" element={<Rapporte />} />
         <Route path="/rapporte/:id" element={<RapportEditor />} />
+        <Route path="/kreditoren" element={<Belege key="kreditor" art="kreditor" />} />
+        <Route path="/debitoren" element={<Belege key="debitor" art="debitor" />} />
+        <Route path="/liquiditaet" element={<Liquiditaet />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />
       </Route>

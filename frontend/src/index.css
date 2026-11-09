@@ -2542,3 +2542,38 @@ tr.inaktiv td { opacity: 0.55; }
 .tp-karte-abgelaufen .tp-karte-titel { color: var(--danger); }
 .dateien-zeile-abgelegt .dateien-name { color: var(--text-muted); }
 .dateien-ort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ==========================================================================
+   Buchhaltung: Belege und Liquiditaetsplan (v7)
+   ========================================================================== */
+.beleg-drop { border: 2px dashed var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 14px; background: var(--surface); cursor: pointer; text-align: center; }
+.beleg-drop:hover, .beleg-drop.aktiv { border-color: var(--accent); background: var(--surface-2); }
+.beleg-drop-titel { font-size: var(--fs-abschnitt); font-weight: 600; margin-bottom: 4px; }
+.beleg-drop-text { font-size: var(--fs-klein); color: var(--text-muted); margin-top: 2px; }
+.beleg-drop-text code { font-size: var(--fs-klein); }
+.beleg-drop-status { margin-top: 8px; font-size: var(--fs-text); color: var(--accent); font-weight: 600; }
+.beleg-summe { margin-left: auto; font-size: var(--fs-text); }
+.beleg-status { font-size: var(--fs-klein); padding: 1px 8px; border-radius: 999px; background: var(--surface-3); color: var(--text-muted); white-space: nowrap; }
+.beleg-status-ueberfaellig { background: var(--danger-bg); color: var(--danger); }
+.beleg-status-bezahlt { background: var(--success-bg); color: var(--success); }
+
+.liq-kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.liq-kachel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.liq-kachel-breit { grid-column: 1 / -1; }
+.liq-kachel-titel { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; color: var(--text-muted); }
+.liq-kachel-zahl { font-size: 20px; font-weight: 700; }
+.liq-kachel-text { font-size: var(--fs-klein); color: var(--text-muted); }
+.liq-warnung { border-color: var(--danger); }
+.liq-stand-eingabe { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.liq-stand-eingabe input[type="number"] { width: 130px; }
+.liq-fristen { display: flex; gap: 24px; font-size: var(--fs-text); }
+.liq-plus { color: var(--success); }
+.liq-minus { color: var(--danger); }
+.liq-startzeile td { background: var(--surface-2); }
+.liq-ueberfaellig td { background: var(--warning-bg); }
+.liq-negativ td { background: var(--danger-bg); }
+.liq-balken-spalte { width: 22%; }
+.liq-balken { height: 10px; border-radius: 3px; background: var(--success); opacity: 0.6; }
+.liq-balken.negativ { background: var(--danger); }
+.liq-fuss { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 12px; font-size: var(--fs-klein); color: var(--text-muted); }
+@media (max-width: 1000px) { .liq-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
