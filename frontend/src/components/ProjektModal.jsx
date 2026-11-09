@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext.jsx';
 import { useLeistungen } from '../hooks.js';
 import { PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, formatiereAufwand, formatiereStunden } from '../constants.js';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
+import DateienListe from './DateienListe.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { PendenzDetailModal } from './PendenzModal.jsx';
@@ -257,6 +258,13 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
               </label>
               <textarea id="pr-beschreibung" value={kopf.beschreibung} onChange={(e) => feld('beschreibung', e.target.value)} />
             </div>
+            {pendenz && (
+              <DateienListe
+                pendenzIds={[pendenz.id]}
+                mandant={mandant}
+                hochladenFuer={{ pendenzId: pendenz.id, mandantId: pendenz.mandant_id ?? null }}
+              />
+            )}
             {fehler && <div className="hinweis-fehler">{fehler}</div>}
           </div>
           <div className="modal-fuss">

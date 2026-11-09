@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api.js';
 import { useAuth } from '../AuthContext.jsx';
 import { meldeMitarbeitendeAenderung } from '../events.js';
+import { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen } from '../lib/ablageOrdner.js';
 
 // Fokusstunden pro Woche der angemeldeten Person -- Grundlage fuer die Auslastungsanzeige im
 // Cockpit (Warnung, sobald mehr als 70 % der naechsten Woche verplant sind).
@@ -59,6 +60,95 @@ function Fokusstunden() {
   );
 }
 
+// Grundordner der Mandantenablage (fuer alle gleich) plus die Freigabe des lokalen
+// OneDrive-Ordners auf diesem Geraet (zum direkten Ablegen von Dateien).
+function AblageEinstellung() {
+  const [f, setF] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  const [fehler, setFehler] = useState(null);
+  const [lokal, setLokal] = useState(null);
+
+  useEffect(() => {
+    api.buero.lesen('ablage').then((w) => setF({ grundPfad: w.grundPfad ?? '', grundLink: w.grundLink ?? '', unterordnerMail: w.unterordnerMail ?? '' }))
+      .catch((e) => setFehler(e.message));
+    grundOrdnerHolen().then((h) => setLokal(h?.name ?? null));
+  }, []);
+
+  async function speichern(e) {
+    e.preventDefault();
+    setMeldung(null);
+    setFehler(null);
+    try {
+      await api.buero.speichern('ablage', {
+        grundPfad: f.grundPfad.trim().replace(/^"|"$/g, ''), grundLink: f.grundLink.trim(), unterordnerMail: f.unterordnerMail.trim(),
+      });
+      window.dispatchEvent(new Event('ablage-geaendert'));
+      setMeldung('Gespeichert.');
+    } catch (err) {
+      setFehler(err.message);
+    }
+  }
+
+  async function lokalWaehlen() {
+    setFehler(null);
+    try {
+      const h = await grundOrdnerWaehlen();
+      setLokal(h.name);
+    } catch (err) {
+      if (err?.name !== 'AbortError') setFehler(err.message);
+    }
+  }
+
+  if (!f) return fehler ? <div className="hinweis-fehler">{fehler}</div> : null;
+  const setze = (name) => (e) => setF((alt) => ({ ...alt, [name]: e.target.value }));
+
+  return (
+    <>
+      <h2 className="abschnitt-titel">Ablage (OneDrive)</h2>
+      <p className="seiten-untertitel">
+        Grundordner der Mandantenablage. Beim Mandanten wird nur noch der Ordnername eingetragen – Pfad und Link setzen sich daraus zusammen.
+      </p>
+      <form className="karte" style={{ maxWidth: 760 }} onSubmit={speichern}>
+        <div className="modal-koerper">
+          <div className="feld">
+            <label htmlFor="ablage-grundpfad">Grundordner im Windows Explorer</label>
+            <input id="ablage-grundpfad" value={f.grundPfad} onChange={setze('grundPfad')} placeholder="C:\Users\…\EST Controlling GmbH\EST – Mandantenablage - 00_Treuhand" />
+            <p className="feld-hinweis">Im Explorer den Ordner wählen, Adresszeile anklicken und den Pfad kopieren.</p>
+          </div>
+          <div className="feld">
+            <label htmlFor="ablage-grundlink">Adresse des Grundordners in SharePoint (optional)</label>
+            <input id="ablage-grundlink" value={f.grundLink} onChange={setze('grundLink')} placeholder="https://estcontrollinggmbh.sharepoint.com/sites/ESTMandantenablage/…" />
+            <p className="feld-hinweis">Den Ordner im Browser öffnen und die Adresse aus der Adresszeile kopieren (kein Freigabe-Link).</p>
+          </div>
+          <div className="feld">
+            <label htmlFor="ablage-unterordner">Unterordner für Mail-Anhänge (optional)</label>
+            <input id="ablage-unterordner" value={f.unterordnerMail} onChange={setze('unterordnerMail')} placeholder="z.B. 01_Korrespondenz – leer = direkt im Mandantenordner" />
+          </div>
+          <div className="feld">
+            <label>Direkt ablegen auf diesem Gerät</label>
+            {unterstuetzt() ? (
+              <div className="ablage-lokal">
+                <span>{lokal ? <>Verbunden mit dem Ordner <strong>{lokal}</strong></> : 'Noch nicht verbunden.'}</span>
+                <button type="button" className="btn-klein" onClick={lokalWaehlen}>{lokal ? 'Anderen Ordner wählen' : 'OneDrive-Grundordner verbinden'}</button>
+                {lokal && <button type="button" className="btn-klein" onClick={async () => { await grundOrdnerVergessen(); setLokal(null); }}>Trennen</button>}
+              </div>
+            ) : (
+              <p className="feld-hinweis">Dieser Browser kann nicht direkt in Ordner schreiben – Dateien werden heruntergeladen (direkt ablegen geht mit Edge oder Chrome am PC).</p>
+            )}
+            <p className="feld-hinweis">Denselben Grundordner wählen wie oben. Danach legt «In Ablage speichern» Dateien direkt im Ordner des Mandanten ab; OneDrive synchronisiert sie.</p>
+          </div>
+          {meldung && <div className="hinweis-erfolg">{meldung}</div>}
+          {fehler && <div className="hinweis-fehler">{fehler}</div>}
+        </div>
+        <div className="modal-fuss">
+          <div />
+          <button type="submit" className="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </>
+  );
+}
+
 export default function Einstellungen() {
   const [testetGerade, setTestetGerade] = useState(false);
   const [meldung, setMeldung] = useState(null);
@@ -88,6 +178,8 @@ export default function Einstellungen() {
       <h1 className="seiten-titel">Einstellungen</h1>
 
       <Fokusstunden />
+
+      <AblageEinstellung />
 
       <h2 className="abschnitt-titel">E-Mail-Versand</h2>
       <p className="seiten-untertitel">Läuft über eine zentral eingerichtete Supabase-Funktion, nicht mehr über eine Einstellung hier in der App.</p>

@@ -52,4 +52,17 @@ function useLeistungen() {
   return leistungen;
 }
 
-export { useMandanten, useMitarbeitende, useLeistungen, useIstHandy, HANDY_SCHWELLE };
+// Grundordner der Ablage (Einstellungen, Schluessel "ablage"). Nach dem Speichern meldet die
+// Einstellungsseite 'ablage-geaendert', damit offene Ansichten neu laden.
+function useAblageGrund() {
+  const [grund, setGrund] = useState({});
+  useEffect(() => {
+    const laden = () => api.buero.lesen('ablage').then(setGrund).catch(() => setGrund({}));
+    laden();
+    window.addEventListener('ablage-geaendert', laden);
+    return () => window.removeEventListener('ablage-geaendert', laden);
+  }, []);
+  return grund;
+}
+
+export { useAblageGrund, useMandanten, useMitarbeitende, useLeistungen, useIstHandy, HANDY_SCHWELLE };

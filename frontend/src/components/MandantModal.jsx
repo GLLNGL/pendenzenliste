@@ -3,6 +3,8 @@ import api from '../api.js';
 import { meldeMandantenAenderung } from '../events.js';
 import { MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
 import { naechsteKundenNr } from '../lib/preise.js';
+import { ablageVon, ordnerVorschlag } from '../lib/ablage.js';
+import { useAblageGrund } from '../hooks.js';
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -27,6 +29,9 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
     telefon: mandant?.telefon ?? '',
     ablagePfad: mandant?.ablage_pfad ?? '',
     ablageLink: mandant?.ablage_link ?? '',
+    ablageOrdner: mandant?.ablage_ordner ?? (mandant ? '' : ordnerVorschlag(vorgabeName)),
+    // Neuer Mandant: Ordnername folgt dem Namen, bis er von Hand geaendert wird.
+    ordnerManuell: !!mandant,
     notizen: mandant?.notizen ?? '',
     // Mandats-Eckdaten -- Grundlage fuer die wiederkehrenden Pendenzen (Vorlauf je Mandant).
     mwstPeriode: mandant?.mwst_periode ?? '',
@@ -52,8 +57,13 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
   }, [onSchliessen]);
 
   function feldAendern(name, wert) {
-    setFormular((f) => ({ ...f, [name]: wert }));
+    setFormular((f) => ({
+      ...f, [name]: wert,
+      ...(name === 'name' && !f.ordnerManuell ? { ablageOrdner: ordnerVorschlag(wert) } : {}),
+    }));
   }
+  const grund = useAblageGrund();
+  const vorschau = ablageVon({ ablage_ordner: formular.ablageOrdner, ablage_pfad: formular.ablagePfad, ablage_link: formular.ablageLink }, grund);
 
   async function speichern(e) {
     e.preventDefault();
@@ -81,6 +91,7 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
         telefon: formular.telefon,
         ablagePfad: formular.ablagePfad,
         ablageLink: formular.ablageLink,
+        ablageOrdner: formular.ablageOrdner,
         notizen: formular.notizen.trim() || null,
         mwstPeriode: formular.mwstPeriode || null,
         lohnzahltag: formular.lohnzahltag,
@@ -158,27 +169,43 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
 
             <div className="feld-gruppe-titel">Ablage</div>
             <div className="feld">
-              <label htmlFor="mandant-ablage-pfad">Ordner im Windows Explorer</label>
+              <label htmlFor="mandant-ablage-ordner">Ordner in der Mandantenablage</label>
               <input
-                id="mandant-ablage-pfad"
+                id="mandant-ablage-ordner"
                 type="text"
-                value={formular.ablagePfad}
-                onChange={(e) => feldAendern('ablagePfad', e.target.value.replace(/^"|"$/g, ''))}
-                placeholder="C:Users…OneDrive - EST Controlling GmbHEST – Mandantenablage - …Mandant"
+                value={formular.ablageOrdner}
+                onChange={(e) => setFormular((f) => ({ ...f, ablageOrdner: e.target.value, ordnerManuell: true }))}
+                placeholder="Ordnername, z.B. Muster AG"
               />
-              <p className="feld-hinweis">Im Explorer den Ordner öffnen, oben in die Adresszeile klicken, Pfad kopieren (Ctrl+C) und hier einfügen.</p>
+              <p className="feld-hinweis">
+                {vorschau.pfad
+                  ? <>Ablage: <code>{vorschau.pfad}</code></>
+                  : grund.grundPfad ? 'Ordnernamen eintragen.' : 'Grundordner zuerst unter Administration › Einstellungen › Ablage hinterlegen.'}
+              </p>
             </div>
-            <div className="feld">
-              <label htmlFor="mandant-ablage-link">Link auf den Ordner (SharePoint / OneDrive)</label>
-              <input
-                id="mandant-ablage-link"
-                type="url"
-                value={formular.ablageLink}
-                onChange={(e) => feldAendern('ablageLink', e.target.value)}
-                placeholder="https://estcontrollinggmbh.sharepoint.com/sites/ESTMandantenablage/…"
-              />
-              <p className="feld-hinweis">Im Explorer Rechtsklick auf den Ordner → «Link kopieren» bzw. «Online anzeigen» und die Adresse kopieren. Öffnet die Ablage mit einem Klick; Dokumente lassen sich dort per Drag &amp; Drop ablegen.</p>
-            </div>
+            <details className="feld-details" open={!!(formular.ablagePfad || formular.ablageLink)}>
+              <summary>Abweichender Ablageort (nur für Sonderfälle)</summary>
+              <div className="feld">
+                <label htmlFor="mandant-ablage-pfad">Voller Pfad im Windows Explorer</label>
+                <input
+                  id="mandant-ablage-pfad"
+                  type="text"
+                  value={formular.ablagePfad}
+                  onChange={(e) => feldAendern('ablagePfad', e.target.value.replace(/^"|"$/g, ''))}
+                  placeholder="leer = Grundordner + Ordnername"
+                />
+              </div>
+              <div className="feld">
+                <label htmlFor="mandant-ablage-link">Voller Link (SharePoint / OneDrive)</label>
+                <input
+                  id="mandant-ablage-link"
+                  type="url"
+                  value={formular.ablageLink}
+                  onChange={(e) => feldAendern('ablageLink', e.target.value)}
+                  placeholder="leer = Grundordner + Ordnername"
+                />
+              </div>
+            </details>
             <div className="feld">
               <label htmlFor="mandant-email">Ansprechpartner/in E-Mail</label>
               <input id="mandant-email" type="email" value={formular.email} onChange={(e) => feldAendern('email', e.target.value)} placeholder="kontakt@mandant.ch" />

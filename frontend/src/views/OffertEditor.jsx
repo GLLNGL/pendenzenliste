@@ -31,6 +31,7 @@ export default function OffertEditor() {
   const { id } = useParams();
   const neu = id === 'neu';
   const [suchParameter] = useSearchParams();
+  const vonMandant = suchParameter.get('von') === 'mandanten';
   const navigate = useNavigate();
   const { benutzer } = useAuth();
   const mitarbeitende = useMitarbeitende();
@@ -158,7 +159,7 @@ export default function OffertEditor() {
     const gespeichert = await api.offerten.speichern(neu ? null : Number(id), kopf, positionen);
     setKopf((k) => ({ ...k, ...gespeichert, bearbeiter_id: gespeichert.bearbeiter_id ?? '', skonto_tage: gespeichert.skonto_tage ?? '' }));
     setGeaendert(false);
-    if (neu) navigate(`/offerten/${gespeichert.id}`, { replace: true });
+    if (neu) navigate(`/offerten/${gespeichert.id}${vonMandant ? '?von=mandanten' : ''}`, { replace: true });
     return gespeichert;
   }
 
@@ -195,7 +196,7 @@ export default function OffertEditor() {
     if (!window.confirm(`Offerte ${kopf.nummer} löschen?`)) return;
     await aktion('loeschen', async () => {
       await api.offerten.loeschen(kopf.id);
-      navigate('/offerten');
+      navigate(vonMandant ? `/mandanten?mandant=${kopf.mandant_id}&reiter=offerten` : '/offerten');
     });
   }
 
@@ -319,7 +320,9 @@ export default function OffertEditor() {
   return (
     <div className="offert-editor">
       <div className="cockpit-kopfzeile offert-kopfzeile">
-        <button type="button" className="btn-klein" onClick={() => (!geaendert || window.confirm('Ungespeicherte Änderungen verwerfen?')) && navigate('/offerten')}>← Offerten</button>
+        <button type="button" className="btn-klein" onClick={() => (!geaendert || window.confirm('Ungespeicherte Änderungen verwerfen?')) && navigate(vonMandant ? `/mandanten?mandant=${kopf.mandant_id}&reiter=offerten` : '/offerten')}>
+          {vonMandant ? '← Mandant' : '← Offerten'}
+        </button>
         <h1 className="seiten-titel">Offerte {kopf.nummer}</h1>
         <span className={`offert-status offert-status-${kopf.status.toLowerCase()}`}>{kopf.status}</span>
         {geaendert && <span className="cockpit-kopf-hinweis">ungespeichert</span>}
@@ -339,6 +342,14 @@ export default function OffertEditor() {
       </div>
       {fehler && <div className="hinweis-fehler">{fehler}</div>}
       {meldung && <div className="hinweis-erfolg">{meldung}</div>}
+      {kopf.status === 'Angenommen' && !neu && (
+        <div className="offert-hinweis">
+          Offerte angenommen – nächster Schritt ist das Onboarding (DL-Vertrag, Vollmacht, EBICS …).{' '}
+          <button type="button" className="btn-klein btn-klein-primaer" onClick={() => navigate(`/mandanten?mandant=${kopf.mandant_id}&reiter=onboarding&offerte=${kopf.id}`)}>
+            Onboarding öffnen →
+          </button>
+        </div>
+      )}
       {kopf.versendet_am && <div className="offert-hinweis">Versendet am {formatiereDatum(kopf.versendet_am.slice(0, 10))} an {kopf.versendet_an}.</div>}
       {kopf.status === 'Angenommen' && kopf.pauschalen_ab && <div className="offert-hinweis">Angenommen – Pauschalen ab {formatiereDatum(kopf.pauschalen_ab)} beim Mandanten hinterlegt. Weitere Änderungen hier ändern die Pauschalen nicht mehr.</div>}
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
+import DateienListe from '../components/DateienListe.jsx';
 import PendenzModal from '../components/PendenzModal.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { formatiereZeitstempel, formatiereDatum, heutigesDatumISO } from '../format.js';
@@ -114,7 +115,8 @@ export default function Eingang() {
     setAbruf({ laeuft: true, meldung: null, fehler: null });
     try {
       const r = await api.mail.eingangAbholen();
-      setAbruf({ laeuft: false, fehler: null, meldung: r?.hinweis || (r?.neu ? `${r.neu} neue${r.neu === 1 ? 'r Auftrag' : ' Aufträge'} aus E-Mail übernommen.` : 'Keine neuen Aufträge im Ordner «Aufträge».') });
+      const text = r?.hinweis || (r?.neu ? `${r.neu} neue${r.neu === 1 ? 'r Auftrag' : ' Aufträge'} aus E-Mail übernommen.` : 'Keine neuen Aufträge im Ordner «Aufträge».');
+      setAbruf({ laeuft: false, fehler: null, meldung: r?.dateiFehler ? `${text} Anhang nicht gespeichert – ${r.dateiFehler}` : text });
       if (r?.neu) meldeAenderung();
     } catch (err) {
       setAbruf({ laeuft: false, meldung: null, fehler: err.message });
@@ -209,6 +211,14 @@ export default function Eingang() {
                   ))}
                 </ul>
               </div>
+            )}
+            {e.email_message_id && (
+              <DateienListe
+                pendenzIds={[e.id]}
+                mandant={mandanten.find((m) => m.id === e.mandant_id) ?? null}
+                titel="Anhänge"
+                leerAusblenden
+              />
             )}
             <TriageKnoepfe eintrag={e} onAblegen={ablegen} onOeffnen={oeffnen} onLoeschen={loeschen} />
           </div>

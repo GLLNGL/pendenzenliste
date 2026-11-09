@@ -7,6 +7,7 @@ import ZuPlanen from './views/ZuPlanen.jsx';
 import Eingang from './views/Eingang.jsx';
 import AllePendenzen from './views/AllePendenzen.jsx';
 import Mandanten from './views/Mandanten.jsx';
+import OnboardingUnterlagen from './views/OnboardingUnterlagen.jsx';
 import Regeln from './views/Regeln.jsx';
 import Archiv from './views/Archiv.jsx';
 import Wochenrueckblick from './views/Wochenrueckblick.jsx';
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/eingang" element={<Eingang />} />
         <Route path="/pendenzen" element={<AllePendenzen />} />
         <Route path="/mandanten" element={<Mandanten />} />
+        <Route path="/onboarding-unterlagen" element={<OnboardingUnterlagen />} />
         <Route path="/regeln" element={<Regeln />} />
         <Route path="/wochenrueckblick" element={<Wochenrueckblick />} />
         <Route path="/archiv" element={<Archiv />} />

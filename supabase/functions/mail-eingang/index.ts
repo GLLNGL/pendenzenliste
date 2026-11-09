@@ -2,6 +2,7 @@
 // (in Outlook einfach Mails in diesen Ordner ziehen oder per Regel verschieben lassen), legt pro
 // Mail eine Pendenz im Eingang an (geplant = false) und verschiebt die Mail danach nach
 // "Auftraege/Uebernommen". Dieselbe Mail wird dank Message-ID nie doppelt uebernommen.
+// Anhaenge werden im Supabase-Speicher (Bucket "dateien") abgelegt und an die Pendenz gehaengt.
 //
 // Aufruf aus der App: supabase.functions.invoke('mail-eingang') -- nur angemeldete Personen
 // (Supabase prueft das JWT). Gespeichert wird mit den Rechten der angemeldeten Person (RLS),
@@ -124,6 +125,49 @@ async function auswerten(eingabe: { betreff: string; von: string; datum: string;
 // Bei diesen Domains sagt die Absender-Domain nichts ueber den Mandanten aus.
 const FREEMAIL = ['gmail.com', 'gmx.ch', 'gmx.net', 'bluewin.ch', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'sunrise.ch', 'protonmail.com'];
 
+// --------------------------------------------------------------------------------------------
+// Anhaenge: im Supabase-Speicher (Bucket "dateien") ablegen und in der Tabelle dateien vermerken.
+// Schlaegt das fehl (z.B. SQL noch nicht ausgefuehrt), wird die Mail trotzdem uebernommen.
+// --------------------------------------------------------------------------------------------
+type Anhang = { filename?: string | null; mimeType?: string; related?: boolean; content: ArrayBuffer | Uint8Array | string };
+const MAX_DATEI_BYTES = 25 * 1024 * 1024;
+let dateiFehler: string | null = null;
+
+function istEchterAnhang(a: Anhang) {
+  const name = a.filename ?? '';
+  if (!name) return false;
+  if (/^image\d+\.(gif|png|jpe?g)$/i.test(name)) return false;
+  // Im Text eingebettete Bilder (Logos in der Signatur) ueberspringen.
+  if (a.related && /^image\//i.test(a.mimeType ?? '')) return false;
+  return true;
+}
+
+// Speicherschluessel ohne Umlaute/Sonderzeichen (der Originalname bleibt in der Tabelle).
+function sichererName(name: string) {
+  return name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-120) || 'datei';
+}
+
+// deno-lint-ignore no-explicit-any
+async function anhaengeSpeichern(supabase: any, dateien: Anhang[], pendenzId: number, mandantId: number | null) {
+  for (const [i, a] of dateien.entries()) {
+    try {
+      const inhalt = typeof a.content === 'string' ? new TextEncoder().encode(a.content) : new Uint8Array(a.content as ArrayBuffer);
+      if (inhalt.byteLength > MAX_DATEI_BYTES) { dateiFehler = `${a.filename}: grösser als 25 MB, nicht übernommen`; continue; }
+      const pfad = `pendenzen/${pendenzId}/${Date.now()}-${i}-${sichererName(a.filename ?? '')}`;
+      const typ = a.mimeType || 'application/octet-stream';
+      const { error: fehlerSpeicher } = await supabase.storage.from('dateien').upload(pfad, inhalt, { contentType: typ, upsert: false });
+      if (fehlerSpeicher) throw new Error(fehlerSpeicher.message);
+      const { error: fehlerZeile } = await supabase.from('dateien').insert({
+        pendenz_id: pendenzId, mandant_id: mandantId, dateiname: a.filename, typ, groesse: inhalt.byteLength, speicherpfad: pfad, quelle: 'mail',
+      });
+      if (fehlerZeile) throw new Error(fehlerZeile.message);
+    } catch (err) {
+      dateiFehler = `${a.filename}: ${err instanceof Error ? err.message : String(err)}`;
+      console.error('Anhang nicht gespeichert:', dateiFehler);
+    }
+  }
+}
+
 function antwort(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
@@ -134,6 +178,8 @@ function domainVon(adresse: string | null | undefined) {
 }
 
 async function verarbeiten(req: Request, zustand: { schritt: string; client: ImapFlow | null }): Promise<Response> {
+  kiFehler = null;
+  dateiFehler = null;
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
@@ -234,9 +280,8 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
         const rohtext = mail.text || (mail.html ?? '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
         const volltext = rohtext.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
         // Eingebettete Signatur-Bilder (image001.png ...) sind keine echten Anhaenge.
-        const anhaenge = (mail.attachments ?? [])
-          .map((a: { filename?: string | null }) => a.filename)
-          .filter((n: string | null | undefined) => n && !/^image\d+\.(gif|png|jpe?g)$/i.test(n)) as string[];
+        const dateien = ((mail.attachments ?? []) as Anhang[]).filter(istEchterAnhang);
+        const anhaenge = dateien.map((a) => a.filename as string);
         const betreff = (mail.subject ?? '').trim() || '(E-Mail ohne Betreff)';
 
         // Schon uebernommen (gleiche Message-ID)? Dann keine erneute KI-Auswertung.
@@ -250,7 +295,7 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
         const herkunft = [
           `E-Mail von ${vonText}${datum ? ` am ${datum}` : ''}`,
           `Betreff: ${betreff}`,
-          anhaenge.length ? `Anhänge: ${anhaenge.join(', ')}` : '',
+          anhaenge.length ? `Anhänge: ${anhaenge.join(', ')} (in der App unter «Dateien»)` : '',
           'Original in Outlook unter «Aufträge › Übernommen».',
         ].filter(Boolean).join('\n');
         const fristen = (ki?.todos ?? []).map((t) => t.frist).filter((f): f is string => !!f && /^\d{4}-\d{2}-\d{2}$/.test(f)).sort();
@@ -281,6 +326,11 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
             if (fehlerSchritt) throw new Error(fehlerSchritt.message);
           }
         }
+        // Anhaenge im Speicher ablegen (haengen an der Pendenz, Ablage per Klick in der App).
+        if (kopf && dateien.length) {
+          zustand.schritt = `Mail ${msg.uid}: Anhänge speichern`;
+          await anhaengeSpeichern(supabase, dateien, kopf.id, mandant?.id ?? null);
+        }
         if (!error) uebernommen.push(ki?.titel || betreff);
         verschieben.push(msg.uid);
       }
@@ -291,7 +341,7 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
       lock.release();
     }
     await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, ki: !!anthropic, kiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, ki: !!anthropic, kiFehler, dateiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in

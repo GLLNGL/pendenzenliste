@@ -43,6 +43,41 @@ async function sendMailAufrufen(body) {
   return data;
 }
 
+// --------------------------------------------------------------------------------------------
+// Dateien (v7): Supabase-Speicher, Bucket "dateien" (nicht oeffentlich), plus Tabelle dateien.
+// --------------------------------------------------------------------------------------------
+const BUCKET = 'dateien';
+
+// Speicherschluessel ohne Umlaute/Sonderzeichen (der Originalname steht in der Tabelle).
+function sichererDateiname(name) {
+  return String(name || 'datei').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_').slice(-120) || 'datei';
+}
+
+function blobZuBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const leser = new FileReader();
+    leser.onload = () => resolve(String(leser.result).split(',')[1] ?? '');
+    leser.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'));
+    leser.readAsDataURL(blob);
+  });
+}
+
+async function dateiBlob(datei) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(datei.speicherpfad);
+  if (error) throw new Error(`«${datei.dateiname}» konnte nicht geladen werden: ${error.message}`);
+  return data;
+}
+
+async function dateienDerPendenzEntfernen(pendenzId) {
+  // Fehlt die Tabelle noch (SQL nicht ausgefuehrt), still weiter.
+  const { data: kinder } = await supabase.from('pendenzen').select('id').eq('uebergeordnete_pendenz_id', pendenzId);
+  const ids = [pendenzId, ...(kinder ?? []).map((k) => k.id)];
+  const { data, error } = await supabase.from('dateien').select('speicherpfad').in('pendenz_id', ids);
+  if (error || !data?.length) return;
+  await supabase.storage.from(BUCKET).remove(data.map((d) => d.speicherpfad));
+}
+
 // Verletzte Datenbank-Regeln (Check-Constraints in supabase/schema.sql) als verstaendliche
 // Meldung statt der rohen Postgres-Fehlermeldung anzeigen.
 const CONSTRAINT_MELDUNGEN = {
@@ -79,7 +114,8 @@ function textOderNull(wert) {
 function mandantAdresse(daten) {
   const patch = {};
   for (const [feld, spalte] of [['kundenNr', 'kunden_nr'], ['ansprechperson', 'ansprechperson'], ['strasse', 'strasse'],
-    ['plz', 'plz'], ['ort', 'ort'], ['telefon', 'telefon'], ['ablagePfad', 'ablage_pfad'], ['ablageLink', 'ablage_link']]) {
+    ['plz', 'plz'], ['ort', 'ort'], ['telefon', 'telefon'], ['ablagePfad', 'ablage_pfad'], ['ablageLink', 'ablage_link'],
+    ['ablageOrdner', 'ablage_ordner']]) {
     if (daten[feld] !== undefined) patch[spalte] = textOderNull(daten[feld]);
   }
   if (daten.potenziell !== undefined) patch.potenziell = !!daten.potenziell;
@@ -489,6 +525,122 @@ const api = {
       const { error } = await supabase.from('buero_einstellungen')
         .upsert({ schluessel, wert, geaendert_am: new Date().toISOString() });
       pruefeFehler(error);
+    },
+  },
+
+  // Dateien (v7): Mail-Anhaenge, eigene Uploads, Vorlagen der Onboarding-Unterlagen.
+  dateien: {
+    liste: async ({ pendenzIds, mandantId } = {}) => {
+      let q = supabase.from('dateien').select('*').order('erstellt_am').order('id');
+      if (pendenzIds) q = q.in('pendenz_id', pendenzIds.length ? pendenzIds : [-1]);
+      if (mandantId) q = q.eq('mandant_id', mandantId);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    hochladen: async (file, { pendenzId = null, mandantId = null, quelle = 'upload' } = {}) => {
+      const ordner = quelle === 'vorlage' ? 'vorlagen' : pendenzId ? `pendenzen/${pendenzId}` : `mandanten/${mandantId ?? 'ohne'}`;
+      const pfad = `${ordner}/${Date.now()}-${sichererDateiname(file.name)}`;
+      const typ = file.type || 'application/octet-stream';
+      const { error: fehlerSpeicher } = await supabase.storage.from(BUCKET).upload(pfad, file, { contentType: typ });
+      if (fehlerSpeicher) throw new Error(`Hochladen fehlgeschlagen: ${fehlerSpeicher.message}`);
+      const { data, error } = await supabase.from('dateien').insert({
+        pendenz_id: pendenzId, mandant_id: mandantId, dateiname: file.name, typ, groesse: file.size, speicherpfad: pfad, quelle,
+      }).select().single();
+      pruefeFehler(error);
+      return data;
+    },
+    blob: dateiBlob,
+    base64: async (datei) => blobZuBase64(await dateiBlob(datei)),
+    // Kurzlebiger Link zum Anzeigen bzw. Herunterladen (Bucket ist nicht oeffentlich).
+    link: async (datei, { herunterladen = false } = {}) => {
+      const { data, error } = await supabase.storage.from(BUCKET)
+        .createSignedUrl(datei.speicherpfad, 600, herunterladen ? { download: datei.dateiname } : undefined);
+      if (error) throw new Error(error.message);
+      return data.signedUrl;
+    },
+    abgelegt: async (id, ja = true) => {
+      const { error } = await supabase.from('dateien').update({ abgelegt_am: ja ? new Date().toISOString() : null }).eq('id', id);
+      pruefeFehler(error);
+    },
+    loeschen: async (datei) => {
+      await supabase.storage.from(BUCKET).remove([datei.speicherpfad]);
+      const { error } = await supabase.from('dateien').delete().eq('id', datei.id);
+      pruefeFehler(error);
+    },
+  },
+
+  // Onboarding (v7): Katalog der Unterlagen und pro Mandant ein Onboarding mit Checkliste.
+  onboarding: {
+    unterlagen: {
+      liste: async () => {
+        const { data, error } = await supabase.from('onboarding_unterlagen').select('*, datei:dateien(*)')
+          .order('reihenfolge').order('name');
+        pruefeFehler(error);
+        return data;
+      },
+      speichern: async (id, d) => {
+        const zeile = {
+          name: String(d.name ?? '').trim(), beschreibung: textOderNull(d.beschreibung), zurueck: !!d.zurueck,
+          aktiv: d.aktiv !== false, reihenfolge: Number(d.reihenfolge) || 0,
+        };
+        if (d.dateiId !== undefined) zeile.datei_id = d.dateiId;
+        if (!zeile.name) throw new Error('Bitte einen Namen angeben.');
+        const q = id ? supabase.from('onboarding_unterlagen').update(zeile).eq('id', id) : supabase.from('onboarding_unterlagen').insert(zeile);
+        const { data, error } = await q.select().single();
+        if (error?.message?.includes('onboarding_unterlagen_name_key')) throw new Error('Eine Unterlage mit diesem Namen existiert bereits.');
+        pruefeFehler(error);
+        return data;
+      },
+      // Vorlage (z.B. DL-Vertrag als PDF/Word) hochladen bzw. ersetzen.
+      vorlageSetzen: async (unterlage, file) => {
+        const datei = await api.dateien.hochladen(file, { quelle: 'vorlage' });
+        const { error } = await supabase.from('onboarding_unterlagen').update({ datei_id: datei.id }).eq('id', unterlage.id);
+        pruefeFehler(error);
+        if (unterlage.datei) await api.dateien.loeschen(unterlage.datei);
+      },
+      loeschen: async (unterlage) => {
+        const { error } = await supabase.from('onboarding_unterlagen').delete().eq('id', unterlage.id);
+        pruefeFehler(error);
+        if (unterlage.datei) await api.dateien.loeschen(unterlage.datei);
+      },
+    },
+    holen: async (mandantId) => {
+      const { data, error } = await supabase.from('mandant_onboarding').select('*').eq('mandant_id', mandantId).maybeSingle();
+      pruefeFehler(error);
+      return data;
+    },
+    // Startet das Onboarding mit allen aktiven Unterlagen aus dem Katalog als Checkliste.
+    starten: async (mandantId, offerteId = null) => {
+      const katalog = (await api.onboarding.unterlagen.liste()).filter((u) => u.aktiv);
+      const { data, error } = await supabase.from('mandant_onboarding').insert({
+        mandant_id: mandantId, offerte_id: offerteId,
+        unterlagen: katalog.map((u) => ({ unterlageId: u.id, name: u.name, zurueck: u.zurueck, mitsenden: true, gesendetAm: null, erhaltenAm: null })),
+      }).select().single();
+      if (error?.message?.includes('mandant_onboarding_mandant_id_key')) throw new Error('Für diesen Mandanten läuft bereits ein Onboarding.');
+      pruefeFehler(error);
+      return data;
+    },
+    aktualisieren: async (id, patch) => {
+      const { data, error } = await supabase.from('mandant_onboarding').update(patch).eq('id', id).select().single();
+      pruefeFehler(error);
+      return data;
+    },
+    loeschen: async (id) => {
+      const { error } = await supabase.from('mandant_onboarding').delete().eq('id', id);
+      pruefeFehler(error);
+    },
+    // Onboarding-Mail mit den Vorlagen der gewaehlten Unterlagen (und weiteren Dateien) senden.
+    //   dateien: Vorlagen aus dem Speicher   zusatz: weitere Dateien vom PC (File-Objekte)
+    versenden: async (onboarding, { an, betreff, text, dateien, zusatz = [], unterlagenIds }) => {
+      if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
+      const anhaenge = [];
+      for (const d of dateien) anhaenge.push({ dateiname: d.dateiname, base64: await api.dateien.base64(d), typ: d.typ || 'application/octet-stream' });
+      for (const f of zusatz) anhaenge.push({ dateiname: f.name, base64: await blobZuBase64(f), typ: f.type || 'application/octet-stream' });
+      await sendMailAufrufen({ an: an.trim(), betreff, text, anhaenge });
+      const jetzt = new Date().toISOString();
+      const unterlagen = (onboarding.unterlagen ?? []).map((u) => (unterlagenIds.includes(u.unterlageId) ? { ...u, gesendetAm: jetzt } : u));
+      return api.onboarding.aktualisieren(onboarding.id, { unterlagen, mail_gesendet_am: jetzt, mail_an: an.trim() });
     },
   },
 
@@ -1021,8 +1173,19 @@ const api = {
       return data;
     },
     loeschen: async (id) => {
+      // Angehaengte Dateien (z.B. Mail-Anhaenge) auch aus dem Speicher entfernen -- die Zeilen
+      // in "dateien" loescht die Datenbank mit (on delete cascade).
+      await dateienDerPendenzEntfernen(id);
       const { error } = await supabase.from('pendenzen').delete().eq('id', id);
       pruefeFehler(error);
+    },
+    // Erledigte Auftraege eines Mandanten (Projekte bzw. einzelne Pendenzen, ohne Teilschritte).
+    erledigteVon: async (mandantId) => {
+      const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
+        .eq('mandant_id', mandantId).eq('status', 'Erledigt').is('uebergeordnete_pendenz_id', null)
+        .order('erledigt_am', { ascending: false, nullsFirst: false }).limit(200);
+      pruefeFehler(error);
+      return data;
     },
   },
 

@@ -26,10 +26,11 @@ const MODULE = [
     ],
   },
   {
-    id: 'kunden', nr: 20, name: 'Kundenstamm', symbol: '◉', beschreibung: 'Mandanten, Pauschalen, Detailrapporte für die Verrechnung',
+    id: 'kunden', nr: 20, name: 'Kundenstamm', symbol: '◉', beschreibung: 'Mandanten, Offerten pro Mandant, Onboarding, Detailrapporte',
     gruppen: [
       { nr: 1, name: 'Stammdaten', eintraege: [
         { nr: 11, pfad: '/mandanten', label: 'Mandanten' },
+        { nr: 12, pfad: '/onboarding-unterlagen', label: 'Onboarding-Unterlagen' },
       ] },
       { nr: 2, name: 'Verrechnung', eintraege: [
         { nr: 21, pfad: '/rapporte', label: 'Detailrapporte' },
