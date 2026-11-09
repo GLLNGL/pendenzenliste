@@ -9,6 +9,10 @@ import { useAuth } from '../AuthContext.jsx';
 import { heutigesDatumISO } from '../format.js';
 
 const WIEDERKEHR_SCHLUESSEL = 'wiederkehr-zuletzt-erzeugt';
+const NAV_SCHLUESSEL = 'seitenleiste-breite';
+const NAV_STANDARD = 208;
+const NAV_MIN = 180;
+const NAV_MAX = 520;
 
 
 function editierbaresElementFokussiert() {
@@ -24,6 +28,9 @@ export default function Layout() {
   const [mitarbeitende, setMitarbeitende] = useState([]);
   const [schnellErfassungOffen, setSchnellErfassungOffen] = useState(false);
   const [eingangAnzahl, setEingangAnzahl] = useState(0);
+  const [navBreite, setNavBreite] = useState(() => {
+    try { return Number(localStorage.getItem(NAV_SCHLUESSEL)) || NAV_STANDARD; } catch { return NAV_STANDARD; }
+  });
 
   const ladeMandanten = useCallback(() => {
     api.mandanten.liste().then(setMandanten).catch(() => {});
@@ -89,9 +96,46 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [schnellErfassungOffen]);
 
+  // Ziehgriff am rechten Rand der Seitenleiste: Breite per Maus aendern (gemerkt pro Geraet),
+  // Doppelklick stellt die Standardbreite wieder her.
+  function breiteZiehen(e) {
+    e.preventDefault();
+    const leiste = e.currentTarget.parentElement;
+    const rechteck = leiste.getBoundingClientRect();
+    // Verhaeltnis Bildschirm- zu CSS-Pixeln (die App ist per CSS-Zoom skaliert).
+    const faktor = rechteck.width / leiste.offsetWidth || 1;
+    let letzte = navBreite;
+    function bewegen(ev) {
+      letzte = Math.round(Math.min(NAV_MAX, Math.max(NAV_MIN, (ev.clientX - rechteck.left) / faktor)));
+      setNavBreite(letzte);
+    }
+    function loslassen() {
+      window.removeEventListener('pointermove', bewegen);
+      window.removeEventListener('pointerup', loslassen);
+      document.body.classList.remove('nav-zieht');
+      try { localStorage.setItem(NAV_SCHLUESSEL, String(letzte)); } catch { /* ohne Speicher weiter */ }
+    }
+    document.body.classList.add('nav-zieht');
+    window.addEventListener('pointermove', bewegen);
+    window.addEventListener('pointerup', loslassen);
+  }
+  function breiteZuruecksetzen() {
+    setNavBreite(NAV_STANDARD);
+    try { localStorage.removeItem(NAV_SCHLUESSEL); } catch { /* ohne Speicher weiter */ }
+  }
+
   return (
-    <div className="app-layout">
+    <div className="app-layout" style={{ '--nav-breite': `${navBreite}px` }}>
       <aside className="sidebar">
+        <div
+          className="sidebar-griff"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Breite der Seitenleiste ändern"
+          title="Ziehen: Breite ändern · Doppelklick: Standardbreite"
+          onPointerDown={breiteZiehen}
+          onDoubleClick={breiteZuruecksetzen}
+        />
         <ModulNavigation zaehler={{ '/eingang': eingangAnzahl }} />
         <div className="sidebar-fuss">
           <TimerLeiste />

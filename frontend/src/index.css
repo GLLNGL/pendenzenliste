@@ -89,7 +89,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .app-layout {
   display: grid;
-  grid-template-columns: 208px 1fr;
+  grid-template-columns: var(--nav-breite, 208px) 1fr;
   /* minmax(0, 1fr) statt des impliziten "auto" -- ohne das sizt die Grid-Zeile selbst nach dem
      Inhalt (max-content), auch wenn .hauptbereich bereits min-height:0 hat, und die ganze Seite
      waechst ueber 100vh hinaus statt dass NUR .hauptbereich intern scrollt. */
@@ -2601,3 +2601,10 @@ tr.inaktiv td { opacity: 0.55; }
 .spalte-auswahl { width: 52px; }
 .spalte-auswahl-text { display: block; font-size: var(--fs-label); }
 .zahlungslauf-hinweis { font-size: var(--fs-klein); color: var(--text-muted); margin-bottom: 8px; }
+
+/* Ziehgriff zwischen Seitenleiste und Inhalt */
+.sidebar { position: relative; min-width: 0; }
+.sidebar-griff { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none; }
+.sidebar-griff:hover, .nav-zieht .sidebar-griff { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
+.nav-zieht { cursor: col-resize; user-select: none; }
+@media (max-width: 640px) { .sidebar-griff { display: none; } }
