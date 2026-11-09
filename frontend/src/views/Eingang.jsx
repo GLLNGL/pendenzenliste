@@ -87,7 +87,7 @@ function TriageKnoepfe({ eintrag, onAblegen, onOeffnen, onLoeschen }) {
       <button type="button" className="btn-klein" title="In unter 2 Minuten erledigt – gleich jetzt machen und abhaken" onClick={(ev) => klick(ev, () => onAblegen(eintrag, 'sofort'))}>
         ✓ Sofort erledigt (&lt; 2 Min.)
       </button>
-      <button type="button" className="btn-klein" title="Wartet auf Dritte – Person und Nachfassdatum erfassen" onClick={(ev) => klick(ev, () => onOeffnen({ ...eintrag, status: 'Warten auf' }, false))}>
+      <button type="button" className="btn-klein" title="Wartet auf Dritte – Person und Nachfassdatum erfassen" onClick={(ev) => klick(ev, () => onOeffnen({ ...eintrag, status: 'Warten auf' }, false, true))}>
         Warten auf …
       </button>
       <button type="button" className="btn-klein" title="Mehrere Schritte – als Projekt mit Schritten einplanen" onClick={(ev) => klick(ev, () => onOeffnen(eintrag, true))}>
@@ -161,8 +161,8 @@ export default function Eingang() {
     }
   }
 
-  function oeffnen(pendenz, projektModus) {
-    setAktion({ pendenz, projektModus });
+  function oeffnen(pendenz, projektModus, detail = false) {
+    setAktion({ pendenz, projektModus, detail });
   }
 
   if (fehler) return <div className="fehleranzeige">Fehler: {fehler}</div>;
@@ -220,6 +220,7 @@ export default function Eingang() {
           key={aktion.pendenz.id}
           pendenz={aktion.pendenz}
           projektModus={aktion.projektModus}
+          detail={aktion.detail}
           mandanten={mandanten}
           mitarbeitende={mitarbeitende}
           onSchliessen={() => setAktion(null)}

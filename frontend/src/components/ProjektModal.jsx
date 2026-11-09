@@ -140,7 +140,7 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
     <div className="modal-hintergrund" onClick={onSchliessen}>
       <div className="modal modal-breit projekt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
-          <span>{pendenz ? `Projekt ${pendenz.id} bearbeiten` : 'Neues Projekt'}</span>
+          <span>{!pendenz ? 'Neues Projekt' : pendenz.geplant === false ? 'Aus dem Eingang einplanen' : `Projekt ${pendenz.id} bearbeiten`}</span>
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
         </div>
         <form onSubmit={speichern} noValidate>
@@ -266,7 +266,7 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn" onClick={onSchliessen}>Abbrechen</button>
-              <button type="submit" className="btn btn-primary" disabled={speichert}>{speichert ? 'Speichert…' : 'Speichern'}</button>
+              <button type="submit" className="btn btn-primary" disabled={speichert}>{speichert ? 'Speichert…' : pendenz?.geplant === false ? 'Einplanen' : 'Speichern'}</button>
             </div>
           </div>
         </form>

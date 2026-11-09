@@ -73,10 +73,13 @@ function mandantFuerSpeichern(wert) {
 // Weiche (v7): Neue Pendenzen und Projekte (oberste Ebene) oeffnen das Projekt-Fenster mit
 // Teilschritt-Zeilen; Teilschritte und Eingang-Notizen (Triage) das ausfuehrliche Fenster.
 export default function PendenzModal(props) {
-  const { pendenz, vorgabe, projektModus } = props;
-  const alsProjekt = pendenz
-    ? pendenz.uebergeordnete_pendenz_id == null && pendenz.geplant !== false
-    : !projektModus && !vorgabe?.uebergeordnetePendenzId;
+  // detail: ausdruecklich das ausfuehrliche Fenster (z.B. Triage «Warten auf …» mit Person und
+  // Nachfassdatum). Eingang-Eintraege (auch aus E-Mails, mit To-dos) werden im Projekt-Fenster
+  // eingeplant -- dort sind ihre Teilschritte sichtbar und planbar.
+  const { pendenz, vorgabe, detail } = props;
+  const alsProjekt = !detail && (pendenz
+    ? pendenz.uebergeordnete_pendenz_id == null
+    : !vorgabe?.uebergeordnetePendenzId);
   return alsProjekt ? <ProjektModal {...props} /> : <PendenzDetailModal {...props} />;
 }
 
