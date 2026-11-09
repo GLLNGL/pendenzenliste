@@ -26,8 +26,11 @@ const SCHEMA = {
     faelligkeit: { type: ['string', 'null'], description: 'YYYY-MM-DD; aus Zahlungsfrist berechnet, falls nur "30 Tage netto" o.ä. angegeben' },
     betrag: { type: ['number', 'null'], description: 'Total zu bezahlen inkl. MWST' },
     waehrung: { type: 'string', description: 'z.B. CHF oder EUR' },
+    partner_adresse: { type: ['string', 'null'], description: 'Adresse des Partners in einer Zeile: "Strasse Nr, PLZ Ort" (Land nur ausserhalb der Schweiz)' },
+    iban: { type: ['string', 'null'], description: 'IBAN bzw. QR-IBAN, auf die zu zahlen ist (Zahlteil "Konto / Zahlbar an"), ohne Leerzeichen' },
+    referenz: { type: ['string', 'null'], description: 'QR-Referenz (27 Ziffern) oder RF-Referenz aus dem Zahlteil, ohne Leerzeichen; sonst eine kurze Zahlungsmitteilung' },
   },
-  required: ['partner', 'rechnungsnummer', 'rechnungsdatum', 'faelligkeit', 'betrag', 'waehrung'],
+  required: ['partner', 'rechnungsnummer', 'rechnungsdatum', 'faelligkeit', 'betrag', 'waehrung', 'partner_adresse', 'iban', 'referenz'],
   additionalProperties: false,
 };
 
@@ -56,7 +59,7 @@ Deno.serve(async (req) => {
 
     const ki = await anthropic.beta.messages.create({
       model: 'claude-opus-5-5',
-      max_tokens: 1500,
+      max_tokens: 2000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },

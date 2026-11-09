@@ -1258,6 +1258,9 @@ create table if not exists public.belege (
   erstellt_am     timestamptz not null default now()
 );
 create index if not exists idx_belege_art_faelligkeit on public.belege (art, faelligkeit);
+alter table public.belege add column if not exists partner_adresse text;
+alter table public.belege add column if not exists iban text;
+alter table public.belege add column if not exists zahlungsreferenz text;
 
 alter table public.belege enable row level security;
 drop policy if exists team_voller_zugriff on public.belege;

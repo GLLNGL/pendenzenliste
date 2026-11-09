@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api.js';
 import FormularModal from '../components/FormularModal.jsx';
+import BelegAnsicht from '../components/BelegAnsicht.jsx';
 import { useAblageGrund, useMandanten } from '../hooks.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
@@ -108,11 +109,13 @@ export default function Belege({ art }) {
     const bestehend = aktuell.beleg ?? null;
     const a = aktuell.angaben ?? {};
     const start = bestehend ? {
-      partner: bestehend.partner, rechnungsnummer: bestehend.rechnungsnummer ?? '', rechnungsdatum: bestehend.rechnungsdatum ?? '',
+      partner: bestehend.partner, partnerAdresse: bestehend.partner_adresse ?? '', iban: bestehend.iban ?? '', zahlungsreferenz: bestehend.zahlungsreferenz ?? '',
+      rechnungsnummer: bestehend.rechnungsnummer ?? '', rechnungsdatum: bestehend.rechnungsdatum ?? '',
       faelligkeit: bestehend.faelligkeit ?? '', betrag: bestehend.betrag ?? '', waehrung: bestehend.waehrung ?? 'CHF',
       bezahltAm: bestehend.bezahlt_am ?? '', notiz: bestehend.notiz ?? '',
     } : {
-      partner: a.partner ?? '', rechnungsnummer: a.rechnungsnummer ?? '', rechnungsdatum: a.rechnungsdatum ?? '',
+      partner: a.partner ?? '', partnerAdresse: a.partner_adresse ?? '', iban: a.iban ?? '', zahlungsreferenz: a.referenz ?? '',
+      rechnungsnummer: a.rechnungsnummer ?? '', rechnungsdatum: a.rechnungsdatum ?? '',
       faelligkeit: a.faelligkeit ?? '', betrag: a.betrag ?? '', waehrung: a.waehrung || 'CHF', bezahltAm: '', notiz: '',
     };
     const file = aktuell.file ?? null;
@@ -121,13 +124,18 @@ export default function Belege({ art }) {
         titel={bestehend ? `${t.partner}-Beleg bearbeiten` : file ? `Beleg erfassen · ${file.name}` : `${t.partner}-Beleg von Hand erfassen`}
         startwerte={start}
         speichernText={file ? 'Speichern & ablegen' : 'Speichern'}
+        breit
+        seitenansicht={<BelegAnsicht file={file} pfad={bestehend?.ablage_pfad ?? null} />}
         felder={[
           { name: 'partner', label: t.partner, typ: 'text', pflicht: true },
+          { name: 'partnerAdresse', label: 'Adresse', typ: 'text', platzhalter: 'Strasse, PLZ Ort' },
           { name: 'rechnungsnummer', label: 'Rechnungsnummer', typ: 'text', halb: true },
           { name: 'rechnungsdatum', label: 'Rechnungsdatum', typ: 'datum', halb: true },
           { name: 'faelligkeit', label: 'Fällig am', typ: 'datum', halb: true },
           { name: 'betrag', label: 'Betrag inkl. MWST', typ: 'zahl', schritt: '0.05', halb: true },
           { name: 'waehrung', label: 'Währung', typ: 'text', halb: true },
+          { name: 'iban', label: art === 'kreditor' ? 'IBAN / QR-IBAN des Kreditors' : 'IBAN (Zahlungskonto)', typ: 'text', halb: true },
+          { name: 'zahlungsreferenz', label: 'Referenz / Mitteilung', typ: 'text', halb: true },
           { name: 'bezahltAm', label: 'Bezahlt am', typ: 'datum', halb: true },
           { name: 'notiz', label: 'Notiz', typ: 'textarea' },
         ]}

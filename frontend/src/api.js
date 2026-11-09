@@ -604,11 +604,17 @@ const api = {
         faelligkeit: d.faelligkeit || null, betrag: zahlOderNull(d.betrag), waehrung: (d.waehrung || 'CHF').trim().toUpperCase(),
         bezahlt_am: d.bezahltAm || null, notiz: textOderNull(d.notiz),
       };
+      // Zusatzangaben (v7, fuer den Zahlungslauf) -- nur wenn die Spalten existieren (SQL).
+      const zusatz = {};
+      if (d.partnerAdresse !== undefined) zusatz.partner_adresse = textOderNull(d.partnerAdresse);
+      if (d.iban !== undefined) zusatz.iban = textOderNull(String(d.iban ?? '').replace(/\s+/g, '').toUpperCase());
+      if (d.zahlungsreferenz !== undefined) zusatz.zahlungsreferenz = textOderNull(d.zahlungsreferenz);
       if (d.dateiname !== undefined) zeile.dateiname = d.dateiname || null;
       if (d.ablagePfad !== undefined) zeile.ablage_pfad = d.ablagePfad || null;
       if (!zeile.partner) throw new Error(zeile.art === 'debitor' ? 'Bitte den Debitor angeben.' : 'Bitte den Kreditor angeben.');
-      const q = id ? supabase.from('belege').update(zeile).eq('id', id) : supabase.from('belege').insert(zeile);
-      const { data, error } = await q.select().single();
+      const schreiben = (z) => (id ? supabase.from('belege').update(z).eq('id', id) : supabase.from('belege').insert(z)).select().single();
+      let { data, error } = await schreiben({ ...zeile, ...zusatz });
+      if (error && /partner_adresse|iban|zahlungsreferenz/.test(error.message)) ({ data, error } = await schreiben(zeile));
       pruefeFehler(error);
       return data;
     },
