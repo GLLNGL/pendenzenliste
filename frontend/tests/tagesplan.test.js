@@ -8,7 +8,7 @@ const p = (id, felder) => ({ id, titel: `P${id}`, status: 'Offen', prioritaet: '
 test('Heute, Morgen (nächster Arbeitstag) und Wochenziele', () => {
   const offene = [
     p(1, { bearbeitungstag: heute }),
-    p(2, { faelligkeit: '2026-11-02' }), // überfällig
+    p(2, { faelligkeit: '2026-11-02' }), // überfällig -> Spalte «Abgelaufen», nicht Heute
     p(3, { status: 'In Arbeit' }),
     p(4, { bearbeitungstag: '2026-11-09' }), // Montag = nächster Arbeitstag
     p(5, { faelligkeit: '2026-11-09', bearbeitungstag: '2026-11-20' }),
@@ -22,7 +22,7 @@ test('Heute, Morgen (nächster Arbeitstag) und Wochenziele', () => {
     p(11, { status: 'Erledigt', erledigt_am: '2026-11-04', wochenziel_woche: '2026-11-02' }),
   ];
   const t = tagesplan(offene, erledigte, { heute, ichId: 1 });
-  assert.deepEqual(t.heute.offen.map((x) => x.id).sort(), [1, 2, 3]);
+  assert.deepEqual(t.heute.offen.map((x) => x.id).sort(), [1, 3]);
   assert.deepEqual(t.heute.erledigt.map((x) => x.id), [10]);
   assert.equal(t.morgen.tag, '2026-11-09');
   assert.deepEqual(t.morgen.offen.map((x) => x.id).sort(), [4]); // 5 ist auf den 20.11. geplant

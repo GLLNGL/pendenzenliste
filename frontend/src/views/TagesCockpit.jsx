@@ -210,6 +210,12 @@ export default function TagesCockpit() {
   async function planen(p, tag) {
     try {
       // "Zu planen" heisst: jetzt nicht -- eine Pendenz in Arbeit geht dabei zurueck auf Offen.
+      // "Warten auf" erscheint am Nachfassdatum -- dieses verschieben.
+      if (p.status === 'Warten auf' && tag) {
+        await api.pendenzen.nachfassenAm(p.id, tag);
+        meldeAenderung();
+        return;
+      }
       const patch = { bearbeitungstag: tag };
       if (!tag && p.status === 'In Arbeit') patch.status = 'Offen';
       await api.pendenzen.aktualisieren(p.id, patch);
@@ -219,11 +225,18 @@ export default function TagesCockpit() {
     }
   }
 
-  // Bei ueberfaelliger Frist bliebe die Pendenz trotzdem in "Heute" -- dort kein "Zu planen".
-  const zuPlanenAktion = {
-    label: 'Zu planen', titel: 'Bearbeitungstag entfernen – in den Ordner «Zu planen»', ausfuehren: (p) => planen(p, null),
-    sichtbar: (p) => !(p.faelligkeit && p.faelligkeit <= heute),
-  };
+  // Verschieben in jeder Spalte: Heute, naechster Arbeitstag, Ordner "Zu planen" (ohne
+  // Bearbeitungstag). Der Knopf der eigenen Spalte entfaellt.
+  const tagVon = (p) => (p.status === 'Warten auf' ? p.wiedervorlage : p.bearbeitungstag);
+  const aktionen = (spalte) => [
+    { label: '→ Heute', titel: 'Heute bearbeiten', ausfuehren: (p) => planen(p, heute),
+      sichtbar: (p) => spalte !== 'heute' && tagVon(p) !== heute },
+    { label: `→ ${morgenName}`, titel: `Auf ${morgenName} verschieben`, ausfuehren: (p) => planen(p, plan.morgen.tag),
+      sichtbar: (p) => spalte !== 'morgen' && tagVon(p) !== plan.morgen.tag },
+    // "Warten auf" braucht ein Nachfassdatum -- dort kein "Zu planen".
+    { label: 'Zu planen', titel: 'Bearbeitungstag entfernen – in den Ordner «Zu planen»', ausfuehren: (p) => planen(p, null),
+      sichtbar: (p) => p.status !== 'Warten auf' && (!!p.bearbeitungstag || p.status === 'In Arbeit') },
+  ];
 
   return (
     <div className="tp-seite">
@@ -244,19 +257,19 @@ export default function TagesCockpit() {
           offen={abgelaufen}
           leerText="Nichts abgelaufen."
           heute={heute}
-          aktionen={[{ label: '→ Heute', titel: 'Heute bearbeiten', ausfuehren: (p) => planen(p, heute), sichtbar: (p) => p.bearbeitungstag !== heute }]}
+          aktionen={aktionen('abgelaufen')}
           onOeffnen={setAktivePendenz}
           onAbhaken={abhaken}
           klasse="tp-karte-abgelaufen"
         />
         <Karte
           titel="Heute"
-          untertitel={`${tagText(heute)} · geplant, fällig, in Arbeit`}
+          untertitel={`${tagText(heute)} · geplant, heute fällig, in Arbeit`}
           offen={plan.heute.offen}
           erledigtAnzahl={plan.heute.erledigt.length}
           leerText="Für heute ist nichts geplant."
           heute={heute}
-          aktionen={[{ label: `→ ${morgenName}`, titel: `Auf ${morgenName} verschieben`, ausfuehren: (p) => planen(p, plan.morgen.tag) }, zuPlanenAktion]}
+          aktionen={aktionen('heute')}
           onOeffnen={setAktivePendenz}
           onAbhaken={abhaken}
         />
@@ -266,7 +279,7 @@ export default function TagesCockpit() {
           offen={plan.morgen.offen}
           leerText={`Für ${morgenName === 'Morgen' ? 'morgen' : morgenName} ist noch nichts geplant.`}
           heute={heute}
-          aktionen={[{ label: '→ Heute', titel: 'Auf heute vorziehen', ausfuehren: (p) => planen(p, heute) }, zuPlanenAktion]}
+          aktionen={aktionen('morgen')}
           onOeffnen={setAktivePendenz}
           onAbhaken={abhaken}
         />
@@ -277,6 +290,7 @@ export default function TagesCockpit() {
           erledigt={plan.wochenziele.erledigt}
           leerText="Keine Wochenziele – im Wochenrückblick die 3–5 wichtigsten Ergebnisse festlegen."
           heute={heute}
+          aktionen={aktionen('wochenziele')}
           onOeffnen={setAktivePendenz}
           onAbhaken={abhaken}
         />

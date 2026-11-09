@@ -24,12 +24,13 @@ function meine(p, ichId) {
 
 // Gehoert eine offene Pendenz auf den Tag? Ein geplanter Bearbeitungstag hat Vorrang (wer etwas
 // auf Montag legt, sieht es erst Montag -- auch wenn es "In Arbeit" oder faellig ist). Ohne
-// Bearbeitungstag: "In Arbeit" und Frist bis heute (Ueberfaelliges eingeschlossen).
-// "Warten auf" erscheint am Nachfassdatum.
+// Bearbeitungstag: "In Arbeit" und Frist heute. "Warten auf" erscheint am Nachfassdatum.
+// Vergangenes (Frist, Bearbeitungstag, Nachfassdatum vor heute) steht in der Spalte
+// "Abgelaufen" (siehe abgelaufene()) -- nicht zusaetzlich hier.
 function istHeute(p, heute) {
-  if (p.status === 'Warten auf') return !!((p.wiedervorlage && p.wiedervorlage <= heute) || (!p.bearbeitungstag && p.faelligkeit && p.faelligkeit <= heute));
-  if (p.bearbeitungstag) return p.bearbeitungstag <= heute;
-  return p.status === 'In Arbeit' || !!(p.faelligkeit && p.faelligkeit <= heute);
+  if (p.status === 'Warten auf') return p.wiedervorlage === heute || (!p.wiedervorlage && !p.bearbeitungstag && p.faelligkeit === heute);
+  if (p.bearbeitungstag) return p.bearbeitungstag === heute || (p.status === 'In Arbeit' && p.bearbeitungstag < heute);
+  return p.status === 'In Arbeit' || p.faelligkeit === heute;
 }
 
 /**

@@ -1008,6 +1008,11 @@ const api = {
     },
     // Nachfassen (Etappe 5): nach einer Erinnerung das naechste Nachfassdatum setzen und im
     // Fortschritt vermerken, dass nachgefasst wurde. Status bleibt "Warten auf".
+    // Nachfassdatum verschieben (Cockpit: "Warten auf" auf heute/morgen legen).
+    nachfassenAm: async (id, datum) => {
+      const { error } = await supabase.from('pendenzen').update({ wiedervorlage: datum }).eq('id', id);
+      pruefeFehler(error);
+    },
     nachgefasst: async (id, neuesNachfassdatum, wie) => {
       const { error } = await supabase.from('pendenzen').update({ wiedervorlage: neuesNachfassdatum }).eq('id', id);
       pruefeFehler(error);
