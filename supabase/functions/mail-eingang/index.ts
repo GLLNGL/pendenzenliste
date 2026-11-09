@@ -38,7 +38,10 @@ const NOTBREMSE_MS = 120000;
 // --------------------------------------------------------------------------------------------
 // KI-Auswertung (Claude): Zusammenfassung und To-dos als strukturiertes JSON.
 // --------------------------------------------------------------------------------------------
-const anthropicSchluessel = Deno.env.get('ANTHROPIC_API_KEY');
+// Beim Kopieren geraten leicht unsichtbare Zeichen (Leerzeichen, Zeilenumbruch, geschuetztes
+// Leerzeichen, Anfuehrungszeichen) in den Schluessel -- HTTP-Header erlauben nur einfache
+// Zeichen, darum alles ausser sichtbarem ASCII entfernen.
+const anthropicSchluessel = (Deno.env.get('ANTHROPIC_API_KEY') ?? '').replace(/[^\x21-\x7E]/g, '').replace(/^["'«]+|["'»]+$/g, '');
 const anthropic = anthropicSchluessel ? new Anthropic({ apiKey: anthropicSchluessel }) : null;
 
 type Auswertung = {
