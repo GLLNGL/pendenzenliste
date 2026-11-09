@@ -79,6 +79,9 @@ const SYSTEM_AUSWERTUNG = `Du arbeitest für ein Schweizer Treuhandbüro (Buchha
 - frist: ein Datum nur, wenn die Mail eines nennt oder eindeutig vorgibt; sonst null.
 - prioritaet: A bei Dringlichkeit oder einer Frist in den nächsten 5 Arbeitstagen, C bei reiner Information, sonst B.`;
 
+// Letzter Grund, warum die KI-Auswertung nicht geklappt hat (wird in der Antwort gemeldet).
+let kiFehler: string | null = null;
+
 async function auswerten(eingabe: { betreff: string; von: string; datum: string; anhaenge: string[]; text: string; heute: string }): Promise<Auswertung | null> {
   if (!anthropic) return null;
   try {
@@ -104,13 +107,14 @@ async function auswerten(eingabe: { betreff: string; von: string; datum: string;
       }],
     // deno-lint-ignore no-explicit-any
     } as any, { timeout: 60000, maxRetries: 1 });
-    if (antwortKi.stop_reason === 'refusal' || antwortKi.stop_reason === 'max_tokens') return null;
+    if (antwortKi.stop_reason === 'refusal' || antwortKi.stop_reason === 'max_tokens') { kiFehler = `Antwort abgebrochen (${antwortKi.stop_reason})`; return null; }
     const block = antwortKi.content.find((b: { type: string }) => b.type === 'text') as { text: string } | undefined;
-    if (!block) return null;
+    if (!block) { kiFehler = 'Keine Textantwort erhalten'; return null; }
     const ergebnis = JSON.parse(block.text) as Auswertung;
     return ergebnis?.titel ? ergebnis : null;
   } catch (err) {
-    console.error('KI-Auswertung fehlgeschlagen:', err instanceof Error ? err.message : err);
+    kiFehler = err instanceof Error ? err.message : String(err);
+    console.error('KI-Auswertung fehlgeschlagen:', kiFehler);
     return null;
   }
 }
@@ -284,7 +288,7 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
       lock.release();
     }
     await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, ki: !!anthropic, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, ki: !!anthropic, kiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in
