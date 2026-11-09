@@ -51,7 +51,7 @@ const SCHEMA_BUCHUNGEN = {
         additionalProperties: false,
       },
     },
-    hinweis: { type: ['string', 'null'], description: 'Kurz, falls etwas unklar war (z.B. Seiten unleserlich)' },
+    hinweis: { type: ['string', 'null'], description: 'Nur wenn etwas die Zählung unsicher macht (z.B. Seiten unleserlich), ein kurzer Satz; sonst null. Keine Prüfung von Salden.' },
   },
   required: ['art', 'monate', 'hinweis'],
   additionalProperties: false,
