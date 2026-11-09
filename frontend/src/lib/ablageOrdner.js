@@ -91,8 +91,8 @@ async function ordnerAnlegen(ordnerTeile) {
 
 // Datei in <Grundordner>/<Mandantenordner>/<Unterordner> schreiben. Gibt den Ablagepfad
 // (relativ zum Grundordner) zurueck. Fehlende Unterordner werden angelegt.
-async function dateiAblegen(blob, dateiname, ordnerTeile) {
-  let grund = await grundOrdnerHolen();
+async function dateiAblegen(blob, dateiname, ordnerTeile, grundHandle = null) {
+  let grund = grundHandle ?? await grundOrdnerHolen();
   if (!grund) grund = await grundOrdnerWaehlen();
   if (!(await berechtigt(grund))) throw new Error('Kein Schreibrecht auf den Ablage-Ordner erteilt.');
   let ordner = grund;

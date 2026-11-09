@@ -559,6 +559,10 @@ const api = {
       if (error) throw new Error(error.message);
       return data.signedUrl;
     },
+    mandantSetzen: async (id, mandantId) => {
+      const { error } = await supabase.from('dateien').update({ mandant_id: mandantId }).eq('id', id);
+      pruefeFehler(error);
+    },
     abgelegt: async (id, ja = true) => {
       const { error } = await supabase.from('dateien').update({ abgelegt_am: ja ? new Date().toISOString() : null }).eq('id', id);
       pruefeFehler(error);
