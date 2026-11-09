@@ -100,7 +100,7 @@ function nachProjekt(zeilen) {
   return bloecke;
 }
 
-function Karte({ titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken }) {
+function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken }) {
   // Projekte sind im Cockpit aufgeklappt (Teilaufgaben abhaken); Klick aufs Projekt klappt zu.
   const [zu, setZu] = useState(() => new Set());
   const umschalten = (id) => setZu((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -109,7 +109,7 @@ function Karte({ titel, untertitel, offen, erledigt = [], erledigtAnzahl = null,
   const gesamt = offen.length + fertig;
   const anteil = gesamt ? fertig / gesamt : 0;
   return (
-    <section className="tp-karte">
+    <section className={`tp-karte ${klasse}`}>
       <header className="tp-karte-kopf">
         <div>
           <h2 className="tp-karte-titel">{titel}</h2>
@@ -237,22 +237,18 @@ export default function TagesCockpit() {
         </span>
       </div>
 
-      {abgelaufen.length > 0 && (
-        <div className="tp-abgelaufen">
-          <Karte
-            titel={`Abgelaufen (${abgelaufen.length})`}
-            untertitel="Frist, Bearbeitungstag oder Nachfassdatum vorbei – auch wenn auf später verschoben. Pro Mandant, älteste zuerst."
-            offen={abgelaufen}
-            leerText=""
-            heute={heute}
-            aktionen={[{ label: '→ Heute', titel: 'Heute bearbeiten', ausfuehren: (p) => planen(p, heute), sichtbar: (p) => p.bearbeitungstag !== heute }]}
-            onOeffnen={setAktivePendenz}
-            onAbhaken={abhaken}
-          />
-        </div>
-      )}
-
       <div className="tp-karten">
+        <Karte
+          titel="Abgelaufen"
+          untertitel="Frist, Bearbeitungstag oder Nachfassdatum vorbei"
+          offen={abgelaufen}
+          leerText="Nichts abgelaufen."
+          heute={heute}
+          aktionen={[{ label: '→ Heute', titel: 'Heute bearbeiten', ausfuehren: (p) => planen(p, heute), sichtbar: (p) => p.bearbeitungstag !== heute }]}
+          onOeffnen={setAktivePendenz}
+          onAbhaken={abhaken}
+          klasse="tp-karte-abgelaufen"
+        />
         <Karte
           titel="Heute"
           untertitel={`${tagText(heute)} · geplant, fällig, in Arbeit`}

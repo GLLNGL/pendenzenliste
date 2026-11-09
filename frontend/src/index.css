@@ -2350,8 +2350,9 @@ button.tagesliste-projektzeile, .tagesliste-eintrag.projekt { padding-top: 9px; 
 .tp-kopf-links { margin-left: auto; display: flex; gap: 18px; font-size: var(--fs-text); }
 .tp-kopf-links a { color: var(--text); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .tp-kopf-links a:hover { border-color: var(--text-muted); }
-.tp-karten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
-@media (max-width: 1100px) { .tp-karten { grid-template-columns: 1fr; } }
+.tp-karten { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 1300px) { .tp-karten { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .tp-karten { grid-template-columns: 1fr; } }
 .tp-karte { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .tp-karte-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
 .tp-karte-titel { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
@@ -2537,7 +2538,5 @@ tr.inaktiv td { opacity: 0.55; }
 .feld-mit-knopf { display: flex; gap: 8px; align-items: center; }
 .feld-mit-knopf input { flex: 1 1 auto; min-width: 0; }
 .feld-mit-knopf .btn { flex-shrink: 0; }
-.tp-abgelaufen { margin-bottom: 18px; }
-.tp-abgelaufen .tp-karte { border-color: var(--danger); border-top-width: 3px; }
-.tp-abgelaufen .tp-karte-titel { color: var(--danger); }
-.tp-abgelaufen .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; }
+.tp-karte.tp-karte-abgelaufen { border-color: var(--danger); border-top-width: 3px; }
+.tp-karte-abgelaufen .tp-karte-titel { color: var(--danger); }
