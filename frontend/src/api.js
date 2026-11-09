@@ -624,7 +624,7 @@ const api = {
     auslesen: async (file, art, firma) => {
       if (file.size > 10 * 1024 * 1024) throw new Error('Datei grösser als 10 MB – bitte die Angaben von Hand erfassen.');
       const base64 = await blobZuBase64(file);
-      const { data, error } = await supabase.functions.invoke('beleg-lesen', {
+      const { data, error } = await supabase.functions.invoke('rapid-handler', { // Funktion "beleg-lesen" (echter Pfad im Dashboard: rapid-handler)
         body: { art, dateiname: file.name, typ: file.type, base64, firma },
       });
       if (error) {
@@ -632,7 +632,7 @@ const api = {
           const koerper = await fehlerKoerperLesen(error);
           throw new Error(koerper?.fehler || error.message);
         }
-        if (/Failed to send/i.test(error.message)) throw new Error('Funktion «beleg-lesen» nicht erreichbar (noch nicht deployt?).');
+        if (/Failed to send/i.test(error.message)) throw new Error('Funktion «beleg-lesen» (rapid-handler) nicht erreichbar.');
         throw new Error(error.message);
       }
       return data?.angaben ?? null;
