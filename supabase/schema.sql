@@ -1167,6 +1167,9 @@ create table if not exists public.dateien (
   abgelegt_am   timestamptz,
   erstellt_am   timestamptz not null default now()
 );
+-- Abgelegte Dateien: aus dem Speicher entfernt, Zeile bleibt als Nachweis (Datum, Ablageort).
+alter table public.dateien add column if not exists abgelegt_in text;
+alter table public.dateien alter column speicherpfad drop not null;
 create index if not exists idx_dateien_pendenz on public.dateien (pendenz_id);
 create index if not exists idx_dateien_mandant on public.dateien (mandant_id);
 

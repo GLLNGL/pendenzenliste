@@ -64,6 +64,7 @@ function blobZuBase64(blob) {
 }
 
 async function dateiBlob(datei) {
+  if (!datei.speicherpfad) throw new Error(`«${datei.dateiname}» ist bereits abgelegt und nicht mehr in der App gespeichert.`);
   const { data, error } = await supabase.storage.from(BUCKET).download(datei.speicherpfad);
   if (error) throw new Error(`«${datei.dateiname}» konnte nicht geladen werden: ${error.message}`);
   return data;
@@ -75,7 +76,8 @@ async function dateienDerPendenzEntfernen(pendenzId) {
   const ids = [pendenzId, ...(kinder ?? []).map((k) => k.id)];
   const { data, error } = await supabase.from('dateien').select('speicherpfad').in('pendenz_id', ids);
   if (error || !data?.length) return;
-  await supabase.storage.from(BUCKET).remove(data.map((d) => d.speicherpfad));
+  const pfade = data.map((d) => d.speicherpfad).filter(Boolean);
+  if (pfade.length) await supabase.storage.from(BUCKET).remove(pfade);
 }
 
 // Verletzte Datenbank-Regeln (Check-Constraints in supabase/schema.sql) als verstaendliche
@@ -563,12 +565,23 @@ const api = {
       const { error } = await supabase.from('dateien').update({ mandant_id: mandantId }).eq('id', id);
       pruefeFehler(error);
     },
-    abgelegt: async (id, ja = true) => {
-      const { error } = await supabase.from('dateien').update({ abgelegt_am: ja ? new Date().toISOString() : null }).eq('id', id);
+    // Abgelegt: Datum und Ablageort merken. Liegt die Datei sicher im OneDrive-Ordner
+    // (entfernen = true), wird sie aus dem Speicher der App geloescht -- die Zeile bleibt als
+    // Nachweis. Fehlt die Spalte abgelegt_in noch (SQL nicht ausgefuehrt), bleibt die Datei.
+    abgelegt: async (datei, { ziel = null, entfernen = false } = {}) => {
+      const jetzt = new Date().toISOString();
+      const { error } = await supabase.from('dateien')
+        .update({ abgelegt_am: jetzt, abgelegt_in: ziel, ...(entfernen ? { speicherpfad: null } : {}) }).eq('id', datei.id);
+      if (error && /abgelegt_in|speicherpfad/.test(error.message)) {
+        const { error: fehler2 } = await supabase.from('dateien').update({ abgelegt_am: jetzt }).eq('id', datei.id);
+        pruefeFehler(fehler2);
+        return;
+      }
       pruefeFehler(error);
+      if (entfernen && datei.speicherpfad) await supabase.storage.from(BUCKET).remove([datei.speicherpfad]);
     },
     loeschen: async (datei) => {
-      await supabase.storage.from(BUCKET).remove([datei.speicherpfad]);
+      if (datei.speicherpfad) await supabase.storage.from(BUCKET).remove([datei.speicherpfad]);
       const { error } = await supabase.from('dateien').delete().eq('id', datei.id);
       pruefeFehler(error);
     },

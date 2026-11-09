@@ -2540,3 +2540,5 @@ tr.inaktiv td { opacity: 0.55; }
 .feld-mit-knopf .btn { flex-shrink: 0; }
 .tp-karte.tp-karte-abgelaufen { border-color: var(--danger); border-top-width: 3px; }
 .tp-karte-abgelaufen .tp-karte-titel { color: var(--danger); }
+.dateien-zeile-abgelegt .dateien-name { color: var(--text-muted); }
+.dateien-ort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

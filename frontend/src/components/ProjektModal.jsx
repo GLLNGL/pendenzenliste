@@ -147,8 +147,8 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
             if (d.mandant_id !== mandantId) await api.dateien.mandantSetzen(d.id, mandantId);
             if (!erlaubt) continue;
             const unter = d.quelle === 'mail' ? segmente(grund.unterordnerMail) : [];
-            await dateiAblegen(await api.dateien.blob(d), d.dateiname, [...ablage.ordner, ...unter], grundHandle);
-            await api.dateien.abgelegt(d.id, true);
+            const ziel = await dateiAblegen(await api.dateien.blob(d), d.dateiname, [...ablage.ordner, ...unter], grundHandle);
+            await api.dateien.abgelegt(d, { ziel, entfernen: true });
           } catch (err) {
             fehlgeschlagen.push(`${d.dateiname}: ${err.message}`);
           }

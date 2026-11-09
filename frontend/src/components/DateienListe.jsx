@@ -55,12 +55,14 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
       if (direkt) {
         const unter = d.quelle === 'mail' ? segmente(grund.unterordnerMail) : [];
         const ziel = await dateiAblegen(blob, d.dateiname, [...ordner, ...unter]);
+        // Liegt sicher im OneDrive-Ordner -> aus dem Speicher der App entfernen.
+        await api.dateien.abgelegt(d, { ziel, entfernen: true });
         setMeldung(`Abgelegt: ${ziel}`);
       } else {
         herunterladen(blob, d.dateiname);
-        setMeldung(`«${d.dateiname}» heruntergeladen – bitte in die Ablage des Mandanten verschieben.`);
+        await api.dateien.abgelegt(d);
+        setMeldung(`«${d.dateiname}» heruntergeladen – bitte in die Ablage des Mandanten verschieben. Danach mit × aus der App entfernen.`);
       }
-      await api.dateien.abgelegt(d.id, true);
       laden();
     } catch (err) {
       if (err?.name !== 'AbortError') setFehler(err.message);
@@ -70,7 +72,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   }
 
   async function loeschen(d) {
-    if (!window.confirm(`«${d.dateiname}» aus der App löschen? (Bereits abgelegte Kopien bleiben in OneDrive.)`)) return;
+    if (!window.confirm(d.speicherpfad ? `«${d.dateiname}» aus der App löschen? (Bereits abgelegte Kopien bleiben in OneDrive.)` : `Eintrag «${d.dateiname}» entfernen? Die Datei in OneDrive bleibt.`)) return;
     try { await api.dateien.loeschen(d); laden(); } catch (err) { setFehler(err.message); }
   }
 
@@ -104,7 +106,16 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
         )}
       </div>
       {dateien.length === 0 && <div className="dateien-leer">Keine Dateien.</div>}
-      {dateien.map((d) => (
+      {dateien.map((d) => (d.abgelegt_am && !d.speicherpfad ? (
+        <div key={d.id} className="dateien-zeile dateien-zeile-abgelegt">
+          <span className="dateien-name" title={d.abgelegt_in || ''}>{d.dateiname}</span>
+          <span className="dateien-abgelegt">✓ abgelegt am {new Date(d.abgelegt_am).toLocaleDateString('de-CH')}</span>
+          {d.abgelegt_in && <span className="dateien-info dateien-ort">{d.abgelegt_in.split('\\').slice(0, -1).join('\\')}</span>}
+          <span className="dateien-aktionen">
+            <button type="button" className="btn-klein btn-gefahr-text" onClick={() => loeschen(d)} title="Eintrag entfernen (die Datei in OneDrive bleibt)">×</button>
+          </span>
+        </div>
+      ) : (
         <div key={d.id} className="dateien-zeile">
           <button type="button" className="link-knopf dateien-name" onClick={() => oeffnen(d)} title="Öffnen">{d.dateiname}</button>
           <span className="dateien-info">{groesseText(d.groesse)}</span>
@@ -116,7 +127,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
             <button type="button" className="btn-klein btn-gefahr-text" onClick={() => loeschen(d)} title="Aus der App löschen">×</button>
           </span>
         </div>
-      ))}
+      )))}
       {meldung && <div className="hinweis-erfolg">{meldung}</div>}
       {fehler && <div className="hinweis-fehler">{fehler}</div>}
     </div>
