@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import api from '../api.js';
 import { chf } from '../lib/offerte.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
-import { zahlungPruefen, pain001, ibanGueltig, kompakt } from '../lib/pain001.js';
+import { zahlungPruefen, zahlungHinweise, pain001, ibanGueltig, kompakt } from '../lib/pain001.js';
 import { herunterladen } from '../lib/ablageOrdner.js';
 
-// Naechster Bankwerktag (Sa/So -> Montag).
+// Naechster Bankwerktag ab einem Datum (Sa/So -> Montag).
 function bankwerktag(iso) {
   const [j, m, d] = iso.split('-').map(Number);
   const datum = new Date(Date.UTC(j, m - 1, d));
@@ -13,6 +13,11 @@ function bankwerktag(iso) {
   if (tag === 6) datum.setUTCDate(datum.getUTCDate() + 2);
   if (tag === 0) datum.setUTCDate(datum.getUTCDate() + 1);
   return datum.toISOString().slice(0, 10);
+}
+
+function morgen(iso) {
+  const [j, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(j, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 function zeitstempel() {
@@ -28,7 +33,8 @@ function zeitstempel() {
 // pain.001-Datei herunterladen und den Lauf speichern.
 export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) {
   const [konto, setKonto] = useState(null);
-  const [datum, setDatum] = useState(() => bankwerktag(heutigesDatumISO()));
+  // Valuta: immer der naechste Bankwerktag nach heute (Fr -> Mo).
+  const [datum, setDatum] = useState(() => bankwerktag(morgen(heutigesDatumISO())));
   const [fehler, setFehler] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(false);
 
@@ -45,7 +51,7 @@ export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) 
   }, [onSchliessen]);
 
   if (!konto) return null;
-  const pruefungen = belege.map((b) => ({ b, fehler: zahlungPruefen(b) }));
+  const pruefungen = belege.map((b) => ({ b, fehler: zahlungPruefen(b), hinweise: zahlungHinweise(b) }));
   const fehlerhaft = pruefungen.filter((p) => p.fehler.length);
   const summe = belege.filter((b) => (b.waehrung || 'CHF') === 'CHF').reduce((s, b) => s + Number(b.betrag || 0), 0);
   const kontoFehler = !konto.auftraggeber.trim() ? 'Auftraggeber fehlt' : !ibanGueltig(konto.iban) ? 'IBAN des Belastungskontos fehlt oder ist ungültig' : null;
@@ -81,12 +87,12 @@ export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) 
           <table className="tabelle zahlungslauf-tabelle">
             <thead><tr><th>Kreditor</th><th>Fällig</th><th className="zahl">Betrag</th><th>Prüfung</th></tr></thead>
             <tbody>
-              {pruefungen.map(({ b, fehler: f }) => (
+              {pruefungen.map(({ b, fehler: f, hinweise: h }) => (
                 <tr key={b.id}>
                   <td><strong>{b.partner}</strong>{b.rechnungsnummer ? <span className="text-gedaempft"> · {b.rechnungsnummer}</span> : null}</td>
                   <td>{b.faelligkeit ? formatiereDatum(b.faelligkeit) : '–'}</td>
                   <td className="zahl">{(b.waehrung || 'CHF') !== 'CHF' ? `${b.waehrung} ` : ''}{chf(b.betrag)}</td>
-                  <td>{f.length ? <span className="text-ueberfaellig">{f.join(' · ')}</span> : <span className="beleg-status beleg-status-bezahlt">bereit</span>}</td>
+                  <td>{f.length ? <span className="text-ueberfaellig">{f.join(' · ')}</span> : <><span className="beleg-status beleg-status-bezahlt">bereit</span>{h.length > 0 && <span className="text-gedaempft"> · {h.join(' · ')}</span>}</>}</td>
                 </tr>
               ))}
             </tbody>
@@ -94,7 +100,7 @@ export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) 
           </table>
           {fehlerhaft.length > 0 && (
             <div className="hinweis-fehler">
-              {fehlerhaft.length} Beleg(e) unvollständig – im Beleg ergänzen (Adresse, IBAN, Referenz) oder aus der Auswahl nehmen.
+              {fehlerhaft.length} Beleg(e) unvollständig – im Beleg ergänzen (IBAN, Referenz, Betrag) oder aus der Auswahl nehmen.
             </div>
           )}
 
@@ -114,7 +120,7 @@ export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) 
             </div>
           </div>
           <div className="feld">
-            <label htmlFor="zl-datum">Ausführungsdatum</label>
+            <label htmlFor="zl-datum">Ausführungsdatum (Valuta)</label>
             <input id="zl-datum" type="date" value={datum} onChange={(e) => setDatum(e.target.value)} />
           </div>
           <p className="feld-hinweis">

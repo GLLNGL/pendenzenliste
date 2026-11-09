@@ -270,6 +270,9 @@ export default function Belege({ art }) {
         </span>
       </div>
 
+      {zahlbar && auswahl.size === 0 && (belege ?? []).some((b) => !b.bezahlt_am && !b.zahlungslauf_id) && (
+        <div className="zahlungslauf-hinweis">Zahlungslauf: links in der Spalte «Zahlen» die Rechnungen ankreuzen, die bezahlt werden sollen.</div>
+      )}
       {zahlbar && auswahl.size > 0 && (() => {
         const gewaehlt = (belege ?? []).filter((b) => auswahl.has(b.id));
         const summe = gewaehlt.filter((b) => (b.waehrung || 'CHF') === 'CHF').reduce((x, b) => x + Number(b.betrag || 0), 0);
@@ -287,7 +290,8 @@ export default function Belege({ art }) {
           <thead>
             <tr>
               {zahlbar && (
-                <th className="spalte-auswahl">
+                <th className="spalte-auswahl" title="Für den Zahlungslauf ankreuzen">
+                  <span className="spalte-auswahl-text">Zahlen</span>
                   <input
                     type="checkbox"
                     aria-label="Alle offenen auswählen"

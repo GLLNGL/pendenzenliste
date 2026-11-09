@@ -93,12 +93,17 @@ function zahlungPruefen(b) {
   else if (!['CH', 'LI'].includes(iban.slice(0, 2))) fehler.push('Auslandzahlung – bitte im E-Banking von Hand erfassen');
   if (!(Number(b.betrag) > 0)) fehler.push('Betrag fehlt');
   if (!['CHF', 'EUR'].includes((b.waehrung || 'CHF').toUpperCase())) fehler.push('nur CHF oder EUR');
-  if (!adresseZerlegen(b.partner_adresse)) fehler.push('Adresse fehlt oder unvollständig (PLZ Ort)');
+  // Die Adresse ist bei Inlandzahlungen freiwillig (nur Hinweis, siehe zahlungHinweise).
   if (iban && ibanGueltig(iban)) {
     const r = referenzArt(iban, b.zahlungsreferenz);
     if (r.fehler) fehler.push(r.fehler);
   }
   return fehler;
+}
+
+// Hinweise, die eine Zahlung nicht verhindern.
+function zahlungHinweise(b) {
+  return adresseZerlegen(b.partner_adresse) ? [] : ['ohne Adresse'];
 }
 
 function xml(text) {
@@ -157,7 +162,7 @@ function pain001(auftrag, belege) {
         '<CdtTrfTxInf>',
         `<PmtId><InstrId>${id}</InstrId><EndToEndId>${id}</EndToEndId></PmtId>`,
         `<Amt><InstdAmt Ccy="${waehrung}">${betragText(b.betrag)}</InstdAmt></Amt>`,
-        `<Cdtr><Nm>${xml(sauber(b.partner, 70))}</Nm>${adresseXml(adresseZerlegen(b.partner_adresse))}</Cdtr>`,
+        `<Cdtr><Nm>${xml(sauber(b.partner, 70))}</Nm>${adresseZerlegen(b.partner_adresse) ? adresseXml(adresseZerlegen(b.partner_adresse)) : ''}</Cdtr>`,
         `<CdtrAcct><Id><IBAN>${iban}</IBAN></Id></CdtrAcct>`,
         rmt,
         '</CdtTrfTxInf>',
@@ -194,4 +199,4 @@ function pain001(auftrag, belege) {
   ].join('\n');
 }
 
-export { ibanGueltig, istQrIban, qrReferenzGueltig, scorGueltig, adresseZerlegen, referenzArt, zahlungPruefen, pain001, kompakt };
+export { ibanGueltig, istQrIban, qrReferenzGueltig, scorGueltig, adresseZerlegen, referenzArt, zahlungPruefen, zahlungHinweise, pain001, kompakt };

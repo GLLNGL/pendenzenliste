@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ibanGueltig, istQrIban, qrReferenzGueltig, scorGueltig, adresseZerlegen, referenzArt, zahlungPruefen, pain001,
+  ibanGueltig, istQrIban, qrReferenzGueltig, scorGueltig, adresseZerlegen, referenzArt, zahlungPruefen, zahlungHinweise, pain001,
 } from '../src/lib/pain001.js';
 
 // Beispielwerte aus den Implementation Guidelines der QR-Rechnung (SIX).
@@ -39,7 +39,8 @@ test('Referenzart und Prüfung einer Zahlung', () => {
   assert.deepEqual(referenzArt(IBAN, 'Rechnung 12'), { typ: 'NON', mitteilung: 'Rechnung 12' });
   const gut = { iban: QR_IBAN, zahlungsreferenz: QR_REF, betrag: 540.5, waehrung: 'CHF', partner_adresse: 'Bahnhofstrasse 1, 8001 Zürich' };
   assert.deepEqual(zahlungPruefen(gut), []);
-  assert.deepEqual(zahlungPruefen({ ...gut, iban: '', partner_adresse: '' }), ['IBAN fehlt', 'Adresse fehlt oder unvollständig (PLZ Ort)']);
+  assert.deepEqual(zahlungPruefen({ ...gut, iban: '', partner_adresse: '' }), ['IBAN fehlt']);
+  assert.deepEqual(zahlungHinweise({ ...gut, partner_adresse: '' }), ['ohne Adresse']);
   assert.ok(zahlungPruefen({ ...gut, iban: 'DE89370400440532013000' }).some((f) => f.startsWith('Auslandzahlung')));
 });
 
@@ -48,7 +49,7 @@ test('pain.001 erzeugen', () => {
     { msgId: 'AM-20261111100000', erstelltAm: '2026-11-11T10:00:00', ausfuehrungsdatum: '2026-11-13', auftraggeber: 'estcontrolling GmbH', iban: IBAN, bic: 'UBSWCHZH80A' },
     [
       { id: 7, partner: 'Muster & Söhne AG', partner_adresse: 'Bahnhofstrasse 1, 8001 Zürich', iban: QR_IBAN, zahlungsreferenz: QR_REF, betrag: 540.5, waehrung: 'CHF' },
-      { id: 8, partner: 'Lieferant GmbH', partner_adresse: 'Weg 2, 5430 Wettingen', iban: IBAN, zahlungsreferenz: '', rechnungsnummer: 'R-9', betrag: '100', waehrung: 'CHF' },
+      { id: 8, partner: 'Lieferant GmbH', partner_adresse: '', iban: IBAN, zahlungsreferenz: '', rechnungsnummer: 'R-9', betrag: '100', waehrung: 'CHF' },
       { id: 9, partner: 'Euro AG', partner_adresse: 'Weg 3, 9490 Vaduz, LI', iban: IBAN, zahlungsreferenz: 'RF18539007547034', betrag: 50, waehrung: 'EUR' },
     ],
   );
@@ -59,6 +60,7 @@ test('pain.001 erzeugen', () => {
   assert.match(datei, /<Prtry>QRR<\/Prtry><\/CdOrPrtry><\/Tp><Ref>210000000003139471430009017<\/Ref>/);
   assert.match(datei, /<Cd>SCOR<\/Cd>/);
   assert.match(datei, /<Ustrd>Rechnung R-9<\/Ustrd>/);
+  assert.match(datei, /<Cdtr><Nm>Lieferant GmbH<\/Nm><\/Cdtr>/); // ohne Adresse
   assert.match(datei, /<Nm>Muster &amp; Söhne AG<\/Nm>/);
   assert.match(datei, /<InstdAmt Ccy="EUR">50.00<\/InstdAmt>/);
   assert.match(datei, /<ReqdExctnDt><Dt>2026-11-13<\/Dt><\/ReqdExctnDt>/);

@@ -2598,3 +2598,6 @@ tr.inaktiv td { opacity: 0.55; }
 .zahlungslauf-tabelle tfoot td { border-top: 2px solid var(--border); }
 .beleg-ansicht-rahmen { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
 .beleg-nachlesen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--warning-bg); font-size: var(--fs-klein); }
+.spalte-auswahl { width: 52px; }
+.spalte-auswahl-text { display: block; font-size: var(--fs-label); }
+.zahlungslauf-hinweis { font-size: var(--fs-klein); color: var(--text-muted); margin-bottom: 8px; }
