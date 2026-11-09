@@ -71,13 +71,16 @@ function Schnellerfassung({ onErfasst }) {
 // dieser Reihenfolge. "Keine Aktion" und "Sofort erledigt" legen die Notiz als erledigt ab (mit
 // begruendender Fortschrittsnotiz, nichts wird geloescht); die anderen oeffnen das
 // Bearbeiten-Fenster passend vorbereitet.
-function TriageKnoepfe({ eintrag, onAblegen, onOeffnen }) {
+function TriageKnoepfe({ eintrag, onAblegen, onOeffnen, onLoeschen }) {
   function klick(ev, aktion) {
     ev.stopPropagation();
     aktion();
   }
   return (
     <div className="triage-knoepfe">
+      <button type="button" className="btn-klein btn-gefahr" title="Gar nicht behalten – endgültig löschen (z.B. Werbung, Irrläufer)" onClick={(ev) => klick(ev, () => onLoeschen(eintrag))}>
+        Löschen
+      </button>
       <button type="button" className="btn-klein" title="Keine Aktion nötig – als erledigt ablegen" onClick={(ev) => klick(ev, () => onAblegen(eintrag, 'keine'))}>
         Keine Aktion
       </button>
@@ -143,6 +146,21 @@ export default function Eingang() {
     }
   }
 
+  // Endgueltig loeschen (mit Rueckfrage) -- fuer Eintraege, die gar nicht behalten werden sollen.
+  // Teilschritte (To-dos) werden mitgeloescht.
+  async function loeschen(eintrag) {
+    const schritte = schritteVon(eintrag.id).length;
+    const zusatz = schritte ? ` samt ${schritte} To-do${schritte === 1 ? '' : 's'}` : '';
+    if (!window.confirm(`«${eintrag.titel}»${zusatz} endgültig löschen? Das lässt sich nicht rückgängig machen.`)) return;
+    try {
+      await api.pendenzen.loeschen(eintrag.id);
+      meldeAenderung();
+      laden();
+    } catch (err) {
+      setFehler(err.message);
+    }
+  }
+
   function oeffnen(pendenz, projektModus) {
     setAktion({ pendenz, projektModus });
   }
@@ -192,7 +210,7 @@ export default function Eingang() {
                 </ul>
               </div>
             )}
-            <TriageKnoepfe eintrag={e} onAblegen={ablegen} onOeffnen={oeffnen} />
+            <TriageKnoepfe eintrag={e} onAblegen={ablegen} onOeffnen={oeffnen} onLoeschen={loeschen} />
           </div>
         ))}
       </div>
