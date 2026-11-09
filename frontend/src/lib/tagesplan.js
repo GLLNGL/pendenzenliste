@@ -67,6 +67,38 @@ function tagesplan(offene, erledigte, { heute, ichId = null }) {
   };
 }
 
+// Warum eine offene Pendenz abgelaufen ist (aeltestes Datum zuerst geprueft) -- oder null.
+//   { art: 'frist' | 'geplant' | 'nachfassen', datum }
+function abgelaufenGrund(p, heute) {
+  if (p.faelligkeit && p.faelligkeit < heute) return { art: 'frist', datum: p.faelligkeit };
+  if (p.status === 'Warten auf' && p.wiedervorlage && p.wiedervorlage < heute) return { art: 'nachfassen', datum: p.wiedervorlage };
+  if (p.status !== 'Warten auf' && p.bearbeitungstag && p.bearbeitungstag < heute) return { art: 'geplant', datum: p.bearbeitungstag };
+  return null;
+}
+
+// Abgelaufene Aufgaben: Frist, Bearbeitungstag oder Nachfassdatum liegt vor heute -- auch wenn
+// die Aufgabe auf einen spaeteren Tag verschoben wurde (damit nichts vergessen geht). Bei einem
+// abgelaufenen Projekt erscheinen seine offenen Teilaufgaben. Aelteste zuerst.
+function abgelaufene(offene, { heute, ichId = null }) {
+  const koepfe = new Map(offene
+    .filter((p) => p.teilaufgaben_gesamt > 0 && p.status !== 'Erledigt' && p.geplant !== false && meine(p, ichId))
+    .map((k) => [k.id, abgelaufenGrund(k, heute)])
+    .filter(([, g]) => g));
+  const liste = [];
+  for (const p of offene) {
+    if (p.status === 'Erledigt' || !istArbeit(p) || !meine(p, ichId)) continue;
+    const grund = abgelaufenGrund(p, heute) ?? koepfe.get(p.uebergeordnete_pendenz_id) ?? null;
+    if (grund) liste.push({ ...p, abgelaufen: grund });
+  }
+  return liste.sort((a, b) => a.abgelaufen.datum.localeCompare(b.abgelaufen.datum) || sortierung(a, b));
+}
+
+// Tage zwischen zwei ISO-Daten (b - a).
+function tageZwischen(a, b) {
+  const t = (iso) => { const [j, m, d] = iso.split('-').map(Number); return Date.UTC(j, m - 1, d); };
+  return Math.round((t(b) - t(a)) / 86400000);
+}
+
 // Ordner "Zu planen": offene Pendenzen (Offen/Spaeter) ohne Bearbeitungstag -- egal ob mit
 // oder ohne Frist. Projekt-Koepfe nicht (ihre Teilaufgaben erscheinen darunter).
 function zuPlanen(offene) {
@@ -86,4 +118,4 @@ function morgenTitel(heute, tag) {
   return WOCHENTAGE[new Date(Date.UTC(j2, m2 - 1, t2)).getUTCDay()];
 }
 
-export { tagesplan, zuPlanen, morgenTitel, istHeute };
+export { tagesplan, zuPlanen, morgenTitel, istHeute, abgelaufene, abgelaufenGrund, tageZwischen };

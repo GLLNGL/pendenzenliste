@@ -2537,3 +2537,7 @@ tr.inaktiv td { opacity: 0.55; }
 .feld-mit-knopf { display: flex; gap: 8px; align-items: center; }
 .feld-mit-knopf input { flex: 1 1 auto; min-width: 0; }
 .feld-mit-knopf .btn { flex-shrink: 0; }
+.tp-abgelaufen { margin-bottom: 18px; }
+.tp-abgelaufen .tp-karte { border-color: var(--danger); border-top-width: 3px; }
+.tp-abgelaufen .tp-karte-titel { color: var(--danger); }
+.tp-abgelaufen .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; }

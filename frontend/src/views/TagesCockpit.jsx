@@ -7,7 +7,7 @@ import { useAuth } from '../AuthContext.jsx';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { formatiereAufwand, formatiereStunden } from '../constants.js';
-import { tagesplan, zuPlanen, morgenTitel } from '../lib/tagesplan.js';
+import { tagesplan, zuPlanen, morgenTitel, abgelaufene, tageZwischen } from '../lib/tagesplan.js';
 import { montagDerWoche } from '../lib/wochenrueckblick.js';
 
 const WOCHENTAG_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -31,10 +31,22 @@ function nachMandant(offen, erledigt) {
   return [...gruppen.values()].sort((a, b) => (a.schluessel === 'intern') - (b.schluessel === 'intern') || a.name.localeCompare(b.name, 'de-CH'));
 }
 
+// Grund und Dauer bei abgelaufenen Aufgaben, z.B. "Frist 02.11. · seit 7 Tagen".
+function abgelaufenText(p, heute) {
+  const { art, datum } = p.abgelaufen;
+  const tage = tageZwischen(datum, heute);
+  const seit = tage === 1 ? 'seit gestern' : `seit ${tage} Tagen`;
+  const wann = formatiereDatum(datum).slice(0, 6);
+  if (art === 'nachfassen') return `nachfassen bei ${p.warten_auf_person || '–'} am ${wann} · ${seit}`;
+  if (art === 'geplant') return `geplant für ${wann}, nicht erledigt · ${seit}`;
+  return `${p.harte_frist ? 'harte ' : ''}Frist ${wann} · ${seit} abgelaufen`;
+}
+
 // Eine Zeile: abhaken, Titel (Projekt darueber), Hinweise, Aufwand; rechts kurze Planen-Knoepfe.
 function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt = false }) {
-  const ueberfaellig = !erledigt && p.faelligkeit && p.faelligkeit < heute;
-  const nachfassen = !erledigt && p.status === 'Warten auf';
+  const ab = !erledigt ? p.abgelaufen : null;
+  const ueberfaellig = !ab && !erledigt && p.faelligkeit && p.faelligkeit < heute;
+  const nachfassen = !ab && !erledigt && p.status === 'Warten auf';
   return (
     <li className={`tp-zeile ${erledigt ? 'erledigt' : ''} ${inProjekt ? 'tp-teilaufgabe' : ''}`}>
       <button
@@ -49,7 +61,8 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt =
       <button type="button" className="tp-text" onClick={() => onOeffnen(p)}>
         {p.eltern_titel && !inProjekt && <span className="tp-projekt">{p.eltern_titel}</span>}
         <span className="tp-titel">{inProjekt && <span className="tp-teil-marke" aria-label="Teilaufgabe">↳ </span>}{p.titel}</span>
-        {(nachfassen || ueberfaellig || (p.faelligkeit && p.harte_frist)) && (
+        {ab && <span className="tp-info"><span className="tp-ueberfaellig">{abgelaufenText(p, heute)}</span></span>}
+        {!ab && (nachfassen || ueberfaellig || (p.faelligkeit && p.harte_frist)) && (
           <span className="tp-info">
             {nachfassen && `nachfassen bei ${p.warten_auf_person}`}
             {ueberfaellig && <span className="tp-ueberfaellig">{nachfassen ? ' · ' : ''}Frist {formatiereDatum(p.faelligkeit)}</span>}
@@ -184,6 +197,7 @@ export default function TagesCockpit() {
   const plan = tagesplan(daten.offene, daten.erledigte, { heute, ichId: benutzer?.id ?? null });
   const anzahlZuPlanen = zuPlanen(daten.offene).length;
   const morgenName = morgenTitel(heute, plan.morgen.tag);
+  const abgelaufen = abgelaufene(daten.offene, { heute, ichId: benutzer?.id ?? null });
 
   async function abhaken(p, erledigt) {
     try {
@@ -222,6 +236,21 @@ export default function TagesCockpit() {
           <Link to="/uebersicht">Übersicht &amp; Kalender</Link>
         </span>
       </div>
+
+      {abgelaufen.length > 0 && (
+        <div className="tp-abgelaufen">
+          <Karte
+            titel={`Abgelaufen (${abgelaufen.length})`}
+            untertitel="Frist, Bearbeitungstag oder Nachfassdatum vorbei – auch wenn auf später verschoben. Pro Mandant, älteste zuerst."
+            offen={abgelaufen}
+            leerText=""
+            heute={heute}
+            aktionen={[{ label: '→ Heute', titel: 'Heute bearbeiten', ausfuehren: (p) => planen(p, heute), sichtbar: (p) => p.bearbeitungstag !== heute }]}
+            onOeffnen={setAktivePendenz}
+            onAbhaken={abhaken}
+          />
+        </div>
+      )}
 
       <div className="tp-karten">
         <Karte
