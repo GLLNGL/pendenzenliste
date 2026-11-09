@@ -139,7 +139,10 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
         // Nur-HTML-Mails: Tags entfernen, damit lesbarer Text in der Beschreibung steht.
         const rohtext = mail.text || (mail.html ?? '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
         const text = rohtext.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
-        const anhaenge = (mail.attachments ?? []).map((a: { filename?: string | null }) => a.filename).filter(Boolean);
+        // Eingebettete Signatur-Bilder (image001.png ...) sind keine echten Anhaenge.
+        const anhaenge = (mail.attachments ?? [])
+          .map((a: { filename?: string | null }) => a.filename)
+          .filter((n: string | null | undefined) => n && !/^image\d+\.(gif|png|jpe?g)$/i.test(n));
 
         const { error } = await supabase.from('pendenzen').insert({
           titel: (mail.subject ?? '').trim() || '(E-Mail ohne Betreff)',
