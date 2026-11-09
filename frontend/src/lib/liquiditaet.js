@@ -17,9 +17,10 @@ function montag(iso) {
   return plusTage(iso, -((tag + 6) % 7));
 }
 
-// 'bezahlt' | 'ueberfaellig' | 'offen'
+// 'bezahlt' | 'im_lauf' (in einem Zahlungslauf, noch nicht als bezahlt markiert) | 'ueberfaellig' | 'offen'
 function belegStatus(b, heute) {
   if (b.bezahlt_am) return 'bezahlt';
+  if (b.zahlungslauf_id) return 'im_lauf';
   if (b.faelligkeit && b.faelligkeit < heute) return 'ueberfaellig';
   return 'offen';
 }

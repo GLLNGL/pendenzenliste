@@ -3,19 +3,20 @@ import { Link } from 'react-router-dom';
 import api from '../api.js';
 import FormularModal from '../components/FormularModal.jsx';
 import BelegAnsicht from '../components/BelegAnsicht.jsx';
+import ZahlungslaufModal from '../components/ZahlungslaufModal.jsx';
 import { useAblageGrund, useMandanten } from '../hooks.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
 import { belegStatus } from '../lib/liquiditaet.js';
 import { buchhaltungsMandant, belegOrdner, belegDateiname } from '../lib/belege.js';
-import { unterstuetzt, grundOrdnerHolen, dateiAblegen, dateiLesen } from '../lib/ablageOrdner.js';
+import { unterstuetzt, grundOrdnerHolen, dateiAblegen, dateiLesen, herunterladen } from '../lib/ablageOrdner.js';
 
 const TEXTE = {
   kreditor: { titel: 'Kreditoren', partner: 'Kreditor', hinweis: 'Eingangsrechnungen – was du bezahlen musst.', drop: 'Kreditorenrechnungen' },
   debitor: { titel: 'Debitoren', partner: 'Debitor', hinweis: 'Ausgangsrechnungen – was dir Kunden bezahlen.', drop: 'Debitorenrechnungen' },
 };
 const FILTER = [{ wert: 'offen', label: 'Offen' }, { wert: 'bezahlt', label: 'Bezahlt' }, { wert: 'alle', label: 'Alle' }];
-const STATUS_TEXT = { offen: 'offen', ueberfaellig: 'überfällig', bezahlt: 'bezahlt' };
+const STATUS_TEXT = { offen: 'offen', ueberfaellig: 'überfällig', bezahlt: 'bezahlt', im_lauf: 'im Zahlungslauf' };
 
 // Modul Buchhaltung › Kreditoren bzw. Debitoren: Rechnungen hineinziehen, die KI liest die
 // Angaben aus, der Beleg wird im OneDrive-Ordner abgelegt; hier steht nur die Liste.
@@ -33,6 +34,10 @@ export default function Belege({ art }) {
   const [aktuell, setAktuell] = useState(null); // { file, angaben, liest, kiFehler } oder { beleg }
   const [ablageDialog, setAblageDialog] = useState(false);
   const [verbunden, setVerbunden] = useState(false);
+  const [auswahl, setAuswahl] = useState(() => new Set()); // Belege fuer den Zahlungslauf
+  const [laeufe, setLaeufe] = useState([]);
+  const [zahlungslaufOffen, setZahlungslaufOffen] = useState(false);
+  const zahlbar = art === 'kreditor';
   const dateiRef = useRef(null);
   const mandanten = useMandanten();
   const grund = useAblageGrund();
@@ -40,6 +45,7 @@ export default function Belege({ art }) {
 
   const laden = useCallback(() => {
     api.belege.liste(art).then((l) => { setBelege(l); setFehler(null); }).catch((e) => { setBelege([]); setFehler(e.message); });
+    if (art === 'kreditor') api.zahlungslaeufe.liste().then(setLaeufe).catch(() => setLaeufe([]));
   }, [art]);
   useEffect(() => {
     laden();
@@ -87,6 +93,21 @@ export default function Belege({ art }) {
     }
   }
 
+  async function laufDatei(l) {
+    try {
+      const d = await api.zahlungslaeufe.datei(l.id);
+      herunterladen(new Blob([d.datei_xml], { type: 'application/xml' }), d.dateiname);
+    } catch (err) { setFehler(err.message); }
+  }
+  async function laufBezahlt(l) {
+    if (!window.confirm(`Zahlungslauf vom ${formatiereDatum(l.ausfuehrungsdatum)} ausgeführt? Alle ${l.anzahl} Belege werden als bezahlt markiert.`)) return;
+    try { await api.zahlungslaeufe.bezahlt(l); laden(); } catch (err) { setFehler(err.message); }
+  }
+  async function laufAufloesen(l) {
+    if (!window.confirm('Zahlungslauf auflösen? Die Belege werden wieder offen – nur tun, wenn die Datei nicht ausgeführt wurde.')) return;
+    try { await api.zahlungslaeufe.aufloesen(l); laden(); } catch (err) { setFehler(err.message); }
+  }
+
   async function bezahltUmschalten(b) {
     try {
       await api.belege.bezahlt(b.id, b.bezahlt_am ? null : heute);
@@ -108,10 +129,12 @@ export default function Belege({ art }) {
   function formular() {
     const bestehend = aktuell.beleg ?? null;
     const a = aktuell.angaben ?? {};
+    // Bestehender Beleg: gespeicherte Werte; leere Felder aus einer neuen Auswertung ergaenzt.
     const start = bestehend ? {
-      partner: bestehend.partner, partnerAdresse: bestehend.partner_adresse ?? '', iban: bestehend.iban ?? '', zahlungsreferenz: bestehend.zahlungsreferenz ?? '',
-      rechnungsnummer: bestehend.rechnungsnummer ?? '', rechnungsdatum: bestehend.rechnungsdatum ?? '',
-      faelligkeit: bestehend.faelligkeit ?? '', betrag: bestehend.betrag ?? '', waehrung: bestehend.waehrung ?? 'CHF',
+      partner: bestehend.partner, partnerAdresse: bestehend.partner_adresse || a.partner_adresse || '', iban: bestehend.iban || a.iban || '',
+      zahlungsreferenz: bestehend.zahlungsreferenz || a.referenz || '',
+      rechnungsnummer: bestehend.rechnungsnummer || a.rechnungsnummer || '', rechnungsdatum: bestehend.rechnungsdatum || a.rechnungsdatum || '',
+      faelligkeit: bestehend.faelligkeit || a.faelligkeit || '', betrag: bestehend.betrag ?? a.betrag ?? '', waehrung: bestehend.waehrung ?? 'CHF',
       bezahltAm: bestehend.bezahlt_am ?? '', notiz: bestehend.notiz ?? '',
     } : {
       partner: a.partner ?? '', partnerAdresse: a.partner_adresse ?? '', iban: a.iban ?? '', zahlungsreferenz: a.referenz ?? '',
@@ -119,13 +142,37 @@ export default function Belege({ art }) {
       faelligkeit: a.faelligkeit ?? '', betrag: a.betrag ?? '', waehrung: a.waehrung || 'CHF', bezahltAm: '', notiz: '',
     };
     const file = aktuell.file ?? null;
+    const fehlendeAngaben = bestehend?.ablage_pfad && !bestehend.bezahlt_am && (!bestehend.iban || !bestehend.partner_adresse);
+    async function nachlesen() {
+      setAktuell((x) => ({ ...x, nachlesen: true, kiFehler: null }));
+      try {
+        const datei = await dateiLesen(bestehend.ablage_pfad);
+        const angaben = await api.belege.auslesen(datei, art, firma.firma);
+        setAktuell((x) => ({ ...x, angaben, nachlesen: false, version: (x.version ?? 0) + 1 }));
+      } catch (err) {
+        setAktuell((x) => ({ ...x, nachlesen: false, kiFehler: err.message }));
+      }
+    }
     return (
       <FormularModal
+        key={aktuell.version ?? 0}
         titel={bestehend ? `${t.partner}-Beleg bearbeiten` : file ? `Beleg erfassen · ${file.name}` : `${t.partner}-Beleg von Hand erfassen`}
         startwerte={start}
         speichernText={file ? 'Speichern & ablegen' : 'Speichern'}
         breit
-        seitenansicht={<BelegAnsicht file={file} pfad={bestehend?.ablage_pfad ?? null} />}
+        seitenansicht={(
+          <div className="beleg-ansicht-rahmen">
+            {fehlendeAngaben && !aktuell.angaben && (
+              <div className="beleg-nachlesen">
+                <span>IBAN oder Adresse fehlen (für den Zahlungslauf).</span>
+                <button type="button" className="btn-klein btn-klein-primaer" onClick={nachlesen} disabled={aktuell.nachlesen}>
+                  {aktuell.nachlesen ? 'Liest aus…' : 'Fehlende Angaben auslesen'}
+                </button>
+              </div>
+            )}
+            <BelegAnsicht file={file} pfad={bestehend?.ablage_pfad ?? null} />
+          </div>
+        )}
         felder={[
           { name: 'partner', label: t.partner, typ: 'text', pflicht: true },
           { name: 'partnerAdresse', label: 'Adresse', typ: 'text', platzhalter: 'Strasse, PLZ Ort' },
@@ -141,6 +188,7 @@ export default function Belege({ art }) {
         ]}
         vorschau={(f) => {
           if (aktuell.kiFehler) return `Automatisch auslesen ging nicht (${aktuell.kiFehler}) – bitte von Hand ergänzen.`;
+          if (!file && aktuell.angaben) return 'Fehlende Angaben aus dem Beleg ergänzt – bitte prüfen und speichern.';
           if (!file) return bestehend?.ablage_pfad ? `Beleg: ${bestehend.ablage_pfad}` : '';
           const ordner = belegOrdner({ art, datum: f.rechnungsdatum }, einstellungen, mandant, grund);
           if (!unterstuetzt()) return 'Dieser Browser kann nicht direkt in OneDrive ablegen – bitte Edge oder Chrome am PC verwenden.';
@@ -222,10 +270,32 @@ export default function Belege({ art }) {
         </span>
       </div>
 
+      {zahlbar && auswahl.size > 0 && (() => {
+        const gewaehlt = (belege ?? []).filter((b) => auswahl.has(b.id));
+        const summe = gewaehlt.filter((b) => (b.waehrung || 'CHF') === 'CHF').reduce((x, b) => x + Number(b.betrag || 0), 0);
+        return (
+          <div className="zahlungslauf-leiste">
+            <span>{gewaehlt.length} ausgewählt · <strong>{chf(summe)}</strong></span>
+            <button type="button" className="btn btn-primary" onClick={() => setZahlungslaufOffen(true)}>Zahlungslauf erstellen…</button>
+            <button type="button" className="btn-klein" onClick={() => setAuswahl(new Set())}>Auswahl aufheben</button>
+          </div>
+        );
+      })()}
+
       <div className="karte">
         <table className="tabelle">
           <thead>
             <tr>
+              {zahlbar && (
+                <th className="spalte-auswahl">
+                  <input
+                    type="checkbox"
+                    aria-label="Alle offenen auswählen"
+                    checked={auswahl.size > 0 && sichtbar.filter((b) => !b.bezahlt_am && !b.zahlungslauf_id).every((b) => auswahl.has(b.id))}
+                    onChange={(e) => setAuswahl(e.target.checked ? new Set(sichtbar.filter((b) => !b.bezahlt_am && !b.zahlungslauf_id).map((b) => b.id)) : new Set())}
+                  />
+                </th>
+              )}
               <th>Rechnungsdatum</th><th>Rechnungs-Nr.</th><th>{t.partner}</th><th>Fällig</th>
               <th className="zahl">Betrag</th><th>Status</th><th>Beleg</th><th></th>
             </tr>
@@ -235,6 +305,18 @@ export default function Belege({ art }) {
               const s = belegStatus(b, heute);
               return (
                 <tr key={b.id} className="klickbar" onClick={() => setAktuell({ beleg: b })}>
+                  {zahlbar && (
+                    <td className="spalte-auswahl" onClick={(e) => e.stopPropagation()}>
+                      {!b.bezahlt_am && !b.zahlungslauf_id && (
+                        <input
+                          type="checkbox"
+                          aria-label={`${b.partner} in den Zahlungslauf`}
+                          checked={auswahl.has(b.id)}
+                          onChange={(e) => setAuswahl((alt) => { const n = new Set(alt); if (e.target.checked) n.add(b.id); else n.delete(b.id); return n; })}
+                        />
+                      )}
+                    </td>
+                  )}
                   <td>{b.rechnungsdatum ? formatiereDatum(b.rechnungsdatum) : '–'}</td>
                   <td>{b.rechnungsnummer || '–'}</td>
                   <td><strong>{b.partner}</strong></td>
@@ -250,10 +332,53 @@ export default function Belege({ art }) {
                 </tr>
               );
             })}
-            {belege && sichtbar.length === 0 && !tabelleFehlt && <tr><td colSpan={8} className="leer-hinweis">Keine Belege.</td></tr>}
+            {belege && sichtbar.length === 0 && !tabelleFehlt && <tr><td colSpan={zahlbar ? 9 : 8} className="leer-hinweis">Keine Belege.</td></tr>}
           </tbody>
         </table>
       </div>
+
+      {zahlbar && laeufe.length > 0 && (
+        <>
+          <h2 className="abschnitt-titel">Zahlungsläufe</h2>
+          <div className="karte">
+            <table className="tabelle">
+              <thead><tr><th>Ausführung</th><th className="zahl">Zahlungen</th><th className="zahl">Summe</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {laeufe.map((l) => (
+                  <tr key={l.id}>
+                    <td>{formatiereDatum(l.ausfuehrungsdatum)}</td>
+                    <td className="zahl">{l.anzahl}</td>
+                    <td className="zahl">{chf(l.summe)}</td>
+                    <td>{l.bezahlt_am ? <span className="beleg-status beleg-status-bezahlt">bezahlt</span> : <span className="beleg-status beleg-status-im_lauf">erstellt – im E-Banking freigeben</span>}</td>
+                    <td className="zahlungslauf-aktionen">
+                      <button type="button" className="btn-klein" onClick={() => laufDatei(l)}>Datei</button>
+                      {!l.bezahlt_am && (
+                        <>
+                          <button type="button" className="btn-klein" onClick={() => laufBezahlt(l)}>✓ bezahlt</button>
+                          <button type="button" className="btn-klein btn-gefahr-text" onClick={() => laufAufloesen(l)}>Auflösen</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {zahlungslaufOffen && (
+        <ZahlungslaufModal
+          belege={(belege ?? []).filter((b) => auswahl.has(b.id))}
+          onSchliessen={() => setZahlungslaufOffen(false)}
+          onErstellt={(dateiname) => {
+            setZahlungslaufOffen(false);
+            setAuswahl(new Set());
+            setMeldung(`Zahlungsdatei «${dateiname}» heruntergeladen – im UBS E-Banking unter Zahlungen hochladen und freigeben.`);
+            laden();
+          }}
+        />
+      )}
 
       {aktuell && !aktuell.liest && formular()}
 

@@ -645,6 +645,48 @@ const api = {
     },
   },
 
+  // Zahlungslaeufe (v7): pain.001-Datei aus offenen Kreditorenbelegen.
+  zahlungslaeufe: {
+    liste: async () => {
+      const { data, error } = await supabase.from('zahlungslaeufe')
+        .select('id, ausfuehrungsdatum, anzahl, summe, msg_id, dateiname, bezahlt_am, erstellt_am')
+        .order('ausfuehrungsdatum', { ascending: false }).order('id', { ascending: false }).limit(50);
+      pruefeFehler(error);
+      return data;
+    },
+    // Lauf speichern und die Belege daran haengen (die Datei erzeugt lib/pain001.js).
+    erstellen: async ({ ausfuehrungsdatum, msgId, dateiname, xml, belege }) => {
+      const summe = belege.reduce((s, b) => s + Number(b.betrag || 0), 0);
+      const { data, error } = await supabase.from('zahlungslaeufe').insert({
+        ausfuehrungsdatum, anzahl: belege.length, summe: Math.round(summe * 100) / 100, msg_id: msgId, dateiname, datei_xml: xml,
+      }).select('id').single();
+      pruefeFehler(error);
+      const { error: fehlerBelege } = await supabase.from('belege').update({ zahlungslauf_id: data.id }).in('id', belege.map((b) => b.id));
+      pruefeFehler(fehlerBelege);
+      return data;
+    },
+    datei: async (id) => {
+      const { data, error } = await supabase.from('zahlungslaeufe').select('dateiname, datei_xml').eq('id', id).single();
+      pruefeFehler(error);
+      return data;
+    },
+    // Ausgefuehrt: alle noch offenen Belege des Laufs als bezahlt (am Ausfuehrungsdatum).
+    bezahlt: async (lauf) => {
+      const { error } = await supabase.from('belege').update({ bezahlt_am: lauf.ausfuehrungsdatum })
+        .eq('zahlungslauf_id', lauf.id).is('bezahlt_am', null);
+      pruefeFehler(error);
+      const { error: fehlerLauf } = await supabase.from('zahlungslaeufe').update({ bezahlt_am: lauf.ausfuehrungsdatum }).eq('id', lauf.id);
+      pruefeFehler(fehlerLauf);
+    },
+    // Nicht hochgeladen / abgebrochen: Belege wieder freigeben und den Lauf loeschen.
+    aufloesen: async (lauf) => {
+      const { error } = await supabase.from('belege').update({ zahlungslauf_id: null }).eq('zahlungslauf_id', lauf.id).is('bezahlt_am', null);
+      pruefeFehler(error);
+      const { error: fehlerLauf } = await supabase.from('zahlungslaeufe').delete().eq('id', lauf.id);
+      pruefeFehler(fehlerLauf);
+    },
+  },
+
   // Onboarding (v7): Katalog der Unterlagen und pro Mandant ein Onboarding mit Checkliste.
   onboarding: {
     unterlagen: {
