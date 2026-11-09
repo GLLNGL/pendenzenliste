@@ -109,6 +109,7 @@ export default function Eingang() {
   const [fehler, setFehler] = useState(null);
   const [aktion, setAktion] = useState(null); // { pendenz, projektModus }
   const [abruf, setAbruf] = useState({ laeuft: false, meldung: null, fehler: null });
+  const [dateienStand, setDateienStand] = useState(0); // nach dem Nachholen von Anhaengen neu laden
 
   // Auftraege aus dem Outlook-Ordner "Auftraege" abholen -- beim Oeffnen und per Knopf.
   const mailsAbholen = useCallback(async () => {
@@ -116,8 +117,9 @@ export default function Eingang() {
     try {
       const r = await api.mail.eingangAbholen();
       const text = r?.hinweis || (r?.neu ? `${r.neu} neue${r.neu === 1 ? 'r Auftrag' : ' Aufträge'} aus E-Mail übernommen.` : 'Keine neuen Aufträge im Ordner «Aufträge».');
-      setAbruf({ laeuft: false, fehler: null, meldung: r?.dateiFehler ? `${text} Anhang nicht gespeichert – ${r.dateiFehler}` : text });
-      if (r?.neu) meldeAenderung();
+      const nachgeholt = r?.nachgeholt ? ` Anhänge von ${r.nachgeholt} früheren Mail${r.nachgeholt === 1 ? '' : 's'} nachgeholt.` : '';
+      setAbruf({ laeuft: false, fehler: null, meldung: `${text}${nachgeholt}${r?.dateiFehler ? ` Anhang nicht gespeichert – ${r.dateiFehler}` : ''}` });
+      if (r?.neu || r?.nachgeholt) { meldeAenderung(); setDateienStand((n) => n + 1); }
     } catch (err) {
       setAbruf({ laeuft: false, meldung: null, fehler: err.message });
     }
@@ -214,6 +216,7 @@ export default function Eingang() {
             )}
             {e.email_message_id && (
               <DateienListe
+                key={`${e.id}-${dateienStand}`}
                 pendenzIds={[e.id]}
                 mandant={mandanten.find((m) => m.id === e.mandant_id) ?? null}
                 titel="Anhänge"

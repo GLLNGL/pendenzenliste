@@ -168,6 +168,41 @@ async function anhaengeSpeichern(supabase: any, dateien: Anhang[], pendenzId: nu
   }
 }
 
+// Eintraege im Eingang, die vor dem Speichern von Anhaengen uebernommen wurden (Beschreibung
+// nennt "Anhänge:", in der Tabelle dateien steht aber nichts): Mail per Message-ID im Ordner
+// "Übernommen" suchen und die Anhaenge nachtraeglich speichern. Pro Abruf hoechstens 3.
+// deno-lint-ignore no-explicit-any
+async function anhaengeNachholen(client: ImapFlow, supabase: any, ordner: string): Promise<number> {
+  const { data: offen, error } = await supabase.from('pendenzen')
+    .select('id, mandant_id, email_message_id')
+    .eq('geplant', false).not('email_message_id', 'is', null).is('uebergeordnete_pendenz_id', null)
+    .ilike('beschreibung', '%Anhänge:%').limit(30);
+  if (error || !offen?.length) return 0;
+  const { data: vorhanden, error: fehlerDateien } = await supabase.from('dateien').select('pendenz_id').in('pendenz_id', offen.map((o: { id: number }) => o.id));
+  if (fehlerDateien) { dateiFehler = fehlerDateien.message; return 0; }
+  const fehlen = offen.filter((o: { id: number }) => !(vorhanden ?? []).some((v: { pendenz_id: number }) => v.pendenz_id === o.id)).slice(0, 3);
+  if (!fehlen.length) return 0;
+
+  let anzahl = 0;
+  const lock = await client.getMailboxLock(ordner);
+  try {
+    for (const p of fehlen) {
+      const uids = await client.search({ header: { 'message-id': p.email_message_id } }, { uid: true });
+      if (!uids || !uids.length) continue;
+      const msg = await client.fetchOne(String(uids[uids.length - 1]), { source: true }, { uid: true });
+      if (!msg || !msg.source) continue;
+      const mail = await PostalMime.parse(new Uint8Array(msg.source));
+      const dateien = ((mail.attachments ?? []) as Anhang[]).filter(istEchterAnhang);
+      if (!dateien.length) continue;
+      await anhaengeSpeichern(supabase, dateien, p.id, p.mandant_id ?? null);
+      anzahl += 1;
+    }
+  } finally {
+    lock.release();
+  }
+  return anzahl;
+}
+
 function antwort(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
@@ -340,8 +375,10 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
     } finally {
       lock.release();
     }
+    zustand.schritt = 'Anhänge nachholen';
+    const nachgeholt = await anhaengeNachholen(client, supabase, ziel);
     await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, ordner: quellPfad, ki: !!anthropic, kiFehler, dateiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, nachgeholt, ordner: quellPfad, ki: !!anthropic, kiFehler, dateiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in
