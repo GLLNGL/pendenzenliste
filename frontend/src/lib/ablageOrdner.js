@@ -66,6 +66,19 @@ async function freierName(ordner, name) {
   return `${stamm} (${Date.now()})${endung}`;
 }
 
+// Ordner eines Mandanten per Ordnerauswahl waehlen (startet im Grundordner). Gibt die
+// Unterordner relativ zum Grundordner zurueck, z.B. ['Muster AG'].
+async function unterordnerWaehlen() {
+  let grund = await grundOrdnerHolen();
+  if (!grund) grund = await grundOrdnerWaehlen();
+  if (!(await berechtigt(grund))) throw new Error('Kein Zugriff auf den Ablage-Ordner erteilt.');
+  const gewaehlt = await window.showDirectoryPicker({ id: 'ablage-mandant', startIn: grund, mode: 'readwrite' });
+  const teile = await grund.resolve(gewaehlt);
+  if (teile == null) throw new Error(`Der gewählte Ordner liegt nicht im Grundordner «${grund.name}». Bitte einen Ordner darin wählen (oder in den Einstellungen einen anderen Grundordner verbinden).`);
+  if (!teile.length) throw new Error('Das ist der Grundordner selbst – bitte den Ordner des Mandanten darin wählen.');
+  return { teile, grundName: grund.name };
+}
+
 // Ordner <Grundordner>/<Mandantenordner> anlegen (falls noch nicht vorhanden).
 async function ordnerAnlegen(ordnerTeile) {
   let grund = await grundOrdnerHolen();
@@ -104,4 +117,4 @@ function herunterladen(blob, dateiname) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, ordnerAnlegen, dateiAblegen, herunterladen };
+export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, herunterladen };

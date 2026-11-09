@@ -67,11 +67,21 @@ function AblageEinstellung() {
   const [meldung, setMeldung] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [lokal, setLokal] = useState(null);
+  const [vorschlag, setVorschlag] = useState(null);
 
   useEffect(() => {
     api.buero.lesen('ablage').then((w) => setF({ grundPfad: w.grundPfad ?? '', grundLink: w.grundLink ?? '', unterordnerMail: w.unterordnerMail ?? '' }))
       .catch((e) => setFehler(e.message));
     grundOrdnerHolen().then((h) => setLokal(h?.name ?? null));
+    // Vorschlag fuer den Grundordner: uebergeordneter Ordner eines bereits erfassten vollen Pfads.
+    api.mandanten.liste().then((liste) => {
+      // Bis zum letzten Ordner mit "Mandant" im Namen (z.B. "00_Mandanten"), darunter liegen
+      // die Ordner der einzelnen Mandanten.
+      const pfad = liste.map((m) => m.ablage_pfad).find(Boolean);
+      const teile = pfad ? pfad.split(/[\\/]+/).filter(Boolean) : [];
+      const bis = teile.findLastIndex((t, i) => i < teile.length - 1 && /mandant/i.test(t));
+      if (bis > 0) setVorschlag(teile.slice(0, bis + 1).join('\\'));
+    }).catch(() => {});
   }, []);
 
   async function speichern(e) {
@@ -114,6 +124,12 @@ function AblageEinstellung() {
             <label htmlFor="ablage-grundpfad">Grundordner im Windows Explorer</label>
             <input id="ablage-grundpfad" value={f.grundPfad} onChange={setze('grundPfad')} placeholder="C:\Users\…\EST Controlling GmbH\EST – Mandantenablage - 00_Treuhand" />
             <p className="feld-hinweis">Im Explorer den Ordner wählen, Adresszeile anklicken und den Pfad kopieren.</p>
+            {!f.grundPfad && vorschlag && (
+              <p className="feld-hinweis">
+                Vorschlag aus einem bestehenden Mandanten: <code>{vorschlag}</code>{' '}
+                <button type="button" className="btn-klein" onClick={() => setF((alt) => ({ ...alt, grundPfad: vorschlag }))}>Übernehmen</button>
+              </p>
+            )}
           </div>
           <div className="feld">
             <label htmlFor="ablage-grundlink">Adresse des Grundordners in SharePoint (optional)</label>

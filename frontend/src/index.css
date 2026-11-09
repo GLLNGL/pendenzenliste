@@ -1094,7 +1094,7 @@ a { color: var(--accent); text-decoration: none; }
 
 /* Mehrere Eingaben nebeneinander innerhalb EINES Feldes (z.B. Tag + Monat). */
 .feld-inline { display: flex; gap: 6px; }
-.feld-inline input { width: 70px; flex: 0 0 auto; }
+.feld .feld-inline input { width: 70px; flex: 0 0 auto; min-width: 0; }
 .feld-inline select { flex: 1 1 auto; min-width: 0; }
 
 /* Klickbarer Vorschlag unter einem Feld (z.B. "Vorschlag: A" bei der Priorität). */
@@ -1124,7 +1124,7 @@ a { color: var(--accent); text-decoration: none; }
 
 .feld textarea { resize: vertical; min-height: 60px; }
 
-.feld-reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.feld-reihe { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 
 .modal-fuss {
   flex-shrink: 0;
@@ -2534,3 +2534,6 @@ tr.inaktiv td { opacity: 0.55; }
   .mandanten-layout { flex-direction: column; }
   .mandanten-liste { width: auto; border-right: none; border-bottom: 1px solid var(--border); max-height: 40vh; }
 }
+.feld-mit-knopf { display: flex; gap: 8px; align-items: center; }
+.feld-mit-knopf input { flex: 1 1 auto; min-width: 0; }
+.feld-mit-knopf .btn { flex-shrink: 0; }

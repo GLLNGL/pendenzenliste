@@ -5,6 +5,8 @@ import { MWST_PERIODEN, ZAHLUNGSLAUF_RHYTHMEN } from '../constants.js';
 import { naechsteKundenNr } from '../lib/preise.js';
 import { ablageVon, ordnerVorschlag } from '../lib/ablage.js';
 import { useAblageGrund } from '../hooks.js';
+import { Link } from 'react-router-dom';
+import { unterstuetzt, grundOrdnerHolen, unterordnerWaehlen } from '../lib/ablageOrdner.js';
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -63,6 +65,21 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
     }));
   }
   const grund = useAblageGrund();
+  const [lokalVerbunden, setLokalVerbunden] = useState(false);
+  const [ordnerFehler, setOrdnerFehler] = useState(null);
+  useEffect(() => { grundOrdnerHolen().then((h) => setLokalVerbunden(!!h)); }, []);
+
+  async function ordnerWaehlen() {
+    setOrdnerFehler(null);
+    try {
+      const { teile } = await unterordnerWaehlen();
+      setLokalVerbunden(true);
+      setFormular((f) => ({ ...f, ablageOrdner: teile.join('\\'), ordnerManuell: true }));
+    } catch (err) {
+      setLokalVerbunden(!!(await grundOrdnerHolen()));
+      if (err?.name !== 'AbortError') setOrdnerFehler(err.message);
+    }
+  }
   const vorschau = ablageVon({ ablage_ordner: formular.ablageOrdner, ablage_pfad: formular.ablagePfad, ablage_link: formular.ablageLink }, grund);
 
   async function speichern(e) {
@@ -170,18 +187,32 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
             <div className="feld-gruppe-titel">Ablage</div>
             <div className="feld">
               <label htmlFor="mandant-ablage-ordner">Ordner in der Mandantenablage</label>
-              <input
-                id="mandant-ablage-ordner"
-                type="text"
-                value={formular.ablageOrdner}
-                onChange={(e) => setFormular((f) => ({ ...f, ablageOrdner: e.target.value, ordnerManuell: true }))}
-                placeholder="Ordnername, z.B. Muster AG"
-              />
+              <div className="feld-mit-knopf">
+                <input
+                  id="mandant-ablage-ordner"
+                  type="text"
+                  autoComplete="off"
+                  value={formular.ablageOrdner}
+                  onChange={(e) => setFormular((f) => ({ ...f, ablageOrdner: e.target.value, ordnerManuell: true }))}
+                  placeholder="Ordnername, z.B. Muster AG"
+                />
+                {unterstuetzt() && (
+                  <button type="button" className="btn" onClick={ordnerWaehlen}>
+                    {lokalVerbunden ? 'Ordner wählen…' : 'OneDrive verbinden…'}
+                  </button>
+                )}
+              </div>
               <p className="feld-hinweis">
                 {vorschau.pfad
                   ? <>Ablage: <code>{vorschau.pfad}</code></>
-                  : grund.grundPfad ? 'Ordnernamen eintragen.' : 'Grundordner zuerst unter Administration › Einstellungen › Ablage hinterlegen.'}
+                  : grund.grundPfad
+                    ? 'Ordnernamen eintragen oder mit «Ordner wählen…» im Explorer auswählen.'
+                    : <>Der Grundordner (Mandantenablage) ist noch nicht hinterlegt – unter <Link to="/einstellungen" onClick={onSchliessen}>Administration › Einstellungen › Ablage</Link> eintragen. Den Ordner des Mandanten kannst du trotzdem schon wählen.</>}
               </p>
+              {!lokalVerbunden && unterstuetzt() && (
+                <p className="feld-hinweis">«OneDrive verbinden…»: zuerst einmalig den Grundordner der Mandantenablage wählen, danach den Ordner des Mandanten darin.</p>
+              )}
+              {ordnerFehler && <div className="hinweis-fehler">{ordnerFehler}</div>}
             </div>
             <details className="feld-details" open={!!(formular.ablagePfad || formular.ablageLink)}>
               <summary>Abweichender Ablageort (nur für Sonderfälle)</summary>
