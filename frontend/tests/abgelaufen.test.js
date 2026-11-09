@@ -8,7 +8,7 @@ const p = (id, felder) => ({ id, titel: `P${id}`, status: 'Offen', prioritaet: '
 test('Abgelaufen: Frist, alter Bearbeitungstag, Nachfassen; verschobene bleiben sichtbar', () => {
   const offene = [
     p(1, { faelligkeit: '2026-11-02' }),
-    p(2, { faelligkeit: '2026-11-05', bearbeitungstag: '2026-11-16' }), // verschoben, Frist trotzdem vorbei
+    p(2, { faelligkeit: '2026-11-05', bearbeitungstag: '2026-11-16' }), // neu eingeplant -> nicht mehr abgelaufen
     p(3, { bearbeitungstag: '2026-11-06' }), // geplant, nicht erledigt
     p(4, { status: 'Warten auf', wiedervorlage: '2026-11-04', bearbeitungstag: '2026-11-01' }),
     p(5, { faelligkeit: heute }), // heute fällig = noch nicht abgelaufen
@@ -20,10 +20,21 @@ test('Abgelaufen: Frist, alter Bearbeitungstag, Nachfassen; verschobene bleiben 
     p(12, { uebergeordnete_pendenz_id: 10, status: 'Erledigt' }),
   ];
   const liste = abgelaufene(offene, { heute, ichId: 1 });
-  assert.deepEqual(liste.map((x) => x.id), [11, 1, 4, 2, 3]);
+  assert.deepEqual(liste.map((x) => x.id), [11, 1, 4, 3]);
   assert.equal(liste.find((x) => x.id === 4).abgelaufen.art, 'nachfassen');
   assert.equal(liste.find((x) => x.id === 3).abgelaufen.art, 'geplant');
   assert.equal(liste.find((x) => x.id === 11).abgelaufen.datum, '2026-10-30');
+});
+
+test('Abgelaufen: «Zu planen», → Heute und → Morgen nehmen die Pendenz heraus', () => {
+  const offene = [
+    p(1, { faelligkeit: '2026-11-02', zu_planen_seit: heute }), // bewusst «Zu planen»
+    p(2, { faelligkeit: '2026-11-02', bearbeitungstag: heute }), // → Heute
+    p(3, { faelligkeit: '2026-11-02', bearbeitungstag: '2026-11-10' }), // → Morgen
+    p(4, { status: 'Warten auf', wiedervorlage: '2026-11-10', faelligkeit: '2026-11-02' }), // Nachfassen verschoben
+    p(5, { faelligkeit: '2026-11-02', zu_planen_seit: '2026-11-03', bearbeitungstag: '2026-11-04' }), // danach geplant, wieder verpasst
+  ];
+  assert.deepEqual(abgelaufene(offene, { heute }).map((x) => x.id), [5]);
 });
 
 test('Tage zwischen zwei Daten', () => {

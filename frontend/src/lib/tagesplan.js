@@ -80,6 +80,15 @@ function abgelaufenGrund(p, heute) {
 // Abgelaufene Aufgaben: Frist, Bearbeitungstag oder Nachfassdatum liegt vor heute -- auch wenn
 // die Aufgabe auf einen spaeteren Tag verschoben wurde (damit nichts vergessen geht). Bei einem
 // abgelaufenen Projekt erscheinen seine offenen Teilaufgaben. Aelteste zuerst.
+// Schon neu entschieden -> nicht (mehr) abgelaufen: steht in "Heute", ist auf heute oder spaeter
+// gelegt (Bearbeitungstag bzw. Nachfassdatum) oder bewusst in den Ordner "Zu planen" geschoben.
+function neuEntschieden(p, heute) {
+  if (istHeute(p, heute)) return true;
+  const tag = p.status === 'Warten auf' ? p.wiedervorlage : p.bearbeitungstag;
+  if (tag && tag >= heute) return true;
+  return !p.bearbeitungstag && !!p.zu_planen_seit && p.status !== 'Warten auf';
+}
+
 function abgelaufene(offene, { heute, ichId = null }) {
   const koepfe = new Map(offene
     .filter((p) => p.teilaufgaben_gesamt > 0 && p.status !== 'Erledigt' && p.geplant !== false && meine(p, ichId))
@@ -88,6 +97,7 @@ function abgelaufene(offene, { heute, ichId = null }) {
   const liste = [];
   for (const p of offene) {
     if (p.status === 'Erledigt' || !istArbeit(p) || !meine(p, ichId)) continue;
+    if (neuEntschieden(p, heute)) continue;
     const grund = abgelaufenGrund(p, heute) ?? koepfe.get(p.uebergeordnete_pendenz_id) ?? null;
     if (grund) liste.push({ ...p, abgelaufen: grund });
   }

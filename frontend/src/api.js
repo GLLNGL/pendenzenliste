@@ -1129,6 +1129,7 @@ const api = {
       if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
       if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
       if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
+      if (daten.zuPlanenSeit !== undefined) patch.zu_planen_seit = daten.zuPlanenSeit || null;
       if (daten.leistungId !== undefined) patch.leistung_id = zahlOderNull(daten.leistungId);
       if (daten.verrechnung !== undefined) patch.verrechnung = daten.verrechnung === 'extra' ? 'extra' : 'pauschal';
       // Vollstaendiges Bearbeiten/Speichern gilt immer als "eingeplant" -- so verlaesst eine
@@ -1142,7 +1143,12 @@ const api = {
         if (vorher?.faelligkeit && vorher.uebergeordnete_pendenz_id == null && vorher.faelligkeit !== patch.faelligkeit) alteFrist = vorher.faelligkeit;
       }
 
-      const { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
+      let { data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single();
+      // Spalte zu_planen_seit fehlt noch (SQL nicht ausgefuehrt): ohne sie speichern.
+      if (error && 'zu_planen_seit' in patch && String(error.message).includes('zu_planen_seit')) {
+        delete patch.zu_planen_seit;
+        ({ data, error } = await supabase.from('pendenzen').update(patch).eq('id', id).select().single());
+      }
       pruefeFehler(error);
       // Schritte, die schon waehrend des Einplanens aus dem Eingang angelegt wurden, werden
       // zusammen mit ihrem Projekt sichtbar.

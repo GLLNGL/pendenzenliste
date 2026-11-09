@@ -1231,6 +1231,12 @@ drop policy if exists team_voller_zugriff on public.mandant_onboarding;
 create policy team_voller_zugriff on public.mandant_onboarding
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
 
+-- ==========================================================================
+-- "Zu planen" merken (v7): bewusst in den Ordner "Zu planen" gelegte Pendenzen erscheinen
+-- im Cockpit nicht mehr unter "Abgelaufen".
+-- ==========================================================================
+alter table public.pendenzen add column if not exists zu_planen_seit date;
+
 -- --------------------------------------------------------------------------
 -- View und Legacy-RPC bewusst am Dateiende: der View liest p.* und muss darum nach allen
 -- "alter table pendenzen add column" (auch spaeteren Etappen) neu erstellt werden, sonst

@@ -216,7 +216,8 @@ export default function TagesCockpit() {
         meldeAenderung();
         return;
       }
-      const patch = { bearbeitungstag: tag };
+      // "Zu planen" merkt sich das Datum (verlaesst damit "Abgelaufen"); ein Tag hebt es auf.
+      const patch = { bearbeitungstag: tag, zuPlanenSeit: tag ? null : heute };
       if (!tag && p.status === 'In Arbeit') patch.status = 'Offen';
       await api.pendenzen.aktualisieren(p.id, patch);
       meldeAenderung();
