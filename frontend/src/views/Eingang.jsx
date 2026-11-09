@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import PendenzModal from '../components/PendenzModal.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
-import { formatiereZeitstempel, heutigesDatumISO } from '../format.js';
+import { formatiereZeitstempel, formatiereDatum, heutigesDatumISO } from '../format.js';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
 
 // Sammelbecken fuer noch nicht eingeplante Notizen -- sowohl unterwegs erfasst (siehe
@@ -98,7 +98,10 @@ function TriageKnoepfe({ eintrag, onAblegen, onOeffnen }) {
 }
 
 export default function Eingang() {
-  const [eintraege, setEintraege] = useState([]);
+  const [alleEintraege, setEintraege] = useState([]);
+  // Teilschritte (z.B. aus E-Mails herausgelesene To-dos) erscheinen unter ihrem Eintrag, nicht einzeln.
+  const eintraege = alleEintraege.filter((e) => e.uebergeordnete_pendenz_id == null);
+  const schritteVon = (id) => alleEintraege.filter((e) => e.uebergeordnete_pendenz_id === id).sort((a, b) => (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0));
   const [fehler, setFehler] = useState(null);
   const [aktion, setAktion] = useState(null); // { pendenz, projektModus }
   const [abruf, setAbruf] = useState({ laeuft: false, meldung: null, fehler: null });
@@ -179,6 +182,16 @@ export default function Eingang() {
               <span className="eingang-eintrag-datum">{formatiereZeitstempel(e.erstellt_am)}</span>
             </div>
             {e.beschreibung && <p className="eingang-eintrag-text">{e.beschreibung}</p>}
+            {schritteVon(e.id).length > 0 && (
+              <div className="eingang-todos">
+                <div className="eingang-todos-titel">To-dos</div>
+                <ul>
+                  {schritteVon(e.id).map((s) => (
+                    <li key={s.id}>{s.titel}{s.faelligkeit ? <span className="eingang-todo-frist"> · bis {formatiereDatum(s.faelligkeit)}</span> : null}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <TriageKnoepfe eintrag={e} onAblegen={ablegen} onOeffnen={oeffnen} />
           </div>
         ))}

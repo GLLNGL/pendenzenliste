@@ -806,7 +806,7 @@ const api = {
     // Navigation -- muss nicht die vollen Datensaetze laden, nur die Anzahl.
     eingangAnzahl: async () => {
       const { count, error } = await supabase.from('pendenzen')
-        .select('id', { count: 'exact', head: true }).eq('geplant', false);
+        .select('id', { count: 'exact', head: true }).eq('geplant', false).is('uebergeordnete_pendenz_id', null);
       pruefeFehler(error);
       return count ?? 0;
     },

@@ -2455,3 +2455,7 @@ a.btn-klein { text-decoration: none; color: var(--text); display: inline-flex; a
 .eingang-mail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
 .eingang-mail-text { font-size: var(--fs-klein); color: var(--text-muted); }
 .eingang-mail-marke { color: var(--text-muted); }
+.eingang-todos { margin: 6px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); background: var(--surface-2); border-radius: 4px; }
+.eingang-todos-titel { font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 4px; }
+.eingang-todos ul { margin: 0; padding-left: 18px; font-size: var(--fs-klein); }
+.eingang-todo-frist { color: var(--text-muted); }
