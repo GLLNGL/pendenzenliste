@@ -496,6 +496,8 @@ const api = {
           hinweis: textOderNull(d.hinweis),
           reihenfolge: zahlOderNull(d.reihenfolge),
           aktiv: d.aktiv === undefined ? true : !!d.aktiv,
+          // Vorschlag fuer die Menge in der Offerte (z.B. 4 = vierteljaehrlich), v7.
+          ...(d.standardMenge !== undefined ? { standard_menge: nichtNegativ(d.standardMenge, 'Ungültige Standardmenge') } : {}),
         };
       },
     }),

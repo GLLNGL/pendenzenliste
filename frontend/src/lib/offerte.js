@@ -8,9 +8,11 @@ function runden(z) {
 }
 
 function positionAusLeistung(leistung, ansaetze, menge = '') {
+  // Ohne Menge: Standardmenge der Leistung vorschlagen (z.B. 4 Quartalsabrechnungen pro Jahr).
+  const vorschlag = menge === '' || menge == null ? (leistung.standard_menge != null ? String(Number(leistung.standard_menge)) : '') : menge;
   return {
     leistung_id: leistung.id, abacus_modul_id: null, bezeichnung: leistung.name, einheit: leistung.einheit,
-    turnus: leistung.turnus, menge, preis_pro_einheit: runden(preisProEinheit(leistung, ansaetze) ?? 0),
+    turnus: leistung.turnus, menge: vorschlag, preis_pro_einheit: runden(preisProEinheit(leistung, ansaetze) ?? 0),
     minuten_pro_einheit: leistung.minuten_pro_einheit ?? null, angebot_gruppe: leistung.angebot_gruppe ?? null, ist_lizenz: false,
   };
 }

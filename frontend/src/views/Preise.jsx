@@ -60,6 +60,8 @@ export default function Preise() {
     const aktiveAnsaetze = ansaetze.filter((a) => a.aktiv || a.id === eintrag?.stundenansatz_id);
     const standard = ansaetze.find((a) => a.ist_standard);
     const gruppen = [...new Set(leistungen.map((l) => l.angebot_gruppe).filter(Boolean))];
+    // Spalte standard_menge erst nach supabase/leistungen-jas-mwst-v7.sql vorhanden.
+    const mitStandardMenge = leistungen.some((l) => 'standard_menge' in l);
     return (
       <FormularModal
         titel={eintrag ? 'Leistung bearbeiten' : 'Neue Leistung'}
@@ -70,6 +72,7 @@ export default function Preise() {
           festpreisProEinheit: wertOderLeer(eintrag?.festpreis_pro_einheit), angebotGruppe: eintrag?.angebot_gruppe ?? '',
           hinweis: eintrag?.hinweis ?? '', reihenfolge: wertOderLeer(eintrag ? eintrag.reihenfolge : leistungen.length + 1),
           aktiv: eintrag ? (eintrag.aktiv ? '1' : '0') : '1',
+          standardMenge: wertOderLeer(eintrag?.standard_menge),
         }}
         felder={[
           { name: 'name', label: 'Leistung', typ: 'text', pflicht: true },
@@ -83,6 +86,8 @@ export default function Preise() {
           { name: 'festpreisProEinheit', label: 'CHF pro Einheit', typ: 'zahl', halb: true, schritt: '0.05', sichtbar: (f) => f.preisArt === 'fix' },
           { name: 'angebotGruppe', label: 'Gruppe im Angebot', typ: 'text', vorschlaege: gruppen,
             hinweis: 'Optional: Leistungen derselben Gruppe erscheinen in der Offerte als eine Zeile.' },
+          { name: 'standardMenge', label: 'Standardmenge in der Offerte', typ: 'zahl', halb: true, schritt: 'any', sichtbar: () => mitStandardMenge,
+            hinweis: 'Optional, z.B. 4 bei vierteljährlicher MWST (Turnus Jahr).' },
           { name: 'hinweis', label: 'Hinweis', typ: 'text' },
           { name: 'reihenfolge', label: 'Reihenfolge', typ: 'zahl', halb: true, schritt: '1' },
           { name: 'aktiv', label: 'Status', typ: 'select', optionen: STATUS_OPTIONEN, leer: false, halb: true },
@@ -98,7 +103,8 @@ export default function Preise() {
           if (f.preisArt === 'zeit' && (f.minutenProEinheit === '' || !f.stundenansatzId)) {
             throw new Error('Zeitbasierte Leistung braucht Zeit pro Einheit und Stundenansatz.');
           }
-          return api.preise.leistungen.speichern(eintrag?.id, { ...f, aktiv: f.aktiv === '1' });
+          const { standardMenge, ...rest } = f;
+          return api.preise.leistungen.speichern(eintrag?.id, { ...rest, aktiv: f.aktiv === '1', ...(mitStandardMenge ? { standardMenge } : {}) });
         })}
         onLoeschen={eintrag ? () => nachAktion(() => api.preise.leistungen.loeschen(eintrag.id)) : undefined}
         loeschenText={`Leistung «${eintrag?.name}» löschen?`}

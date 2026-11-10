@@ -61,3 +61,12 @@ test('Nummer, Pauschalen, Texte, CHF-Format', () => {
   assert.equal(chf(1234.5), "CHF 1'234.50");
   assert.equal(chf(-94.333), '-CHF 94.33');
 });
+
+test('Standardmenge der Leistung als Vorschlag', () => {
+  const mwst = { id: 15, name: 'MWST-Abrechnung effektiv (komplex)', einheit: 'Abrechnung', turnus: 'jaehrlich', preis_art: 'zeit', minuten_pro_einheit: 180, stundenansatz_id: 1, standard_menge: 4 };
+  const ansaetze = [{ id: 1, chf_pro_stunde: 130 }];
+  assert.equal(positionAusLeistung(mwst, ansaetze).menge, '4');
+  assert.equal(positionAusLeistung(mwst, ansaetze, 2).menge, 2);
+  assert.equal(positionAusLeistung(mwst, ansaetze).preis_pro_einheit, 390);
+  assert.equal(positionAusLeistung({ ...mwst, standard_menge: null }, ansaetze).menge, '');
+});
