@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
 
   try {
     // anhaenge (v7, Offerten): [{ dateiname, base64, typ }] -- z.B. die Offerte als PDF.
-    const { an, betreff, text, icsBase64, icsDateiname, anhaenge } = await req.json();
+    // html (v7): Mail in Arial 10 mit Signatur; cc/bcc: Listen von Adressen; anhaenge[].cid:
+    // eingebettetes Bild (Logo der Signatur).
+    const { an, cc, bcc, betreff, text, html, icsBase64, icsDateiname, anhaenge } = await req.json();
     if (!an || !text) {
       return new Response(JSON.stringify({ fehler: 'an und text sind erforderlich' }), {
         status: 400,
@@ -51,12 +53,17 @@ Deno.serve(async (req) => {
     await transporter.sendMail({
       from: Deno.env.get('SMTP_FROM') || Deno.env.get('SMTP_USER') || '',
       to: an,
+      ...(Array.isArray(cc) && cc.length ? { cc } : {}),
+      ...(Array.isArray(bcc) && bcc.length ? { bcc } : {}),
       subject: betreff || '(kein Betreff)',
       text,
+      ...(html ? { html } : {}),
       attachments: [
         ...(icsBase64 ? [{ filename: icsDateiname || 'termin.ics', content: icsBase64, encoding: 'base64', contentType: 'text/calendar' }] : []),
-        ...(Array.isArray(anhaenge) ? anhaenge.filter((a) => a?.base64).map((a) => ({
+        // Ohne HTML-Teil wird das eingebettete Logo nicht gebraucht.
+        ...(Array.isArray(anhaenge) ? anhaenge.filter((a) => a?.base64 && (!a.cid || html)).map((a) => ({
           filename: a.dateiname || 'anhang.pdf', content: a.base64, encoding: 'base64', contentType: a.typ || 'application/pdf',
+          ...(a.cid ? { cid: a.cid, contentDisposition: 'inline' } : {}),
         })) : []),
       ],
     });

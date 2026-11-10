@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 // beschrieben statt einzeln ausprogrammiert:
 //   { name, label, typ: 'text'|'zahl'|'datum'|'select'|'textarea'|'checkbox', optionen: [{wert, label}],
 //     pflicht, hinweis, halb (zwei halbe Felder nebeneinander), sichtbar(formular), schritt, vorschlaege }
+// mail: grosses E-Mail-Fenster, unten rechts mit der Maus vergroesserbar.
 // seitenansicht: optional links neben dem Formular angezeigt (z.B. die Rechnung als PDF).
 // vorschau(formular) liefert optional eine berechnete Zeile (z.B. Preis pro Einheit).
 // onAendern(name, wert, formular) darf weitere Felder mitsetzen (Rueckgabe: Teil-Objekt).
-export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen, speichernText = 'Speichern', breit = false, seitenansicht = null }) {
+export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen, speichernText = 'Speichern', breit = false, seitenansicht = null, mail = false }) {
   const [formular, setFormular] = useState(startwerte);
   const [fehler, setFehler] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(false);
@@ -124,7 +125,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
 
   return (
     <div className="modal-hintergrund" onClick={onSchliessen}>
-      <div className={`modal ${breit ? 'modal-mittel' : ''} ${seitenansicht ? 'modal-mit-ansicht' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${breit ? 'modal-mittel' : ''} ${seitenansicht ? 'modal-mit-ansicht' : ''} ${mail ? 'modal-mail' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{titel}</span>
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>

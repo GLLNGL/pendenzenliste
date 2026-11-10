@@ -2619,3 +2619,23 @@ tr.inaktiv td { opacity: 0.55; }
 .buchungs-monat strong { font-size: var(--fs-text); }
 .buchungs-kennzahlen { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 8px; }
 .buchungs-uebernahme { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* E-Mail-Fenster: gross, unten rechts mit der Maus aufziehbar; Text in Arial 10 wie die Mail */
+.modal.modal-mail {
+  width: min(1000px, calc(100vw - 32px)); max-width: calc(100vw - 16px);
+  height: min(calc(88vh / var(--app-zoom)), 900px); max-height: calc(100vh / var(--app-zoom) - 16px);
+  min-width: 520px; min-height: 420px;
+  resize: both; overflow: hidden; display: flex; flex-direction: column; position: relative;
+}
+.modal.modal-mail > form { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.modal.modal-mail > form > .modal-koerper { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; }
+.modal.modal-mail .feld:has(textarea) { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 220px; }
+.modal.modal-mail textarea, textarea.mail-text { flex: 1 1 auto; min-height: 220px; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.35; resize: vertical; }
+.modal.modal-mail::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 12px; height: 12px; pointer-events: none; background: linear-gradient(135deg, transparent 50%, var(--text-faint) 50%, var(--text-faint) 60%, transparent 60%, transparent 75%, var(--text-faint) 75%, var(--text-faint) 85%, transparent 85%); }
+.email-cc-reihe { display: flex; gap: 8px; }
+.email-cc-reihe input { flex: 1 1 0; min-width: 0; }
+@media (max-width: 640px) { .modal.modal-mail { min-width: 0; resize: none; } }
+.signatur-raster { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.signatur-raster .hinweis-erfolg, .signatur-raster .hinweis-fehler { grid-column: 1 / -1; }
+.signatur-vorschau { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: #fff; color: #000; }
+@media (max-width: 800px) { .signatur-raster { grid-template-columns: 1fr; } }

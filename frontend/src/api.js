@@ -10,6 +10,7 @@ import { REGEL_TYPEN } from './lib/regelVorlagen.js';
 import { heutigesDatumISO, datumPlusTage } from './format.js';
 import { baueICS, dateinameFuer } from './lib/ics.js';
 import { laufendeMinuten, ansatzFuer } from './lib/zeit.js';
+import { STANDARD_SIGNATUR, LOGO_CID, mailAufbereiten, adressenListe } from './lib/mail.js';
 
 // btoa() kann nur Latin1 -- Umlaute/Sonderzeichen in Titel/Beschreibung brauchen den Umweg
 // ueber UTF-8-Bytes, sonst wirft btoa bei manchen Zeichen einen Fehler.
@@ -31,7 +32,37 @@ async function fehlerKoerperLesen(error) {
   }
 }
 
-async function sendMailAufrufen(body) {
+// Signatur (Einstellungen, Schluessel "signatur") und Logo werden einmal geladen und gemerkt.
+let signaturCache = null;
+let logoCache = null;
+async function signaturLaden() {
+  if (signaturCache != null) return signaturCache;
+  const { data } = await supabase.from('buero_einstellungen').select('wert').eq('schluessel', 'signatur').maybeSingle();
+  signaturCache = typeof data?.wert?.text === 'string' ? data.wert.text : STANDARD_SIGNATUR;
+  return signaturCache;
+}
+async function logoLaden() {
+  if (logoCache !== null) return logoCache;
+  try {
+    const antwort = await fetch(`${import.meta.env.BASE_URL}logo-est-controlling.png`);
+    logoCache = antwort.ok ? await blobZuBase64(await antwort.blob()) : '';
+  } catch { logoCache = ''; }
+  return logoCache;
+}
+
+// Jede ausgehende Mail: Arial 10 pt, Signatur mit Logo (eingebettet), optional CC/BCC.
+async function sendMailAufrufen(eingabe) {
+  const signatur = await signaturLaden();
+  const logo = signatur ? await logoLaden() : '';
+  const { text, html } = mailAufbereiten(eingabe.text, signatur, { mitLogo: !!logo });
+  const body = {
+    ...eingabe, text, html,
+    cc: adressenListe(eingabe.cc), bcc: adressenListe(eingabe.bcc),
+    anhaenge: [
+      ...(eingabe.anhaenge ?? []),
+      ...(logo ? [{ dateiname: 'logo-est-controlling.png', base64: logo, typ: 'image/png', cid: LOGO_CID }] : []),
+    ],
+  };
   const { data, error } = await supabase.functions.invoke('clever-processor', { body });
   if (error) {
     if (error instanceof FunctionsHttpError) {
@@ -345,7 +376,7 @@ const api = {
       return data;
     },
     senden: async (daten) => {
-      const body = { an: daten.an, betreff: daten.betreff, text: daten.text };
+      const body = { an: daten.an, betreff: daten.betreff, text: daten.text, cc: daten.cc, bcc: daten.bcc };
       if (daten.kalender) {
         const ics = baueICS({
           titel: daten.kalender.titel, beschreibung: daten.kalender.beschreibung,
@@ -526,6 +557,7 @@ const api = {
       return data?.wert ?? {};
     },
     speichern: async (schluessel, wert) => {
+      if (schluessel === 'signatur') signaturCache = null;
       const { error } = await supabase.from('buero_einstellungen')
         .upsert({ schluessel, wert, geaendert_am: new Date().toISOString() });
       pruefeFehler(error);
@@ -769,12 +801,12 @@ const api = {
     },
     // Onboarding-Mail mit den Vorlagen der gewaehlten Unterlagen (und weiteren Dateien) senden.
     //   dateien: Vorlagen aus dem Speicher   zusatz: weitere Dateien vom PC (File-Objekte)
-    versenden: async (onboarding, { an, betreff, text, dateien, zusatz = [], unterlagenIds }) => {
+    versenden: async (onboarding, { an, cc, bcc, betreff, text, dateien, zusatz = [], unterlagenIds }) => {
       if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
       const anhaenge = [];
       for (const d of dateien) anhaenge.push({ dateiname: d.dateiname, base64: await api.dateien.base64(d), typ: d.typ || 'application/octet-stream' });
       for (const f of zusatz) anhaenge.push({ dateiname: f.name, base64: await blobZuBase64(f), typ: f.type || 'application/octet-stream' });
-      await sendMailAufrufen({ an: an.trim(), betreff, text, anhaenge });
+      await sendMailAufrufen({ an: an.trim(), cc, bcc, betreff, text, anhaenge });
       const jetzt = new Date().toISOString();
       const unterlagen = (onboarding.unterlagen ?? []).map((u) => (unterlagenIds.includes(u.unterlageId) ? { ...u, gesendetAm: jetzt } : u));
       return api.onboarding.aktualisieren(onboarding.id, { unterlagen, mail_gesendet_am: jetzt, mail_an: an.trim() });
@@ -857,10 +889,10 @@ const api = {
       pruefeFehler(error);
     },
     // Versand per E-Mail mit der Offerte als PDF-Anhang.
-    versenden: async (offerte, { an, betreff, text, pdfBase64, dateiname }) => {
+    versenden: async (offerte, { an, cc, bcc, betreff, text, pdfBase64, dateiname }) => {
       if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
       await sendMailAufrufen({
-        an: an.trim(), betreff, text,
+        an: an.trim(), cc, bcc, betreff, text,
         anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }],
       });
       const patch = { versendet_am: new Date().toISOString(), versendet_an: an.trim() };
@@ -1034,9 +1066,9 @@ const api = {
       const { error: fehlerLoeschen } = await supabase.from('rapporte').delete().eq('id', id);
       pruefeFehler(fehlerLoeschen);
     },
-    versenden: async (rapport, { an, betreff, text, pdfBase64, dateiname }) => {
+    versenden: async (rapport, { an, cc, bcc, betreff, text, pdfBase64, dateiname }) => {
       if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
-      await sendMailAufrufen({ an: an.trim(), betreff, text, anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }] });
+      await sendMailAufrufen({ an: an.trim(), cc, bcc, betreff, text, anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }] });
       const { error } = await supabase.from('rapporte').update({ versendet_am: new Date().toISOString(), versendet_an: an.trim() }).eq('id', rapport.id);
       pruefeFehler(error);
     },

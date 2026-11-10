@@ -188,6 +188,8 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
     // zugeordnet ist: eine Pendenz-Mail geht nur an eine Adresse, die unten explizit per Klick
     // (Ansprechpartner/in, Geschaeftsfuehrung, Bearbeiter/in) oder manuell ausgewaehlt wurde.
     an: '',
+    cc: '',
+    bcc: '',
     // Mandant immer zuerst im Betreff, damit man E-Mails im Postfach auf einen Blick zuordnen
     // kann -- ohne Mandant (interne Pendenz) bleibt nur der Titel.
     betreff: pendenz ? (pendenz.mandant_name ? `${pendenz.mandant_name}: ${pendenz.titel}` : pendenz.titel) : '',
@@ -579,6 +581,10 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
                       value={emailFormular.an}
                       onChange={(e) => setEmailFormular((f) => ({ ...f, an: e.target.value }))}
                     />
+                    <div className="email-cc-reihe">
+                      <input type="text" placeholder="CC (optional, mehrere mit ; trennen)" value={emailFormular.cc} onChange={(e) => setEmailFormular((f) => ({ ...f, cc: e.target.value }))} />
+                      <input type="text" placeholder="BCC (optional)" value={emailFormular.bcc} onChange={(e) => setEmailFormular((f) => ({ ...f, bcc: e.target.value }))} />
+                    </div>
                     <input
                       type="text"
                       placeholder="Betreff"
@@ -588,8 +594,10 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
                     <textarea
                       value={emailFormular.text}
                       onChange={(e) => setEmailFormular((f) => ({ ...f, text: e.target.value }))}
-                      rows={5}
+                      rows={12}
+                      className="mail-text"
                     />
+                    <div className="feld-hinweis">Signatur mit Logo wird automatisch angehängt (Arial 10).</div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-muted)' }}>
                       <input type="checkbox" checked={mitKalenderanhang} onChange={(e) => setMitKalenderanhang(e.target.checked)} />
                       Als Kalendertermin anhängen (.ics) – Empfänger kann es direkt in Outlook übernehmen

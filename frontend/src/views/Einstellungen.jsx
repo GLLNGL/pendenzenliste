@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api.js';
 import { useAuth } from '../AuthContext.jsx';
 import { meldeMitarbeitendeAenderung } from '../events.js';
+import { STANDARD_SIGNATUR } from '../lib/mail.js';
 import { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen } from '../lib/ablageOrdner.js';
 
 // Fokusstunden pro Woche der angemeldeten Person -- Grundlage fuer die Auslastungsanzeige im
@@ -165,6 +166,55 @@ function AblageEinstellung() {
   );
 }
 
+// E-Mail-Signatur: wird unter jede ausgehende Mail gesetzt (Arial 10, mit Logo).
+function SignaturEinstellung() {
+  const [text, setText] = useState(null);
+  const [meldung, setMeldung] = useState(null);
+  const [fehler, setFehler] = useState(null);
+
+  useEffect(() => {
+    api.buero.lesen('signatur').then((w) => setText(typeof w.text === 'string' ? w.text : STANDARD_SIGNATUR)).catch(() => setText(STANDARD_SIGNATUR));
+  }, []);
+
+  async function speichern(e) {
+    e.preventDefault();
+    setMeldung(null);
+    setFehler(null);
+    try {
+      await api.buero.speichern('signatur', { text });
+      setMeldung('Gespeichert – gilt ab der nächsten Mail.');
+    } catch (err) { setFehler(err.message); }
+  }
+
+  if (text == null) return null;
+  return (
+    <>
+      <h2 className="abschnitt-titel">E-Mail-Signatur</h2>
+      <p className="seiten-untertitel">Steht unter jeder Mail aus der App (Offerten, Rapporte, Onboarding, Pendenzen), in Arial 10 und mit dem Logo darunter.</p>
+      <form className="karte" style={{ maxWidth: 760 }} onSubmit={speichern}>
+        <div className="modal-koerper signatur-raster">
+          <div className="feld">
+            <label htmlFor="signatur-text">Signatur</label>
+            <textarea id="signatur-text" className="mail-text" rows={14} value={text} onChange={(e) => setText(e.target.value)} />
+            <button type="button" className="btn-klein" style={{ alignSelf: 'flex-start', marginTop: 6 }} onClick={() => setText(STANDARD_SIGNATUR)}>Vorlage wiederherstellen</button>
+          </div>
+          <div className="signatur-vorschau">
+            <div className="feld-gruppe-titel">Vorschau</div>
+            <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10pt', whiteSpace: 'pre-wrap', lineHeight: 1.35 }}>{text}</div>
+            <img src={`${import.meta.env.BASE_URL}logo-est-controlling.png`} alt="Logo" style={{ width: 180, marginTop: 12 }} />
+          </div>
+          {meldung && <div className="hinweis-erfolg">{meldung}</div>}
+          {fehler && <div className="hinweis-fehler">{fehler}</div>}
+        </div>
+        <div className="modal-fuss">
+          <div />
+          <button type="submit" className="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </>
+  );
+}
+
 export default function Einstellungen() {
   const [testetGerade, setTestetGerade] = useState(false);
   const [meldung, setMeldung] = useState(null);
@@ -196,6 +246,8 @@ export default function Einstellungen() {
       <Fokusstunden />
 
       <AblageEinstellung />
+
+      <SignaturEinstellung />
 
       <h2 className="abschnitt-titel">E-Mail-Versand</h2>
       <p className="seiten-untertitel">Läuft über eine zentral eingerichtete Supabase-Funktion, nicht mehr über eine Einstellung hier in der App.</p>

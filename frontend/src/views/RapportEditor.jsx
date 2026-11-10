@@ -262,21 +262,24 @@ export default function RapportEditor() {
         <FormularModal
           titel={`Detailrapport ${kopf.nummer} per E-Mail senden`}
           breit
+          mail
           speichernText="Senden"
           startwerte={{
-            an: adressen[0] || '',
+            an: adressen[0] || '', cc: '', bcc: '',
             betreff: textErsetzen(texte.mailBetreff || 'Detailrapport {nummer} – {mandant}', platzhalter),
             text: textErsetzen(texte.mailText || '', platzhalter),
           }}
           felder={[
             { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen },
+            { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
+            { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
             { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
-            { name: 'text', label: 'Text', typ: 'textarea', pflicht: true },
+            { name: 'text', label: 'Text', typ: 'textarea', pflicht: true, hinweis: 'Signatur mit Logo wird automatisch angehängt (Arial 10).' },
           ]}
           vorschau={() => `Anhang: ${dateiname}`}
           onSpeichern={async (f) => {
             const { base64 } = await elementZuPdf(dokumentRef.current);
-            await api.rapporte.versenden(kopf, { an: f.an, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname });
+            await api.rapporte.versenden(kopf, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname });
             setKopf((k) => ({ ...k, versendet_am: new Date().toISOString(), versendet_an: f.an }));
             setMailOffen(false);
             setMeldung(`Rapport an ${f.an} gesendet.`);

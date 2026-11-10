@@ -32,7 +32,7 @@ function Entwurf({ pendenz, absender, onErledigt }) {
     setZustand('sendet');
     setFehler(null);
     try {
-      await api.mail.senden({ an: mail.an.trim(), betreff: mail.betreff, text: mail.text, pendenzId: pendenz.id });
+      await api.mail.senden({ an: mail.an.trim(), cc: mail.cc, bcc: mail.bcc, betreff: mail.betreff, text: mail.text, pendenzId: pendenz.id });
       await abschliessen(`E-Mail an ${mail.an.trim()}`);
     } catch (err) {
       setFehler(err.message);
@@ -64,8 +64,12 @@ function Entwurf({ pendenz, absender, onErledigt }) {
       ) : (
         <>
           <input type="email" placeholder="Empfänger-E-Mail" value={mail.an} onChange={(e) => feld('an', e.target.value)} />
+          <div className="email-cc-reihe">
+            <input type="text" placeholder="CC (optional)" value={mail.cc ?? ''} onChange={(e) => feld('cc', e.target.value)} />
+            <input type="text" placeholder="BCC (optional)" value={mail.bcc ?? ''} onChange={(e) => feld('bcc', e.target.value)} />
+          </div>
           <input type="text" value={mail.betreff} onChange={(e) => feld('betreff', e.target.value)} />
-          <textarea rows={7} value={mail.text} onChange={(e) => feld('text', e.target.value)} />
+          <textarea rows={10} className="mail-text" value={mail.text} onChange={(e) => feld('text', e.target.value)} />
           <div className="nachfass-aktionen">
             <label className="nachfass-datum">
               Nächstes Nachfassen
