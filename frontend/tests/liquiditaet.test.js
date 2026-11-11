@@ -92,9 +92,26 @@ test('Liquiditätsplan: bezahlte Rechnungen nach dem Stichtag des Kontostands', 
     { art: 'kreditor', betrag: 50, faelligkeit: '2026-12-01', bezahlt_am: '2026-11-17' },   // Zahlungsauftrag mit künftigem Datum
   ];
   const plan = liquiditaetsplan(belege, { heute, start: 5000, perioden: 2, kontostandDatum: '2026-11-09' });
-  assert.deepEqual(plan.bezahltSeitStand, { zufluss: 300, abfluss: 1000, anzahl: 2 });
+  assert.deepEqual(plan.bezahltSeitStand, { zufluss: 300, ausgang: 1000, anzahl: 2 });
   assert.equal(plan.standNachBezahlt, 4300);
-  assert.deepEqual(plan.zeilen.map((z) => [z.abfluss, z.stand]), [[0, 4300], [50, 4250]]);
+  assert.deepEqual(plan.zeilen.map((z) => [z.ausgang, z.stand]), [[0, 4300], [50, 4250]]);
   // Ohne Stichtag: bisherige Zahlungen gelten als im Kontostand enthalten.
   assert.equal(liquiditaetsplan(belege, { heute, start: 5000, perioden: 2 }).standNachBezahlt, 5000);
+});
+
+test('Liquiditätsplan: Zahlungslauf als Zahlungsausgang, nicht doppelt', () => {
+  const belege = [
+    { art: 'kreditor', betrag: 800, faelligkeit: '2026-12-10', zahlungslauf_id: 7 },  // im Lauf, Ausführung 13.11.
+    { art: 'kreditor', betrag: 400, faelligkeit: '2026-11-20' },                      // offen, Fälligkeit
+    { art: 'debitor', betrag: 1000, faelligkeit: '2026-11-18' },
+  ];
+  const plan = liquiditaetsplan(belege, { heute, start: 1000, perioden: 2, laeufe: [{ id: 7, ausfuehrungsdatum: '2026-11-13' }] });
+  assert.deepEqual(plan.zeilen.map((z) => [z.zufluss, z.abfluss, z.ausgang, z.saldo, z.stand]), [
+    [0, 0, 800, -800, 200],
+    [1000, 400, 0, 600, 800],
+  ]);
+  assert.equal(plan.engpass, null);
+  const knapp = liquiditaetsplan(belege, { heute, start: 500, perioden: 2, laeufe: [{ id: 7, ausfuehrungsdatum: '2026-11-13' }] });
+  assert.equal(knapp.engpass.von, heute);
+  assert.equal(knapp.tiefsterStand, -300);
 });

@@ -2648,3 +2648,6 @@ tr.inaktiv td { opacity: 0.55; }
 .liq-bezahlt td { background: var(--success-bg); }
 .zahlungslauf-zeile td { font-weight: 600; }
 .zahlungslauf-beleg td { font-size: var(--fs-liste-klein); background: var(--surface-2); }
+.liq-kopf-zusatz { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-faint); font-size: var(--fs-label); }
+.liq-engpass td { border-top: 2px solid var(--danger); }
+.liq-engpass-marke { color: var(--danger); font-weight: 600; }
