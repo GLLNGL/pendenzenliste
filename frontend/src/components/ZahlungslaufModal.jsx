@@ -4,6 +4,7 @@ import { chf } from '../lib/offerte.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { zahlungPruefen, zahlungHinweise, pain001, ibanGueltig, kompakt } from '../lib/pain001.js';
 import { herunterladen } from '../lib/ablageOrdner.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 // Naechster Bankwerktag ab einem Datum (Sa/So -> Montag).
 function bankwerktag(iso) {
@@ -77,7 +78,7 @@ export default function ZahlungslaufModal({ belege, onSchliessen, onErstellt }) 
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal modal-mittel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>Zahlungslauf erstellen · {belege.length} Zahlung{belege.length === 1 ? '' : 'en'}</span>

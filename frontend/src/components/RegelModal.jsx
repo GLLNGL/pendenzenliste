@@ -5,6 +5,7 @@ import { BLOECKE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, RHYTHM
 import { REGEL_TYPEN, vorlageFuerTyp } from '../lib/regelVorlagen.js';
 import { istWochenRhythmus, naechstePendenzen, heutigesDatumUTC } from '../lib/recurrence.js';
 import { formatiereDatum } from '../format.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 const WOCHENTAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
 const PLATZHALTER_HINWEIS = 'Platzhalter: {Datum}, {Monat}, {Quartal}, {Halbjahr}, {Jahr}';
@@ -202,7 +203,7 @@ export default function RegelModal({ regel, mandanten, faelligkeitTypen, rhythme
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{regel ? 'Wiederkehrende Arbeit bearbeiten' : 'Neue wiederkehrende Arbeit'}</span>

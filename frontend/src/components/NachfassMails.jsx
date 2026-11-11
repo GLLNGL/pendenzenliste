@@ -4,6 +4,7 @@ import { meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
 import { datumPlusTage, formatiereDatum, heutigesDatumISO } from '../format.js';
 import { baueErinnerung, NACHFASS_ABSTAND_TAGE } from '../lib/wochenrueckblick.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 // Nachfassen (Etappe 5): fuer alle "Warten auf" mit faelligem Nachfassdatum eine
 // Erinnerungs-Mail VORBEREITEN. Nichts wird automatisch gesendet -- jede Mail wird geprueft
@@ -107,7 +108,7 @@ export default function NachfassMails({ pendenzen, onSchliessen }) {
   }, [onSchliessen]);
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal modal-breit" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>Erinnerungen vorbereiten ({liste.length})</span>

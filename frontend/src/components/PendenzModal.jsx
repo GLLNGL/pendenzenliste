@@ -13,6 +13,7 @@ import { ladeICSHerunter } from '../lib/ics.js';
 import { blockVorschlag, prioritaetVorschlag } from '../lib/vorschlaege.js';
 import { inArbeitErlaubt } from '../lib/wip.js';
 import { useAuth } from '../AuthContext.jsx';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 // Mandant-Auswahl: '' = noch nicht gewaehlt (Pflicht), 'intern' = bewusst kein Mandant
 // (eigenes Buero), sonst die Mandanten-ID.
@@ -366,7 +367,7 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{pendenz ? `Pendenz ${pendenz.id} bearbeiten` : 'Neue Pendenz'}</span>

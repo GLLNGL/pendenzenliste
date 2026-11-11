@@ -11,6 +11,7 @@ import {
   pauschalLeistungIds, uhrzeitAus, minutenZwischen, uhrzeitPlus,
 } from '../lib/zeit.js';
 import { chf } from '../lib/offerte.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 const wert = (w) => (w == null ? '' : String(w));
 
@@ -33,7 +34,7 @@ export default function ZeitModal({ eintrag = null, pendenz = null, onSchliessen
 
   if (fehler) {
     return (
-      <div className="modal-hintergrund" onClick={onSchliessen}>
+      <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
         <div className="modal" onClick={(e) => e.stopPropagation()}><div className="modal-koerper"><div className="hinweis-fehler">{fehler}</div></div></div>
       </div>
     );

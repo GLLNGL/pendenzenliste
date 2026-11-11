@@ -12,6 +12,7 @@ import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { Link } from 'react-router-dom';
 import { PendenzDetailModal } from './PendenzModal.jsx';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 const INTERN = 'intern';
 const VERRECHNUNG = [
@@ -181,7 +182,7 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
   const mandant = mandanten.find((m) => String(m.id) === kopf.mandantId);
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal modal-breit projekt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{!pendenz ? 'Neues Projekt' : pendenz.geplant === false ? 'Aus dem Eingang einplanen' : `Projekt ${pendenz.id} bearbeiten`}</span>

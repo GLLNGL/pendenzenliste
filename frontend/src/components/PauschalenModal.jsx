@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api.js';
 import FormularModal from './FormularModal.jsx';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 import {
   listenpreisMonat, planMinutenMonat, effektiverSatz, formatiereCHF, formatiereMinuten, turnusLabel,
   aktivePauschalen, pauschalenSumme, zielansatz, maxMinuten, formatiereTage,
@@ -161,7 +162,7 @@ export default function PauschalenModal({ mandant, onSchliessen, onGeaendert }) 
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal modal-breit" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>Preise &amp; Pauschalen · {mandant.name}{mandant.kunden_nr ? ` (${mandant.kunden_nr})` : ''}</span>

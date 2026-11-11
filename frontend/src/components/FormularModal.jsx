@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 // Allgemeines Bearbeiten-Fenster fuer einfache Datensaetze (Preise, Pauschalen). Felder werden
 // beschrieben statt einzeln ausprogrammiert:
@@ -134,7 +135,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
   const vorschauText = vorschau?.(formular);
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className={`modal ${breit ? 'modal-mittel' : ''} ${seitenansicht ? 'modal-mit-ansicht' : ''} ${mail ? 'modal-mail' : ''}`}
         style={mail ? { width: `calc(${groesse}vw / var(--app-zoom))`, height: `calc(${groesse}vh / var(--app-zoom))` } : undefined}
         onClick={(e) => e.stopPropagation()}

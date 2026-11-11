@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { meldeMitarbeitendeAenderung } from '../events.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 export default function MitarbeiterModal({ mitarbeiter, onSchliessen, onGespeichert, onGeloescht }) {
   const [name, setName] = useState(mitarbeiter?.name ?? '');
@@ -51,7 +52,7 @@ export default function MitarbeiterModal({ mitarbeiter, onSchliessen, onGespeich
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{mitarbeiter ? 'Mitarbeiter/in bearbeiten' : 'Neue/r Mitarbeiter/in'}</span>

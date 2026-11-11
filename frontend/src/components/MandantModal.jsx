@@ -7,6 +7,7 @@ import { ablageVon, ordnerVorschlag } from '../lib/ablage.js';
 import { useAblageGrund } from '../hooks.js';
 import { Link } from 'react-router-dom';
 import { unterstuetzt, grundOrdnerHolen, unterordnerWaehlen } from '../lib/ablageOrdner.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -128,7 +129,7 @@ export default function MandantModal({ mandant, alleMandanten = [], vorgabeStatu
   }
 
   return (
-    <div className="modal-hintergrund" onClick={onSchliessen}>
+    <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-kopf">
           <span>{mandant ? 'Mandant bearbeiten' : 'Neuer Mandant'}</span>

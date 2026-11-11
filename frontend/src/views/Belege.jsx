@@ -402,6 +402,7 @@ export default function Belege({ art }) {
         const m = mandantZuPartner(b.partner, mandanten);
         const adressen = [m?.email, m?.geschaeftsfuehrung_email].filter(Boolean);
         const platzhalter = rechnungPlatzhalter(b, m, firma);
+        const textFuer = (mandant) => textErsetzen(rechnungText.mailText || RECHNUNG_VORLAGE.mailText, rechnungPlatzhalter(b, mandant, firma));
         return (
           <FormularModal
             titel={`Rechnung ${b.rechnungsnummer || ''} an ${b.partner} senden`}
@@ -409,18 +410,29 @@ export default function Belege({ art }) {
             mail
             speichernText="Senden"
             startwerte={{
-              an: adressen[0] || '', cc: '', bcc: '',
+              mandantId: m ? String(m.id) : '', an: adressen[0] || '', cc: '', bcc: '',
               betreff: textErsetzen(rechnungText.mailBetreff || RECHNUNG_VORLAGE.mailBetreff, platzhalter),
               text: textErsetzen(rechnungText.mailText || RECHNUNG_VORLAGE.mailText, platzhalter),
             }}
             felder={[
+              { name: 'mandantId', label: 'Mandant', typ: 'select', leer: '– wählen –',
+                optionen: mandanten.filter((x) => x.aktiv || String(x.id) === String(m?.id ?? '')).map((x) => ({ wert: String(x.id), label: x.name })),
+                hinweis: m ? 'Aus dem Namen auf der Rechnung erkannt.' : 'Kein passender Mandant erkannt – bitte wählen, die E-Mail wird übernommen.' },
               { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen,
-                hinweis: m ? (adressen.length ? `Vorschläge aus dem Mandanten «${m.name}».` : `Beim Mandanten «${m.name}» ist keine E-Mail hinterlegt.`) : 'Kein passender Mandant gefunden – Adresse eintragen.' },
+                hinweis: 'E-Mail des Mandanten (Ansprechperson, sonst Geschäftsführung); mehrere mit ; trennen.' },
               { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
               { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
               { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
               { name: 'text', label: 'Text', typ: 'textarea', pflicht: true, hinweis: 'Signatur mit Logo wird automatisch angehängt (Arial 10).' },
             ]}
+            onAendern={(name, wert, f) => {
+              if (name !== 'mandantId') return null;
+              const neu = mandanten.find((x) => String(x.id) === wert);
+              const patch = { an: neu?.email || neu?.geschaeftsfuehrung_email || '' };
+              // Anrede nur anpassen, solange der Text noch einem Standardtext entspricht (nicht von Hand geaendert).
+              if ([null, ...mandanten].some((x) => textFuer(x) === f.text)) patch.text = textFuer(neu);
+              return patch;
+            }}
             vorschau={() => (b.ablage_pfad ? `Anhang: ${b.dateiname || b.ablage_pfad.split(/[\\/]/).pop()} (aus OneDrive)` : 'Achtung: kein Beleg hinterlegt – die Mail geht ohne Rechnung.')}
             onSpeichern={async (f) => {
               const datei = b.ablage_pfad ? await dateiLesen(b.ablage_pfad) : null;

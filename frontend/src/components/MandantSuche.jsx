@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 // Treffer fuer die Suche: zuerst Namen, die mit dem Text beginnen, dann Namen, in denen ein
 // Wort damit beginnt (z.B. «per» -> «A4 Personal AG»), dann Kuerzel/Kunden-Nr./Ort, die damit
@@ -58,7 +59,7 @@ export default function MandantSuche({ id, mandanten, wert, onWahl, onNeu, leerT
         <span aria-hidden="true">🔍</span>
       </button>
       {offen && (
-        <div className="modal-hintergrund" onClick={() => setOffen(false)}>
+        <div className="modal-hintergrund" {...hintergrundSchliessen(() => setOffen(false))}>
           <div className="modal mandant-suche-popup" onClick={(e) => e.stopPropagation()} onKeyDown={taste}>
             <div className="modal-kopf">
               <span>Mandant suchen</span>
