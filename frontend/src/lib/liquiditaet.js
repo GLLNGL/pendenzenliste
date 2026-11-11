@@ -44,9 +44,15 @@ function durchschnittFrist(belege) {
  * @param optionen { heute, start (Kontostand), perioden, einheit: 'woche' | 'monat' }
  * @returns { zeilen: [{ label, von, bis, zufluss, abfluss, saldo, stand }], ueberfaellig, ohneDatum, fremdwaehrung }
  */
-function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = 'woche' }) {
+function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = 'woche', kontostandDatum = null }) {
   const offen = belege.filter((b) => !b.bezahlt_am && Number(b.betrag));
   const chf = offen.filter((b) => (b.waehrung || 'CHF') === 'CHF');
+  // Bezahlte Rechnungen zaehlen nach ihrem Zahlungsdatum (nicht der Faelligkeit): bis heute
+  // bezahlte nach dem Stichtag des Kontostands veraendern den Stand sofort (vorher bezahlte sind
+  // im Kontostand schon enthalten), Zahlungen mit kuenftigem Datum fallen in ihre Periode.
+  const bezahltChf = belege.filter((b) => b.bezahlt_am && Number(b.betrag) && (b.waehrung || 'CHF') === 'CHF');
+  const seitStand = bezahltChf.filter((b) => b.bezahlt_am <= heute && kontostandDatum && b.bezahlt_am > kontostandDatum);
+  const bezahltKuenftig = bezahltChf.filter((b) => b.bezahlt_am > heute);
   const vorzeichen = (b) => (b.art === 'debitor' ? 1 : -1) * Number(b.betrag);
 
   const grenzen = [];
@@ -73,12 +79,22 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
     zufluss: ueberfaelligeBelege.filter((b) => b.art === 'debitor').reduce((s, b) => s + Number(b.betrag), 0),
     abfluss: ueberfaelligeBelege.filter((b) => b.art === 'kreditor').reduce((s, b) => s + Number(b.betrag), 0),
   };
+  const bezahltSeitStand = {
+    zufluss: seitStand.filter((b) => b.art === 'debitor').reduce((s, b) => s + Number(b.betrag), 0),
+    abfluss: seitStand.filter((b) => b.art === 'kreditor').reduce((s, b) => s + Number(b.betrag), 0),
+    anzahl: seitStand.length,
+  };
   let stand = Number(start) || 0;
+  stand += bezahltSeitStand.zufluss - bezahltSeitStand.abfluss;
+  const standNachBezahlt = stand;
   stand += ueberfaellig.zufluss - ueberfaellig.abfluss;
   const standNachUeberfaellig = stand;
 
   const zeilen = grenzen.map((g) => {
-    const drin = chf.filter((b) => b.faelligkeit && b.faelligkeit >= g.von && b.faelligkeit <= g.bis && b.faelligkeit >= heute);
+    const drin = [
+      ...chf.filter((b) => b.faelligkeit && b.faelligkeit >= g.von && b.faelligkeit <= g.bis && b.faelligkeit >= heute),
+      ...bezahltKuenftig.filter((b) => b.bezahlt_am >= g.von && b.bezahlt_am <= g.bis),
+    ];
     const zufluss = drin.filter((b) => b.art === 'debitor').reduce((s, b) => s + Number(b.betrag), 0);
     const abfluss = drin.filter((b) => b.art === 'kreditor').reduce((s, b) => s + Number(b.betrag), 0);
     stand += zufluss - abfluss;
@@ -89,7 +105,10 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
   const fremdwaehrung = offen.filter((b) => (b.waehrung || 'CHF') !== 'CHF');
   const letzteBis = grenzen.at(-1)?.bis;
   const spaeter = chf.filter((b) => b.faelligkeit && letzteBis && b.faelligkeit > letzteBis).reduce((s, b) => s + vorzeichen(b), 0);
-  return { zeilen, ueberfaellig, standNachUeberfaellig, ohneDatum, spaeter, fremdwaehrung, tiefsterStand: Math.min(standNachUeberfaellig, ...zeilen.map((z) => z.stand)) };
+  return {
+    zeilen, ueberfaellig, bezahltSeitStand, standNachBezahlt, standNachUeberfaellig, ohneDatum, spaeter, fremdwaehrung,
+    tiefsterStand: Math.min(standNachBezahlt, standNachUeberfaellig, ...zeilen.map((z) => z.stand)),
+  };
 }
 
 export { belegStatus, durchschnittFrist, liquiditaetsplan, tageZwischen, montag, plusTage };

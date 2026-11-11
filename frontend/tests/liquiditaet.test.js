@@ -83,3 +83,18 @@ test('Rechnungs-Mail: Mandant finden und Platzhalter', () => {
   assert.match(text, /innert 10 Tagen mit dem beiliegenden QR-Einzahlungsschein/);
   assert.equal(textErsetzen(RECHNUNG_VORLAGE.mailBetreff, p), 'Rechnung R-12 – estcontrolling GmbH');
 });
+
+test('Liquiditätsplan: bezahlte Rechnungen nach dem Stichtag des Kontostands', () => {
+  const belege = [
+    { art: 'kreditor', betrag: 1000, faelligkeit: '2026-12-15', bezahlt_am: '2026-11-10' }, // vor Fälligkeit bezahlt, nach Stichtag
+    { art: 'debitor', betrag: 300, faelligkeit: '2026-11-30', bezahlt_am: '2026-11-11' },   // heute eingegangen
+    { art: 'kreditor', betrag: 200, faelligkeit: '2026-11-20', bezahlt_am: '2026-11-08' },  // vor Stichtag -> im Kontostand
+    { art: 'kreditor', betrag: 50, faelligkeit: '2026-12-01', bezahlt_am: '2026-11-17' },   // Zahlungsauftrag mit künftigem Datum
+  ];
+  const plan = liquiditaetsplan(belege, { heute, start: 5000, perioden: 2, kontostandDatum: '2026-11-09' });
+  assert.deepEqual(plan.bezahltSeitStand, { zufluss: 300, abfluss: 1000, anzahl: 2 });
+  assert.equal(plan.standNachBezahlt, 4300);
+  assert.deepEqual(plan.zeilen.map((z) => [z.abfluss, z.stand]), [[0, 4300], [50, 4250]]);
+  // Ohne Stichtag: bisherige Zahlungen gelten als im Kontostand enthalten.
+  assert.equal(liquiditaetsplan(belege, { heute, start: 5000, perioden: 2 }).standNachBezahlt, 5000);
+});

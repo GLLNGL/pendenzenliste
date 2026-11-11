@@ -43,7 +43,7 @@ export default function Liquiditaet() {
   }
 
   const start = Number(stand.betrag) || 0;
-  const plan = liquiditaetsplan(belege, { heute, start, perioden: einheit === 'woche' ? 13 : 6, einheit });
+  const plan = liquiditaetsplan(belege, { heute, start, perioden: einheit === 'woche' ? 13 : 6, einheit, kontostandDatum: stand.datum || null });
   const debitoren = belege.filter((b) => b.art === 'debitor');
   const kreditoren = belege.filter((b) => b.art === 'kreditor');
   const offenSumme = (liste) => liste.filter((b) => !b.bezahlt_am && (b.waehrung || 'CHF') === 'CHF').reduce((s, b) => s + Number(b.betrag || 0), 0);
@@ -66,7 +66,7 @@ export default function Liquiditaet() {
     <div className="liquiditaet">
       <div className="cockpit-kopfzeile">
         <h1 className="seiten-titel">Liquiditätsplan</h1>
-        <span className="cockpit-kopf-hinweis">Kontostand + offene Debitoren − offene Kreditoren, nach Fälligkeit (CHF).</span>
+        <span className="cockpit-kopf-hinweis">Kontostand + offene Debitoren − offene Kreditoren nach Fälligkeit; bezahlte Rechnungen nach Zahlungsdatum (CHF).</span>
         <span className="kopfzeile-aktionen mandanten-filter">
           <button type="button" className={`mandanten-filter-knopf ${einheit === 'woche' ? 'aktiv' : ''}`} onClick={() => setEinheit('woche')}>Wochen</button>
           <button type="button" className={`mandanten-filter-knopf ${einheit === 'monat' ? 'aktiv' : ''}`} onClick={() => setEinheit('monat')}>Monate</button>
@@ -118,6 +118,16 @@ export default function Liquiditaet() {
               <td>Kontostand {stand.datum ? `per ${formatiereDatum(stand.datum)}` : ''}</td><td /><td /><td />
               <td className="zahl"><strong>{chf(start)}</strong></td><td />
             </tr>
+            {plan.bezahltSeitStand.anzahl > 0 && (
+              <tr className="liq-bezahlt">
+                <td>Bezahlt seit dem Kontostand ({plan.bezahltSeitStand.anzahl})</td>
+                <td className="zahl liq-plus">{plan.bezahltSeitStand.zufluss ? chf(plan.bezahltSeitStand.zufluss) : ''}</td>
+                <td className="zahl liq-minus">{plan.bezahltSeitStand.abfluss ? chf(plan.bezahltSeitStand.abfluss) : ''}</td>
+                <td className="zahl">{chf(plan.bezahltSeitStand.zufluss - plan.bezahltSeitStand.abfluss)}</td>
+                <td className={`zahl ${plan.standNachBezahlt < 0 ? 'liq-minus' : ''}`}>{chf(plan.standNachBezahlt)}</td>
+                <td />
+              </tr>
+            )}
             {(plan.ueberfaellig.zufluss > 0 || plan.ueberfaellig.abfluss > 0) && (
               <tr className="liq-ueberfaellig">
                 <td>Überfällig (sofort)</td>

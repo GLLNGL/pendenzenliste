@@ -2645,3 +2645,4 @@ tr.inaktiv td { opacity: 0.55; }
 .beleg-versendet { font-size: var(--fs-label); color: var(--success); margin-top: 2px; }
 .feld-auswahl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .feld-auswahl .btn-klein.aktiv { border-color: var(--accent); color: var(--accent); }
+.liq-bezahlt td { background: var(--success-bg); }
