@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   zahl, nummernListe, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen,
-  bewertungGesamt, deklarationTotal, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
+  bewertungGesamt, deklarationTotal, svDokumentAnwenden, stichwort, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
 } from '../src/lib/abstimmung.js';
 
 // Erfundene Zahlen (keine Kundendaten).
@@ -168,4 +168,36 @@ test('Gemeldete Lohnsumme: mehrere Zeilen, alte Fassung, Vorjahrestexte', () => 
   assert.equal(deklarationTotal({ deklaration: 5 }), 5);
   assert.equal(deklarationTotal({ deklarationen: [{ betrag: '' }] }), null);
   assert.deepEqual(svLeer('ktg', { deklarationen: [{ text: 'Kat. A', betrag: 1 }] }).deklarationen, [{ text: 'Kat. A', betrag: '' }]);
+});
+
+test('Stichworte der Beitragsarten', () => {
+  const s = (t) => stichwort(t);
+  assert.deepEqual(
+    ['AHV/IV/EO', 'ALV Beitrag', 'Beitrag Fam.-Ausgleichskasse', 'Verwaltungskosten AHV', 'Nichtberufsunfall (NBU)', 'Berufsunfall (BU)', 'UVG-Zusatz', 'Krankentaggeld', 'Spar- und Risikobeiträge'].map(s),
+    ['ahv', 'alv', 'fak', 'vk', 'nbu', 'bu', 'uvgz', 'ktg', 'bvg'],
+  );
+});
+
+test('Lohnmeldung und Schlussrechnung übernehmen', () => {
+  let d = svLeer('ahv');
+  let r = svDokumentAnwenden(d, { art: 'lohnmeldung', lohnsummen: [{ bezeichnung: 'AHV-pflichtige Lohnsumme', betrag: 100000 }] });
+  assert.deepEqual(r.daten.deklarationen, [{ text: 'AHV-pflichtige Lohnsumme', betrag: '100000' }]);
+  d = r.daten;
+  r = svDokumentAnwenden(d, {
+    art: 'schlussrechnung', akonto: 11000,
+    beitraege: [
+      { bezeichnung: 'AHV/IV/EO', betrag: 10600 }, { bezeichnung: 'ALV', betrag: 2200 },
+      { bezeichnung: 'Familienausgleichskasse', betrag: 1500 }, { bezeichnung: 'Verwaltungskosten', betrag: 300 },
+      { bezeichnung: 'Mutterschaft Kanton', betrag: 50 },
+    ],
+  });
+  assert.deepEqual(r.daten.beitraege.map((b) => [b.bez, b.rechnung]), [
+    ['AHV / IV / EO', '10600'], ['ALV', '2200'], ['FAK', '1500'], ['Verwaltungskosten', '300'], ['Mutterschaft Kanton', '50'],
+  ]);
+  assert.equal(r.daten.akonto, '11000');
+  assert.match(r.meldung, /1 neue Beitragsart/);
+  // zweimal einlesen ersetzt, summiert nicht doppelt
+  const r2 = svDokumentAnwenden(r.daten, { art: 'schlussrechnung', beitraege: [{ bezeichnung: 'AHV', betrag: 1 }] });
+  assert.equal(r2.daten.beitraege[0].rechnung, '1');
+  assert.equal(r2.daten.beitraege[1].rechnung, '');
 });

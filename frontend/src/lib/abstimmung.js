@@ -316,6 +316,60 @@ function svBerechnen(d, grundlagen = {}) {
   return ergebnis;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Dokumente (Lohnmeldung, Schlussrechnung) in die Abstimmung uebernehmen
+// ---------------------------------------------------------------------------------------------
+// Stichwoerter je Beitragsart, um Positionen der Schlussrechnung den Zeilen zuzuordnen.
+const BEITRAG_STICHWORTE = [
+  ['vk', /verwaltung|\bvk\b/],
+  ['fak', /fak|fam(il|\.|\b)|kinderzul/],
+  ['alv', /alv|arbeitslos/],
+  ['ahv', /ahv|\biv\b|\beo\b|alters/],
+  ['nbu', /nbu|nicht.?beruf/],
+  ['bu', /(^|[^n])bu\b|berufsunf|^beruf/],
+  ['uvgz', /zusatz|uvgz|uvg.?z/],
+  ['ktg', /ktg|krankentag|taggeld/],
+  ['bvg', /bvg|vorsorge|pensionskasse|spar|risiko|pk\b/],
+];
+function stichwort(text) {
+  const t = String(text ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return BEITRAG_STICHWORTE.find(([, re]) => re.test(t))?.[0] ?? null;
+}
+
+/**
+ * Von der KI gelesenes Dokument in die Abstimmung einsetzen.
+ * - Lohnmeldung: gemeldete Lohnsummen (Zeilen ersetzt)
+ * - Schlussrechnung: Jahresbeitraege den Beitragsarten zuordnen (gleiches Stichwort; sonst neue
+ *   Zeile, Beitraege derselben Art summiert), Akonto uebernehmen
+ * @returns {{ daten, meldung }}
+ */
+function svDokumentAnwenden(daten, dok) {
+  if (dok.art === 'lohnmeldung') {
+    const zeilen = (dok.lohnsummen ?? []).filter((x) => zahl(x.betrag) != null);
+    if (!zeilen.length) return { daten, meldung: 'Lohnmeldung erkannt, aber keine Lohnsumme gefunden.' };
+    return {
+      daten: { ...daten, deklaration: undefined, deklarationen: zeilen.map((x) => ({ text: x.bezeichnung, betrag: String(runden(x.betrag)) })) },
+      meldung: `Lohnmeldung: ${zeilen.length} Lohnsumme(n), total ${runden(zeilen.reduce((s, x) => s + x.betrag, 0))}`,
+    };
+  }
+  if (dok.art === 'schlussrechnung') {
+    const beitraege = (daten.beitraege ?? []).map((b) => ({ ...b, rechnung: '' }));
+    const neu = [];
+    for (const p of (dok.beitraege ?? []).filter((x) => zahl(x.betrag) != null)) {
+      const art = stichwort(p.bezeichnung);
+      const ziel = (art && beitraege.find((b) => stichwort(b.bez) === art)) || neu.find((b) => b.bez === p.bezeichnung);
+      if (ziel) ziel.rechnung = String(runden(n(ziel.rechnung) + p.betrag));
+      else neu.push({ bez: p.bezeichnung, laAN: '', laAG: '', rechnung: String(runden(p.betrag)) });
+    }
+    const total = runden((dok.beitraege ?? []).reduce((s, x) => s + n(x.betrag), 0));
+    return {
+      daten: { ...daten, beitraege: [...beitraege, ...neu], ...(zahl(dok.akonto) != null ? { akonto: String(runden(dok.akonto)) } : {}) },
+      meldung: `Schlussrechnung: Jahresbeitrag ${total}${zahl(dok.akonto) != null ? `, Akonto ${runden(dok.akonto)}` : ''}${neu.length ? ` · ${neu.length} neue Beitragsart(en) – Lohnarten ergänzen` : ''}`,
+    };
+  }
+  return { daten, meldung: null };
+}
+
 // Gesamtbild fuer Liste/Status: alle erfassten Differenzen ok?
 function bewertungGesamt(ergebnis) {
   const d = ergebnis?.differenzen ?? [];
@@ -342,6 +396,6 @@ function tabellenBlock(text) {
 
 export {
   BEREICHE, SV_BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, zahl, differenz, nummernListe, grundlagenLesen,
-  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon, deklarationTotal,
+  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon, deklarationTotal, svDokumentAnwenden, stichwort,
   bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock,
 };

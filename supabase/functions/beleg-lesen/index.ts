@@ -6,7 +6,9 @@
 // base64, firma } }) -- nur angemeldete Personen (Supabase prueft das JWT). Im Dashboard heisst
 // die Funktion "rapid-handler". Mit modus: 'buchungen' zaehlt sie stattdessen die Buchungen pro
 // Monat in einem Bankauszug/Buchungsjournal (Preiskalkulation der Offerte); mit modus:
-// 'kontoauszug' liest sie die einzelnen Buchungen eines Kontoauszugs (Debitoren-Abgleich).
+// 'kontoauszug' liest sie die einzelnen Buchungen eines Kontoauszugs (Debitoren-Abgleich); mit
+// modus: 'sozialversicherung' (art = ahv|bvg|uvg|ktg) Lohnmeldung, Schlussrechnung, Erfolgsrechnung
+// oder Kumulativjournal fuer die Abstimmung im Jahresabschluss.
 //
 // Secret: ANTHROPIC_API_KEY (dasselbe wie fuer "mail-eingang").
 
@@ -88,6 +90,56 @@ const SCHEMA_KONTOAUSZUG = {
 };
 const SYSTEM_KONTOAUSZUG = 'Du liest Kontoauszüge eines Schweizer Treuhandbüros für den Abgleich mit offenen Rechnungen. Gib jede Bewegung einzeln zurück (Gutschrift = Geld kommt herein, Belastung = Geld geht hinaus), mit Datum, Betrag, Gegenpartei, Referenz und Text. Keine Salden, Überträge oder Zwischentotale als Buchung. Bei Sammelgutschriften mit Einzelpositionen die Einzelpositionen angeben.';
 
+// Modus "sozialversicherung" (Abstimmung Jahresabschluss): Lohnmeldung, Schlussrechnung einer
+// Sozialversicherung (AHV, BVG, UVG, KTG) oder Erfolgsrechnung / Kumulativjournal als PDF.
+const BETRAGSLISTE = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: { bezeichnung: { type: 'string' }, betrag: { type: 'number' } },
+    required: ['bezeichnung', 'betrag'],
+    additionalProperties: false,
+  },
+};
+const SCHEMA_SV = {
+  type: 'object',
+  properties: {
+    art: { type: 'string', enum: ['lohnmeldung', 'schlussrechnung', 'erfolgsrechnung', 'kumulativjournal', 'anderes'] },
+    versicherung: { type: 'string', enum: ['ahv', 'bvg', 'uvg', 'ktg', 'mehrere', 'unbekannt'] },
+    versicherer: { type: ['string', 'null'], description: 'z.B. SVA Aargau, Swica, Pensionskasse XY' },
+    jahr: { type: ['integer', 'null'], description: 'Beitrags-/Geschäftsjahr' },
+    datum: { type: ['string', 'null'], description: 'Datum des Dokuments YYYY-MM-DD' },
+    lohnsummen: { ...BETRAGSLISTE, description: 'Nur Lohnmeldung: gemeldete Jahres-Lohnsummen der gesuchten Versicherung, z.B. AHV-pflichtige Lohnsumme; UVG/KTG getrennt nach Männer/Frauen bzw. Kategorie, falls so gemeldet. Sonst leer.' },
+    beitraege: { ...BETRAGSLISTE, description: 'Nur Schlussrechnung: Jahresbeiträge pro Beitragsart (AN + AG zusammen), z.B. AHV/IV/EO, ALV, FAK, Verwaltungskosten, NBU, BU, UVG-Zusatz, KTG, BVG Spar/Risiko. Keine Totale, keine Akontos. Sonst leer.' },
+    akonto: { type: ['number', 'null'], description: 'Nur Schlussrechnung: Total der bereits fakturierten Akonto-/Vorausbeiträge für das Jahr' },
+    saldo: { type: ['number', 'null'], description: 'Nur Schlussrechnung: Nachzahlung (+) bzw. Guthaben (−)' },
+    konten: {
+      type: 'array',
+      description: 'Nur Erfolgsrechnung/Saldenliste: alle Konten mit Nummer (4+ Ziffern), Bezeichnung und Saldo (Aufwand negativ wie im Export). Keine Totale.',
+      items: {
+        type: 'object',
+        properties: { konto: { type: 'string' }, text: { type: 'string' }, saldo: { type: 'number' } },
+        required: ['konto', 'text', 'saldo'],
+        additionalProperties: false,
+      },
+    },
+    lohnarten: {
+      type: 'array',
+      description: 'Nur Kumulativjournal: Jahrestotal pro Lohnart über alle Mitarbeitenden (Totalblock), mit Vorzeichen wie im Journal.',
+      items: {
+        type: 'object',
+        properties: { la: { type: 'string' }, text: { type: 'string' }, total: { type: 'number' } },
+        required: ['la', 'text', 'total'],
+        additionalProperties: false,
+      },
+    },
+    hinweis: { type: ['string', 'null'], description: 'Nur wenn etwas unklar ist, ein kurzer Satz; sonst null.' },
+  },
+  required: ['art', 'versicherung', 'versicherer', 'jahr', 'datum', 'lohnsummen', 'beitraege', 'akonto', 'saldo', 'konten', 'lohnarten', 'hinweis'],
+  additionalProperties: false,
+};
+const SYSTEM_SV = 'Du liest für ein Schweizer Treuhandbüro Unterlagen für die Abstimmung der Sozialversicherungen im Jahresabschluss: Lohnmeldungen (Lohnbescheinigung/Lohndeklaration an AHV-Ausgleichskasse, Pensionskasse, Unfall- oder Krankentaggeldversicherung), Schlussrechnungen bzw. Beitragsabrechnungen dieser Versicherungen, Erfolgsrechnungen und Lohn-Kumulativjournale (Abacus). Gib nur Beträge zurück, die im Dokument stehen. Beträge als Zahl ohne Tausendertrennzeichen. Leere Listen für Teile, die zum Dokumenttyp nicht passen. Personendaten (Namen, AHV-Nummern) nicht zurückgeben.';
+
 function antwort(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
@@ -106,6 +158,23 @@ Deno.serve(async (req) => {
     const beleg = istPdf
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
       : { type: 'image', source: { type: 'base64', media_type: typ, data: base64 } };
+    if (modus === 'sozialversicherung') {
+      const ki = await anthropic.beta.messages.create({
+        model: 'claude-opus-5-5',
+        max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_SV } },
+        system: SYSTEM_SV,
+        messages: [{ role: 'user', content: [beleg, { type: 'text', text: `Dateiname: ${dateiname ?? ''}. Gesuchte Versicherung: ${String(art ?? '').toUpperCase() || 'unbekannt'}. Bei einer Lohnmeldung mit mehreren Versicherungen nur die Lohnsummen der gesuchten Versicherung angeben.` }] }],
+      // deno-lint-ignore no-explicit-any
+      } as any, { timeout: 140000, maxRetries: 1 });
+      if (ki.stop_reason === 'refusal' || ki.stop_reason === 'max_tokens') return antwort({ fehler: `Auswertung abgebrochen (${ki.stop_reason}).` }, 502);
+      const block = ki.content.find((b: { type: string }) => b.type === 'text') as { text: string } | undefined;
+      if (!block) return antwort({ fehler: 'Keine Antwort der KI erhalten.' }, 502);
+      return antwort({ ok: true, sozialversicherung: JSON.parse(block.text) });
+    }
+
     if (modus === 'kontoauszug') {
       const ki = await anthropic.beta.messages.create({
         model: 'claude-opus-5-5',

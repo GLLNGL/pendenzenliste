@@ -6,10 +6,12 @@ import { relativerOrdner } from '../lib/ablage.js';
 import { unterstuetzt, dateiAblegen, dateiLesen } from '../lib/ablageOrdner.js';
 import { csvZerlegen, xlsxZeilen } from '../lib/buchungsjournal.js';
 import { chf } from '../lib/offerte.js';
+import { elementZuPdf, herunterladen } from '../lib/pdf.js';
+import AbstimmungRapport from '../components/AbstimmungRapport.jsx';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import {
   BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen,
-  svLeer, svBerechnen, bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, zahl,
+  svLeer, svBerechnen, svDokumentAnwenden, bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, zahl,
 } from '../lib/abstimmung.js';
 
 const betrag = (x) => (x == null ? '–' : chf(x).replace('CHF ', ''));
@@ -168,25 +170,28 @@ function MwstFormular({ daten, setDaten }) {
 // ---------------------------------------------------------------------------------------------
 // Sozialversicherungen
 // ---------------------------------------------------------------------------------------------
-function GrundlagenKarte({ grundlagen, onDateien, laedt }) {
+function Quelle({ nr, titel, ok, text, fehlt }) {
+  return (
+    <div className={`abst-quelle ${ok ? 'abst-quelle-ok' : ''}`}>
+      <strong>{ok ? '✓' : nr} {titel}</strong>
+      {ok ? <span>{text}</span> : <span className="text-gedaempft">{fehlt}</span>}
+    </div>
+  );
+}
+
+function GrundlagenKarte({ kurz, grundlagen, dokumente, onDateien, laedt }) {
   const [ziehen, setZiehen] = useState(false);
   const eingabeRef = useRef(null);
   const g = grundlagen ?? {};
+  const lm = dokumente?.lohnmeldung;
+  const sr = dokumente?.schlussrechnung;
   return (
-    <Karte titel="Grundlagen (für AHV, BVG, UVG und KTG gemeinsam)">
-      <div className="abst-grundlagen">
-        <div className={`abst-quelle ${g.konten?.length ? 'abst-quelle-ok' : ''}`}>
-          <strong>Erfolgsrechnung / Saldenliste</strong>
-          {g.konten?.length
-            ? <span>{g.konten.length} Konten · {g.kontenDatei} · {formatiereDatum(g.kontenAm)}</span>
-            : <span className="text-gedaempft">fehlt – Export mit Spalten Nummer, Bezeichnung, Saldo</span>}
-        </div>
-        <div className={`abst-quelle ${g.lohnarten?.length ? 'abst-quelle-ok' : ''}`}>
-          <strong>Kumulativjournal</strong>
-          {g.lohnarten?.length
-            ? <span>{g.lohnarten.length} Lohnarten{g.personen ? `, ${g.personen} Personen` : ''} · {g.journalDatei} · {formatiereDatum(g.journalAm)}</span>
-            : <span className="text-gedaempft">fehlt – Export mit Spalten LA, Lohnartentext, Total</span>}
-        </div>
+    <Karte titel="Unterlagen einlesen" zusatz="Erfolgsrechnung und Kumulativjournal gelten für AHV, BVG, UVG und KTG gemeinsam">
+      <div className="abst-grundlagen abst-grundlagen-5">
+        <Quelle nr="1" titel={`Lohnmeldung ${kurz}`} ok={!!lm} text={`${lm?.datei} · ${formatiereDatum(lm?.am)}`} fehlt="PDF der Lohnmeldung / Deklaration" />
+        <Quelle nr="2" titel="Erfolgsrechnung" ok={g.konten?.length > 0} text={`${g.konten?.length} Konten · ${g.kontenDatei} · ${formatiereDatum(g.kontenAm)}`} fehlt="Excel/CSV (Nummer, Bezeichnung, Saldo) oder PDF" />
+        <Quelle nr="3" titel="Kumulativjournal" ok={g.lohnarten?.length > 0} text={`${g.lohnarten?.length} Lohnarten${g.personen ? `, ${g.personen} Personen` : ''} · ${g.journalDatei} · ${formatiereDatum(g.journalAm)}`} fehlt="Excel/CSV (LA, Lohnartentext, Total) oder PDF" />
+        <Quelle nr="4" titel={`Schlussrechnung ${kurz}`} ok={!!sr} text={`${sr?.datei} · ${formatiereDatum(sr?.am)}`} fehlt="PDF der Schluss-/Beitragsabrechnung" />
         <div
           className={`beleg-drop abst-drop ${ziehen ? 'aktiv' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setZiehen(true); }}
@@ -196,9 +201,9 @@ function GrundlagenKarte({ grundlagen, onDateien, laedt }) {
           role="button"
           tabIndex={0}
         >
-          <div className="beleg-drop-titel">{laedt ? 'Liest…' : 'Exporte hierher ziehen'}</div>
-          <div className="beleg-drop-text">Excel oder CSV aus Abacus · beide auf einmal möglich · wird erkannt</div>
-          <input ref={eingabeRef} type="file" multiple hidden accept=".xlsx,.csv,.txt" onChange={(e) => { onDateien(e.target.files); e.target.value = ''; }} />
+          <div className="beleg-drop-titel">{laedt ? 'Liest… (PDF per KI, bis 1 Minute)' : 'Unterlagen hierher ziehen'}</div>
+          <div className="beleg-drop-text">Lohnmeldung, Erfolgsrechnung, Kumulativjournal, Schlussrechnung · PDF, Excel oder CSV · mehrere auf einmal · Art wird erkannt</div>
+          <input ref={eingabeRef} type="file" multiple hidden accept=".pdf,.xlsx,.csv,.txt,.png,.jpg,.jpeg" onChange={(e) => { onDateien(e.target.files); e.target.value = ''; }} />
         </div>
       </div>
       {(g.konten?.length > 0 || g.lohnarten?.length > 0) && (
@@ -404,6 +409,9 @@ export default function Abstimmung({ bereich }) {
   const [liest, setLiest] = useState(false);
   const [ziehen, setZiehen] = useState(false);
   const eingabeRef = useRef(null);
+  const rapportRef = useRef(null);
+  const [firma, setFirma] = useState({});
+  useEffect(() => { api.buero.lesen('firma').then(setFirma).catch(() => {}); }, []);
 
   const setDaten = (d) => { setDatenRoh(d); setGeaendert(true); };
 
@@ -478,31 +486,75 @@ export default function Abstimmung({ bereich }) {
   const basis = relativerOrdner(mandant, grund);
   const ordner = abstimmungOrdner(basis, jahr, bereich);
 
-  // Erfolgsrechnung / Kumulativjournal einlesen (Datei bleibt in OneDrive, hier nur die Totale).
-  async function grundlagenEinlesen(files) {
+  // Unterlagen einlesen: Excel/CSV = Erfolgsrechnung oder Kumulativjournal; PDF/Bild liest die KI
+  // (Lohnmeldung, Schlussrechnung, Erfolgsrechnung, Kumulativjournal). ER und Journal gelten fuer
+  // alle Versicherungen (Datensatz lohn_grundlagen), Lohnmeldung/Schlussrechnung fuellen diese
+  // Abstimmung. Die Dateien werden in OneDrive abgelegt.
+  async function dokumenteEinlesen(files) {
     const dateien = [...files];
     if (!dateien.length) return;
     setFehler(null);
     setLiest(true);
+    const heute = heutigesDatumISO();
+    let g = { ...(grundlagen ?? {}) };
+    let d = { ...daten };
+    let gAenderung = false;
+    let dAenderung = false;
+    const meldungen = [];
     try {
-      let neu = { ...(grundlagen ?? {}) };
-      const gelesen = [];
       for (const f of dateien) {
-        const r = grundlagenLesen(await tabelleLesen(f));
-        if (!r) throw new Error(`${f.name}: weder Erfolgsrechnung (Nummer, Bezeichnung, Saldo) noch Kumulativjournal (LA, Total) erkannt.`);
-        if (r.art === 'konten') neu = { ...neu, konten: r.konten, kontenDatei: f.name, kontenAm: heutigesDatumISO() };
-        else neu = { ...neu, lohnarten: r.lohnarten, personen: r.personen, journalDatei: f.name, journalAm: heutigesDatumISO() };
-        gelesen.push(r.art === 'konten' ? `Erfolgsrechnung (${r.konten.length} Konten)` : `Kumulativjournal (${r.lohnarten.length} Lohnarten)`);
-        const ziel = abstimmungOrdner(basis, jahr, GRUNDLAGEN);
+        const tabelle = /\.(xlsx|csv|txt)$/i.test(f.name);
+        let art;
+        if (tabelle) {
+          const r = grundlagenLesen(await tabelleLesen(f));
+          if (!r) throw new Error(`${f.name}: weder Erfolgsrechnung (Nummer, Bezeichnung, Saldo) noch Kumulativjournal (LA, Total) erkannt.`);
+          art = r.art === 'konten' ? 'erfolgsrechnung' : 'kumulativjournal';
+          if (art === 'erfolgsrechnung') g = { ...g, konten: r.konten, kontenDatei: f.name, kontenAm: heute };
+          else g = { ...g, lohnarten: r.lohnarten, personen: r.personen, journalDatei: f.name, journalAm: heute };
+        } else {
+          const dok = await api.svDokumentLesen(f, bereich);
+          art = dok.art;
+          if (art === 'erfolgsrechnung' && dok.konten?.length) {
+            g = { ...g, konten: dok.konten.map((k) => ({ konto: String(k.konto).trim(), text: k.text, saldo: k.saldo })), kontenDatei: f.name, kontenAm: heute };
+          } else if (art === 'kumulativjournal' && dok.lohnarten?.length) {
+            g = { ...g, lohnarten: dok.lohnarten.map((l) => ({ la: String(l.la).trim(), text: l.text, total: l.total })), personen: null, journalDatei: f.name, journalAm: heute };
+          } else if (art === 'lohnmeldung' || art === 'schlussrechnung') {
+            const r = svDokumentAnwenden(d, dok);
+            d = { ...r.daten, dokumente: { ...(d.dokumente ?? {}), [art]: { datei: f.name, am: heute, versicherer: dok.versicherer, datum: dok.datum, jahr: dok.jahr } } };
+            dAenderung = true;
+            if (r.meldung) meldungen.push(r.meldung);
+            if (!['unbekannt', 'mehrere', bereich].includes(dok.versicherung)) meldungen.push(`⚠ ${f.name} scheint ${dok.versicherung.toUpperCase()} zu betreffen, nicht ${info.kurz}`);
+            if (dok.jahr && Number(dok.jahr) !== jahr) meldungen.push(`⚠ ${f.name} betrifft das Jahr ${dok.jahr}`);
+          } else {
+            throw new Error(`${f.name}: nicht als Lohnmeldung, Schlussrechnung, Erfolgsrechnung oder Kumulativjournal erkannt.${dok.hinweis ? ` (${dok.hinweis})` : ''}`);
+          }
+          if (dok.hinweis) meldungen.push(`Hinweis KI: ${dok.hinweis}`);
+        }
+        if (art === 'erfolgsrechnung') { gAenderung = true; meldungen.push(`Erfolgsrechnung: ${g.konten.length} Konten`); }
+        if (art === 'kumulativjournal') { gAenderung = true; meldungen.push(`Kumulativjournal: ${g.lohnarten.length} Lohnarten`); }
+        // Ablage in OneDrive (ER/Journal unter Sozialversicherungen, sonst bei dieser Versicherung).
+        const gemeinsam = art === 'erfolgsrechnung' || art === 'kumulativjournal';
+        const ziel = abstimmungOrdner(basis, jahr, gemeinsam ? GRUNDLAGEN : bereich);
         if (unterstuetzt() && ziel) {
-          try { await dateiAblegen(f, f.name, ziel); } catch { /* Ablage optional */ }
+          try {
+            const pfad = await dateiAblegen(f, f.name, ziel);
+            if (!gemeinsam) { d = { ...d, unterlagen: [...(d.unterlagen ?? []), { name: f.name, pfad, datum: heute }] }; dAenderung = true; }
+          } catch { /* Ablage optional */ }
         }
       }
-      await api.abstimmungen.speichern({ mandantId, jahr, bereich: GRUNDLAGEN, daten: neu, status: 'in_arbeit' });
-      setGrundlagen(neu);
-      setMeldung(`Eingelesen: ${gelesen.join(', ')}.`);
+      if (gAenderung) {
+        await api.abstimmungen.speichern({ mandantId, jahr, bereich: GRUNDLAGEN, daten: g, status: 'in_arbeit' });
+        setGrundlagen(g);
+      }
+      if (dAenderung) {
+        setDatenRoh(d);
+        await speichern(eintrag?.status ?? 'in_arbeit', d);
+      }
+      setMeldung(`Eingelesen – ${meldungen.join(' · ')}`);
       listeLaden();
     } catch (err) {
+      if (dAenderung) setDatenRoh(d);
+      if (gAenderung) setGrundlagen(g);
       setFehler(/lohn_grundlagen|check constraint/i.test(err.message)
         ? 'Bitte zuerst supabase/abstimmungen-grundlagen-v7.sql in Supabase ausführen.' : err.message);
     } finally {
@@ -534,6 +586,19 @@ export default function Abstimmung({ bereich }) {
       const url = URL.createObjectURL(datei);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) { setFehler(err.message); }
+  }
+
+  // Rapport als PDF: herunterladen und (falls moeglich) im Dossier-Ordner ablegen.
+  async function rapportPdf() {
+    setFehler(null);
+    try {
+      const { blob } = await elementZuPdf(rapportRef.current);
+      const name = `${jahr} Abstimmung ${info.kurz} ${mandant?.name ?? ''}.pdf`.replace(/[<>:"/\|?*]+/g, ' ');
+      if (unterstuetzt() && ordner) {
+        try { const pfad = await dateiAblegen(blob, name, ordner); setMeldung(`Rapport abgelegt: ${pfad}`); return; } catch { /* sonst herunterladen */ }
+      }
+      herunterladen(blob, name);
     } catch (err) { setFehler(err.message); }
   }
 
@@ -605,6 +670,8 @@ export default function Abstimmung({ bereich }) {
                         <button type="button" className="btn" onClick={() => speichern('abgestimmt')} disabled={gesamt === 'differenz' && !bemerkung.trim()} title={gesamt === 'differenz' && !bemerkung.trim() ? 'Differenzen zuerst in der Bemerkung begründen' : ''}>✓ Abgestimmt</button>
                       </>
                     )}
+                  <button type="button" className="btn" onClick={() => window.print()}>Rapport drucken</button>
+                  <button type="button" className="btn" onClick={rapportPdf}>PDF</button>
                   <button type="button" className="btn btn-primary" onClick={() => speichern()} disabled={!geaendert}>Speichern</button>
                 </div>
               </div>
@@ -614,10 +681,14 @@ export default function Abstimmung({ bereich }) {
                 ? <MwstFormular daten={daten} setDaten={setDaten} />
                 : (
                   <>
-                    <GrundlagenKarte grundlagen={grundlagen} onDateien={grundlagenEinlesen} laedt={liest} />
+                    <GrundlagenKarte kurz={info.kurz} grundlagen={grundlagen} dokumente={daten.dokumente} onDateien={dokumenteEinlesen} laedt={liest} />
                     <SvFormular bereich={bereich} daten={daten} setDaten={setDaten} grundlagen={grundlagen} />
                   </>
                 )}
+
+              <div className="abst-druck druck-ziel">
+                <AbstimmungRapport ref={rapportRef} bereich={bereich} jahr={jahr} mandant={mandant} daten={daten} ergebnis={ergebnis} grundlagen={grundlagen} eintrag={eintrag} bemerkung={bemerkung} firma={firma} />
+              </div>
 
               <Karte titel="Bemerkung">
                 <textarea className="abst-bemerkung" value={bemerkung} rows={3} placeholder="Begründung von Differenzen, Korrekturabrechnung, offene Fragen an den Kunden"

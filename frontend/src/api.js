@@ -731,6 +731,26 @@ const api = {
     return data.buchungen;
   },
 
+  // Abstimmung Sozialversicherungen (v7): Lohnmeldung, Schlussrechnung, Erfolgsrechnung oder
+  // Kumulativjournal (PDF/Bild) per KI lesen. bereich = ahv|bvg|uvg|ktg (gesuchte Versicherung).
+  svDokumentLesen: async (file, bereich) => {
+    if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: grösser als 25 MB.`);
+    const base64 = await blobZuBase64(file);
+    const { data, error } = await supabase.functions.invoke('rapid-handler', {
+      body: { modus: 'sozialversicherung', art: bereich, dateiname: file.name, typ: file.type || 'application/pdf', base64 },
+    });
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        const koerper = await fehlerKoerperLesen(error);
+        throw new Error(koerper?.fehler || error.message);
+      }
+      if (/Failed to send/i.test(error.message)) throw new Error('Funktion «beleg-lesen» (rapid-handler) nicht erreichbar.');
+      throw new Error(error.message);
+    }
+    if (!data?.sozialversicherung) throw new Error('Die KI-Funktion kennt Sozialversicherungs-Unterlagen noch nicht – bitte rapid-handler im Dashboard neu deployen.');
+    return data.sozialversicherung;
+  },
+
   // Debitoren-Abgleich (v7): Buchungen eines PDF-Kontoauszugs per KI lesen.
   kontoauszugLesen: async (file) => {
     if (file.size > 25 * 1024 * 1024) throw new Error('PDF grösser als 25 MB – bitte als camt-XML oder CSV exportieren.');

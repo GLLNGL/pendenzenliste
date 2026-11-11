@@ -2721,3 +2721,22 @@ table.tabelle.abst-tabelle-eng th { letter-spacing: 0; }
 table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal; }
 .abst-tabelle-eng .abst-text { min-width: 100px; }
 .abst-tabelle-eng .abst-la { width: 70px; }
+.abst-grundlagen-5 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.abst-grundlagen-5 .abst-drop { grid-column: 1 / -1; }
+
+/* Rapport der Abstimmung (A4, Druck/PDF) */
+.abst-druck { position: fixed; left: -10000px; top: 0; }
+@media print { .abst-druck.druck-ziel { position: absolute; left: 0; top: 0; } }
+.abst-rapport .od-titel { margin-top: 24px; font-size: 18px; }
+.abst-rapport .od-zwischentitel { margin-top: 14px; color: var(--od-navy); }
+.ar-ergebnis { margin: 8px 0 0; font-size: 11.5px; font-weight: 700; }
+.ar-tabelle { width: 100%; border-collapse: collapse; font-size: 9.5px; page-break-inside: avoid; }
+.ar-tabelle th { background: var(--od-navy); color: #fff; font-weight: 700; text-align: left; padding: 3px 5px; }
+.ar-tabelle td { padding: 2px 5px; border-bottom: 1px solid #e3e3e3; }
+.ar-tabelle tr.ar-summe td { font-weight: 700; border-top: 1px solid #555; }
+.ar-ok { color: #1f7a3d; font-weight: 700; }
+.ar-fehler { color: #c62828; font-weight: 700; }
+.ar-leer { color: #999; }
+.ar-bemerkung { white-space: pre-wrap; font-size: 10.5px; border: 1px solid #e3e3e3; padding: 6px 8px; min-height: 30px; }
+.ar-unterlagen { margin: 2px 0 0; padding-left: 18px; font-size: 9.5px; }
+.abst-rapport .od-unterschriften { margin-top: 40px; }
