@@ -2646,3 +2646,5 @@ tr.inaktiv td { opacity: 0.55; }
 .feld-auswahl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .feld-auswahl .btn-klein.aktiv { border-color: var(--accent); color: var(--accent); }
 .liq-bezahlt td { background: var(--success-bg); }
+.zahlungslauf-zeile td { font-weight: 600; }
+.zahlungslauf-beleg td { font-size: var(--fs-liste-klein); background: var(--surface-2); }

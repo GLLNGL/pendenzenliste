@@ -38,6 +38,8 @@ export default function Belege({ art }) {
   const [auswahl, setAuswahl] = useState(() => new Set()); // Belege fuer den Zahlungslauf
   const [laeufe, setLaeufe] = useState([]);
   const [zahlungslaufOffen, setZahlungslaufOffen] = useState(false);
+  const [laufAuf, setLaufAuf] = useState(() => new Set()); // Laeufe, deren Auf-/Zuklappen umgeschaltet wurde
+  const laufUmschalten = (id) => setLaufAuf((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const zahlbar = art === 'kreditor';
   const [sendenBeleg, setSendenBeleg] = useState(null); // Debitorenrechnung per E-Mail
   const [rechnungText, setRechnungText] = useState(RECHNUNG_VORLAGE);
@@ -122,6 +124,8 @@ export default function Belege({ art }) {
 
   const sichtbar = (belege ?? []).filter((b) => {
     const s = belegStatus(b, heute);
+    // Rechnungen in einem (noch nicht bezahlten) Zahlungslauf stehen unten beim Lauf.
+    if (s === 'im_lauf') return false;
     if (filter === 'offen' && s === 'bezahlt') return false;
     if (filter === 'bezahlt' && s !== 'bezahlt') return false;
     const q = suche.trim().toLowerCase();
@@ -361,13 +365,17 @@ export default function Belege({ art }) {
             <table className="tabelle">
               <thead><tr><th>Ausführung</th><th className="zahl">Zahlungen</th><th className="zahl">Summe</th><th>Status</th><th></th></tr></thead>
               <tbody>
-                {laeufe.map((l) => (
-                  <tr key={l.id}>
-                    <td>{formatiereDatum(l.ausfuehrungsdatum)}</td>
+                {laeufe.map((l) => {
+                  // Offene Laeufe sind aufgeklappt, bezahlte zugeklappt -- Klick schaltet um.
+                  const offenAuf = l.bezahlt_am ? laufAuf.has(l.id) : !laufAuf.has(l.id);
+                  const inLauf = (belege ?? []).filter((b) => b.zahlungslauf_id === l.id);
+                  return [
+                  <tr key={l.id} className="klickbar zahlungslauf-zeile" onClick={() => laufUmschalten(l.id)}>
+                    <td><span className="tp-projekt-pfeil" aria-hidden="true">{offenAuf ? '▾' : '▸'}</span> {formatiereDatum(l.ausfuehrungsdatum)}</td>
                     <td className="zahl">{l.anzahl}</td>
                     <td className="zahl">{chf(l.summe)}</td>
                     <td>{l.bezahlt_am ? <span className="beleg-status beleg-status-bezahlt">bezahlt</span> : <span className="beleg-status beleg-status-im_lauf">erstellt – im E-Banking freigeben</span>}</td>
-                    <td className="zahlungslauf-aktionen">
+                    <td className="zahlungslauf-aktionen" onClick={(e) => e.stopPropagation()}>
                       <button type="button" className="btn-klein" onClick={() => laufDatei(l)}>Datei</button>
                       {!l.bezahlt_am && (
                         <>
@@ -376,8 +384,20 @@ export default function Belege({ art }) {
                         </>
                       )}
                     </td>
-                  </tr>
-                ))}
+                  </tr>,
+                  ...(offenAuf ? inLauf.map((b) => (
+                    <tr key={`${l.id}-${b.id}`} className="zahlungslauf-beleg klickbar" onClick={() => setAktuell({ beleg: b })}>
+                      <td>↳ {b.rechnungsnummer || '–'}</td>
+                      <td><strong>{b.partner}</strong></td>
+                      <td className="zahl">{(b.waehrung || 'CHF') !== 'CHF' ? `${b.waehrung} ` : ''}{chf(b.betrag)}</td>
+                      <td className="text-gedaempft">fällig {b.faelligkeit ? formatiereDatum(b.faelligkeit) : '–'}{b.bezahlt_am ? ` · bezahlt ${formatiereDatum(b.bezahlt_am)}` : ''}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {b.ablage_pfad && <button type="button" className="link-knopf" title={b.ablage_pfad} onClick={() => oeffnen(b)}>📄 öffnen</button>}
+                      </td>
+                    </tr>
+                  )) : []),
+                  ];
+                })}
               </tbody>
             </table>
           </div>
