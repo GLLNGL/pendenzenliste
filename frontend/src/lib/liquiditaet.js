@@ -88,9 +88,10 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
     }
   }
 
-  // Ausgefuehrte Zahlungen bis heute: nur nach dem Stichtag (sonst im Kontostand enthalten).
-  // Ohne Stichtag gelten sie als enthalten.
-  const seit = bewegungen.filter((x) => x.bezahlt && x.datum && x.datum <= heute && kontostandDatum && x.datum > kontostandDatum);
+  // Ausgefuehrte Zahlungen bis heute ab dem Stichtag: der Kontostand gilt als Stand VOR den
+  // Zahlungen dieses Tages (Zahlungen am Stichtag zaehlen also noch). Fruehere sind enthalten.
+  // Ohne Stichtag gelten alle bisherigen Zahlungen als enthalten.
+  const seit = bewegungen.filter((x) => x.bezahlt && x.datum && x.datum <= heute && kontostandDatum && x.datum >= kontostandDatum);
   const bezahltSeitStand = { zufluss: summe(seit, 'zufluss'), ausgang: summe(seit, 'ausgang'), anzahl: seit.length };
   // Offene, ueberfaellige Rechnungen: sofort.
   const ueber = bewegungen.filter((x) => !x.bezahlt && x.datum && x.datum < heute);

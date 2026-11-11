@@ -115,3 +115,11 @@ test('Liquiditätsplan: Zahlungslauf als Zahlungsausgang, nicht doppelt', () => 
   assert.equal(knapp.engpass.von, heute);
   assert.equal(knapp.tiefsterStand, -300);
 });
+
+test('Liquiditätsplan: Zahlung am Tag des Kontostands zählt (Stand vor den Zahlungen)', () => {
+  const belege = [{ art: 'kreditor', betrag: 772.7, faelligkeit: '2026-11-30', bezahlt_am: heute }];
+  const plan = liquiditaetsplan(belege, { heute, start: 3491.49, perioden: 1, kontostandDatum: heute });
+  assert.deepEqual(plan.bezahltSeitStand, { zufluss: 0, ausgang: 772.7, anzahl: 1 });
+  assert.equal(Math.round(plan.standNachBezahlt * 100) / 100, 2718.79);
+  assert.equal(plan.zeilen[0].ausgang, 0); // nicht zusätzlich in der laufenden Woche
+});

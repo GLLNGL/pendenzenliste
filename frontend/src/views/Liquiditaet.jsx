@@ -83,7 +83,7 @@ export default function Liquiditaet() {
             <input type="date" value={stand.datum} onChange={(e) => setStand((s) => ({ ...s, datum: e.target.value }))} aria-label="Stand per" />
             <button type="submit" className="btn-klein">{gespeichert ? '✓' : 'Speichern'}</button>
           </div>
-          <div className="liq-kachel-text">{einstellungen.kontostandDatum ? `Stand per ${formatiereDatum(einstellungen.kontostandDatum)}` : 'Aktuellen Bankstand eintragen.'}</div>
+          <div className="liq-kachel-text">{einstellungen.kontostandDatum ? `Stand per ${formatiereDatum(einstellungen.kontostandDatum)}, vor den Zahlungen dieses Tages` : 'Bankstand vor den Zahlungen des Tages eintragen.'}</div>
         </form>
         <div className="liq-kachel">
           <div className="liq-kachel-titel">Offene Debitoren</div>
@@ -130,7 +130,7 @@ export default function Liquiditaet() {
             </tr>
             {plan.bezahltSeitStand.anzahl > 0 && (
               <tr className="liq-bezahlt">
-                <td>Bezahlt seit dem Kontostand ({plan.bezahltSeitStand.anzahl})</td>
+                <td>Zahlungen seit Kontostand ({plan.bezahltSeitStand.anzahl}){stand.datum ? ` · ab ${formatiereDatum(stand.datum)}` : ""}</td>
                 <td className="zahl liq-plus">{plan.bezahltSeitStand.zufluss ? chf(plan.bezahltSeitStand.zufluss) : ''}</td>
                 <td />
                 <td className="zahl liq-minus">{plan.bezahltSeitStand.ausgang ? chf(plan.bezahltSeitStand.ausgang) : ''}</td>
