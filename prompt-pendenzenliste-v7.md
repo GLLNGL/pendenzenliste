@@ -1,4 +1,4 @@
-# Prompt: Pendenzenliste → Büro-Tool mit Offerten, Zeiterfassung und Rentabilität (v7)
+# Prompt: Auftragsmanagement (ehem. Pendenzenliste) – Offerten, Zeiterfassung, Mandanten, Buchhaltung (v7)
 
 Diese Fassung erweitert `prompt-pendenzenliste-v6.md` (aktueller Stand Pendenzen, Layout,
 Typografie, Arbeitsweise). Was dort steht und hier nicht anders beschrieben ist, gilt weiter.
@@ -80,11 +80,19 @@ Aus der Pendenzenliste wird ein gesamtheitliches Tool für das Treuhandbüro:
 
 ## Navigation analog Abacus – umgesetzt
 
-- Seitenleiste oben: Feld **«Modul»** mit Auswahlliste (Tippen filtert): 10 Pendenzen,
-  20 Kundenstamm, 30 Offerten, 40 Zeiterfassung, 90 Administration (`lib/module.js`,
-  `components/ModulNavigation.jsx`). Darunter der Programmbaum des Moduls: Gruppen
-  einklappbar, Programmnummern rechts (z.B. Offerten 11, Preise & Katalog 21). `/start` zeigt
-  alle Module als Kacheln.
+- App-Name **«Auftragsmanagement»** (Repo/URL weiterhin `pendenzenliste`).
+- Seitenleiste oben: Feld **«Modul»** mit Auswahlliste (Tippen filtert), darunter der
+  Programmbaum (Gruppen einklappbar, Programmnummern rechts; `lib/module.js`,
+  `components/ModulNavigation.jsx`). `/start` zeigt alle Module als Kacheln. Die Seitenleiste
+  lässt sich am rechten Rand breiter ziehen (180–520 px, pro Gerät gemerkt, Doppelklick =
+  Standard).
+  - **10 Pendenzen:** 11 Cockpit, 12 Eingang, 13 Alle Pendenzen · 21 Zu planen,
+    22 Wiederkehrende, 23 Wochenrückblick, 24 Übersicht & Kalender · 31 Archiv ·
+    41 Zeitjournal
+  - **20 Kundenstamm:** 11 Mandanten, 12 Onboarding-Unterlagen · 21 Detailrapporte
+  - **30 Preiskalkulation:** Gruppe «Angebot» 11 Offerten · Stammdaten 21 Preise & Katalog
+  - **40 Buchhaltung:** 11 Kreditoren, 12 Debitoren · 21 Liquiditätsplan
+  - **90 Administration:** 11 Team, 12 Einstellungen
 
 ## Offerten (Etappe 5, vorgezogen) – umgesetzt
 
@@ -110,8 +118,115 @@ Aus der Pendenzenliste wird ein gesamtheitliches Tool für das Treuhandbüro:
 - Standard-Leistung an Pendenz und Wiederkehr-Regel; die Pendenz merkt sich die zuletzt
   gewählte Leistung.
 
+## Cockpit und Planung – umgesetzt
+
+- Cockpit (`views/TagesCockpit.jsx`, `lib/tagesplan.js`): **vier Spalten** Abgelaufen · Heute
+  · Morgen (nächster Arbeitstag) · Wochenziele; pro Mandant als Kachel, darin Projekt →
+  Teilaufgaben (aufgeklappt, abhakbar). Schriftgrössen: Mandant > Projekt > Teilaufgabe.
+- **Heute** = Bearbeitungstag heute, heute fällig oder «In Arbeit»; Bearbeitungstag hat
+  Vorrang (auf Montag gelegt = erst Montag sichtbar).
+- **Abgelaufen** = offene Frist, Bearbeitungstag oder Nachfassdatum vor heute, mit Grund und
+  Dauer; verlässt die Spalte, sobald neu entschieden (auf heute/später gelegt oder bewusst
+  «Zu planen» → Spalte `pendenzen.zu_planen_seit`).
+- Knöpfe in jeder Spalte: → Heute, → Morgen, Zu planen (eigene Spalte entfällt); «Warten auf»
+  wird über das Nachfassdatum verschoben.
+- Ordner **«Zu planen»** = offene Pendenzen ohne Bearbeitungstag. Frist ist freiwillig.
+- Neue Pendenz = **Projekt** (`ProjektModal`): Titel, Mandant, Verrechnung Pauschal/Extra
+  (Standard Pauschal), Frist, Beschreibung (Diktat), Teilschritte mit Bearbeitungstag, Aufwand,
+  Verrechnung; Aufwand summiert. Friständerung des Projekts verschiebt offene Schritte.
+
+## Aufträge per E-Mail (Eingang) – umgesetzt
+
+- Edge Function **`mail-eingang`**: holt Mails aus dem IMAP-Ordner «Aufträge»
+  (info@estcontrolling.ch, Secrets `IMAP_*`), fasst sie mit Claude zusammen
+  (`ANTHROPIC_API_KEY`, Modell `claude-opus-5-5`), To-dos als Teilschritte, Mandant über
+  Absender/Domain, verschiebt nach «Aufträge/Übernommen». Anhänge kommen in den
+  Supabase-Speicher (Bucket `dateien`) und hängen an der Pendenz; früher übernommene Mails
+  bekommen ihre Anhänge beim nächsten Abruf nachgeholt.
+- Eingang: Einplanen öffnet das Projekt-Fenster, Löschen mit Rückfrage.
+
+## Mandanten, Ablage und Onboarding – umgesetzt
+
+- **Mandanten** (`views/Mandanten.jsx`): Liste Aktive / Interessenten / Inaktive mit Suche;
+  Detail mit Phasen Erfasst → Offerte → Angenommen → Onboarding → Mandat läuft und Reitern
+  Stammdaten & Ablage · Offerten (Neue Offerte direkt) · Onboarding · Erledigte Aufträge.
+  Keine offenen Pendenzen hier.
+- **Ablage:** Grundordner in den Einstellungen (Pfad, SharePoint-Adresse, Unterordner für
+  Mail-Anhänge); beim Mandanten nur der Ordnername (`mandanten.ablage_ordner`, «Ordner
+  wählen…» per Ordnerauswahl). Der lokale OneDrive-Grundordner wird pro Gerät freigegeben
+  (File System Access API, Edge/Chrome; `lib/ablageOrdner.js`).
+- **Dateien** (`dateien`, Bucket `dateien`): beim Speichern eines Projekts werden noch nicht
+  abgelegte Anhänge in den Mandantenordner geschrieben und danach aus dem App-Speicher
+  gelöscht; es bleibt ein Eintrag mit Datum und Ablageort (`abgelegt_in`).
+- **Onboarding:** Katalog `onboarding_unterlagen` (DL-Vertrag, Vollmacht, Bestellung EBICS …,
+  Vorlage-Datei zum Mitsenden), pro Mandant `mandant_onboarding` mit Checkliste, Mail mit
+  Anhängen, Rücklauf abhaken, abschliessen. Offerte angenommen → «Onboarding öffnen».
+
+## Preiskalkulation – Ergänzungen
+
+- Leistungskatalog ergänzt (Excel «nur JAS und MWST»): MWST effektiv Standard/komplex,
+  Saldosteuersatz (Turnus Jahr, Standardmenge 4 bzw. 2, Gruppe «MWST»), fünf
+  «JAS – …»-Positionen (Std., Gruppe «Jahresabschluss»), Steuererklärung juristische Person.
+  Neue Spalte `leistungen.standard_menge` = Mengenvorschlag in der Offerte.
+- Offerte › Dienstleistungen: **Buchungsjournal/Bankauszug hineinziehen** (CSV, .xlsx,
+  camt-XML im Browser, PDF per KI) → Buchungen pro Monat, Ø/Maximum als Menge in eine
+  Beleg-Leistung (Standard «Finanzbuchhaltung (Standard)», 3 Min. × CHF 130).
+
+## Buchhaltung (Modul 40) – umgesetzt
+
+- **Kreditoren / Debitoren** (`views/Belege.jsx`, Tabelle `belege`): PDF/Bild hineinziehen →
+  KI liest Partner, Adresse, Nr., Datum, Fälligkeit, Betrag, IBAN, Referenz (Edge Function
+  `beleg-lesen`); Rechnung links neben den Feldern; «Speichern & ablegen» legt den Beleg in
+  OneDrive ab (EST Controlling › `08_Buchhaltung` › Kreditoren|Debitoren › Jahr), in der App
+  nur die Liste. «Fehlende Angaben auslesen» für alte Belege.
+- **Zahlungslauf** (Kreditoren, `lib/pain001.js`, Tabelle `zahlungslaeufe`): Rechnungen
+  ankreuzen → Prüfung IBAN/QR-IBAN/QR-/RF-Referenz → **pain.001.001.09 (SPS 2022)** für den
+  UBS-Upload; Valuta = nächster Bankwerktag; Adresse freiwillig. Rechnungen im Lauf stehen
+  beim Lauf (aufklappbar), «Auflösen» bringt sie zurück, «✓ bezahlt» setzt das
+  Ausführungsdatum.
+- **Rechnungsversand** (Debitoren): «✉ Senden» mit PDF aus OneDrive, Mandant wählbar (Adressen
+  als Knöpfe), Standardtext `buero_einstellungen.rechnung` (QR-Einzahlungsschein, 10 Tage),
+  Versand vermerkt (`versendet_am/an`).
+- **Kontoauszug einlesen** (Debitoren, `lib/kontoauszug.js`, `KontoauszugModal`): camt.053/054,
+  CSV/Excel, PDF per KI → Zahlungseingänge mit offenen Debitoren abgleichen (QR-Referenz,
+  Betrag + Nr./Name, nur Betrag), prüfen, als bezahlt verbuchen; Schlusssaldo optional als
+  Kontostand (Stichtag = Folgetag).
+- **Liquiditätsplan** (`lib/liquiditaet.js`): Kontostand (Stand **vor** den Zahlungen des
+  Stichtags) · Zahlungen seit Kontostand · pro Woche/Monat Zuflüsse (Debitoren), Abflüsse
+  (Kreditoren nach Fälligkeit), **Zahlungsausgänge** (bezahlt bzw. im Zahlungslauf nach
+  Ausführungsdatum), Saldo, Liq. Stand, Engpass markiert. Überfällige offene Rechnungen nur als
+  Info: theoretischer Stand «inkl. Überfälliges» und pro Kreditor «bezahlbar ab». Vergleich
+  der Ø-Zahlungsfristen Debitoren vs. Kreditoren.
+
+## E-Mails – umgesetzt
+
+- Jede Mail aus der App (zentral in `api.js` → `sendMailAufrufen`, `lib/mail.js`): HTML in
+  **Arial 10 pt**, Schlussgruss durch die **Signatur** ersetzt (Einstellungen, Standard Angelo
+  Gallo / EST Controlling), Logo eingebettet (cid), **CC/BCC**.
+- Mail-Fenster gross (85 %), Grössen-Regler oben rechts (50–100 %, gemerkt) und Ziehgriff;
+  Fenster schliessen nur bei Klick, der auf dem Hintergrund beginnt (`lib/modal.js`).
+
+## Technik und Betrieb
+
+- Edge Functions (Dashboard-Name ≠ Aufrufpfad!): `send-mail` = **`clever-processor`**,
+  `beleg-lesen` = **`rapid-handler`** (Modi: Beleg, `buchungen`, `kontoauszug`),
+  `mail-eingang` = `mail-eingang`. Code liegt unter `supabase/functions/…`; nach Änderungen im
+  Dashboard ersetzen und deployen (der Nutzer).
+- SQL: `supabase/schema.sql` ist vollständig und idempotent (View `pendenzen_angereichert`
+  am Dateiende neu erstellt). Einzeldateien für den Nutzer: `projekte-v7`, `mail-eingang-v7`,
+  `mandanten-onboarding-v7`, `dateien-abgelegt-v7`, `zu-planen-v7`, `buchhaltung-v7`,
+  `belege-zahlung-v7`, `zahlungslauf-v7`, `leistungen-jas-mwst-v7`, `rechnung-versand-v7`,
+  `rechnung-text-v7` (alle ausgeführt, Stand 11.11.2026, ausser ggf. rechnung-text-v7).
+- Arbeitsweise: committen ja, **pushen nur nach «Ja, pushen»**; SQL führt der Nutzer im SQL
+  Editor aus; nichts löschen ohne Rückfrage; keine Kundendaten ins Repo. Beim Bearbeiten
+  von Dateien mit Backslashes/Regex nicht über Shell-Heredocs (Escaping geht verloren) –
+  Editor bzw. Skriptdatei verwenden. Tests: `cd frontend && node --test tests/`.
+
 ## Offene Punkte (zusätzlich zu v6)
 
 1. Planzeit für Lohnbuchhaltung, Lohnausweise und Budgetierung im Katalog ergänzen (im Excel
    ohne Bearbeitungszeit).
 2. Interner Kostensatz (Etappe 4) – global oder pro Person.
+3. Kontoauszug: Belastungen mit Kreditoren/Zahlungsläufen abgleichen (ausgeführt → bezahlt).
+4. Erster echter Test: Kontoauszug-Abgleich (camt von UBS), PDF-Kontoauszug per KI.
+5. Direkt-Upload nach SharePoint (Microsoft Graph) statt lokaler OneDrive-Freigabe – optional.
