@@ -652,8 +652,10 @@ const api = {
       pruefeFehler(error);
       return data;
     },
-    bezahlt: async (id, datum) => {
-      const { error } = await supabase.from('belege').update({ bezahlt_am: datum }).eq('id', id);
+    // referenz: QR-Referenz aus dem Kontoauszug, falls an der Rechnung noch keine hinterlegt ist.
+    bezahlt: async (id, datum, referenz = null) => {
+      const { error } = await supabase.from('belege')
+        .update({ bezahlt_am: datum, ...(referenz ? { zahlungsreferenz: referenz } : {}) }).eq('id', id);
       pruefeFehler(error);
     },
     loeschen: async (id) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { hintergrundSchliessen } from '../lib/modal.js';
-import { camtLesen, csvAuszugLesen, abgleichen } from '../lib/kontoauszug.js';
+import { camtLesen, csvAuszugLesen, abgleichen, referenzNorm, istReferenz } from '../lib/kontoauszug.js';
 import { csvZerlegen, xlsxZeilen } from '../lib/buchungsjournal.js';
 import { plusTage } from '../lib/liquiditaet.js';
 import { chf } from '../lib/offerte.js';
@@ -79,7 +79,11 @@ export default function KontoauszugModal({ debitoren, onSchliessen, onVerbucht }
   async function verbuchen() {
     setFehler(null);
     try {
-      for (const z of zuVerbuchen) await api.belege.bezahlt(Number(z.belegId), z.buchung.datum);
+      for (const z of zuVerbuchen) {
+        const beleg = offen.find((d) => String(d.id) === z.belegId);
+        const nachtragen = beleg && !referenzNorm(beleg.zahlungsreferenz) && istReferenz(z.buchung.referenz) ? z.buchung.referenz : null;
+        await api.belege.bezahlt(Number(z.belegId), z.buchung.datum, nachtragen);
+      }
       if (saldo && saldoUebernehmen) {
         const aktuell = await api.buero.lesen('buchhaltung');
         // Schlusssaldo enthaelt die Zahlungen des letzten Auszugstags -> Stichtag = Folgetag.
@@ -141,6 +145,16 @@ export default function KontoauszugModal({ debitoren, onSchliessen, onVerbucht }
                             <option key={d.id} value={String(d.id)}>{d.partner} · {d.rechnungsnummer || '–'} · {chf(d.betrag)}</option>
                           ))}
                         </select>
+                        {(() => {
+                          const beleg = offen.find((d) => String(d.id) === z.belegId);
+                          if (!beleg) return null;
+                          const refB = referenzNorm(beleg.zahlungsreferenz);
+                          const refZ = referenzNorm(z.buchung.referenz);
+                          if (refB && refZ && refB !== refZ) return <div className="text-ueberfaellig">QR-Referenz der Rechnung weicht ab: {beleg.zahlungsreferenz}</div>;
+                          if (refB) return <div className="text-gedaempft">Ref. Rechnung {beleg.zahlungsreferenz}{refB === refZ ? ' ✓' : ''}</div>;
+                          if (refZ && istReferenz(refZ)) return <div className="text-gedaempft">Rechnung ohne Referenz – wird beim Verbuchen nachgetragen</div>;
+                          return null;
+                        })()}
                         {doppelt.has(z.belegId) && <div className="text-ueberfaellig">Diese Rechnung ist mehrfach gewählt.</div>}
                       </td>
                       <td>
