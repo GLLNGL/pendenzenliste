@@ -4,16 +4,19 @@ import api from '../api.js';
 import { useAblageGrund, useMandanten } from '../hooks.js';
 import { relativerOrdner } from '../lib/ablage.js';
 import { unterstuetzt, dateiAblegen, dateiLesen } from '../lib/ablageOrdner.js';
+import { csvZerlegen, xlsxZeilen } from '../lib/buchungsjournal.js';
 import { chf } from '../lib/offerte.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import {
-  BEREICHE, STATUS, TOLERANZ, mwstLeer, mwstMethodeWechseln, mwstBerechnen, svLeer, svBerechnen, bewertungGesamt,
-  abstimmungOrdner, standardJahr,
+  BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen,
+  svLeer, svBerechnen, bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, zahl,
 } from '../lib/abstimmung.js';
 
 const betrag = (x) => (x == null ? '–' : chf(x).replace('CHF ', ''));
+const istSv = (bereich) => bereich !== 'mwst';
 
-function Zahl({ wert, onChange, breit = false, schmal = false, platzhalter = '0.00' }) {
+// Zahlenfeld; onBlock erhaelt einen aus Excel eingefuegten Block (mehrere Zellen).
+function Zahl({ wert, onChange, onBlock, breit = false, schmal = false, platzhalter = '0.00' }) {
   return (
     <input
       className={`abst-zahl ${breit ? 'abst-zahl-breit' : ''} ${schmal ? 'abst-zahl-schmal' : ''}`}
@@ -21,8 +24,18 @@ function Zahl({ wert, onChange, breit = false, schmal = false, platzhalter = '0.
       value={wert ?? ''}
       placeholder={platzhalter}
       onChange={(e) => onChange(e.target.value)}
+      onPaste={onBlock ? (e) => {
+        const text = e.clipboardData.getData('text/plain');
+        if (!/[\t\n]/.test(text.trim())) return;
+        e.preventDefault();
+        onBlock(tabellenBlock(text));
+      } : undefined}
     />
   );
+}
+
+function Text({ wert, onChange, platzhalter, schmal = false }) {
+  return <input className={schmal ? 'abst-la' : 'abst-text'} value={wert ?? ''} placeholder={platzhalter} onChange={(e) => onChange(e.target.value)} />;
 }
 
 function Differenz({ d }) {
@@ -30,212 +43,322 @@ function Differenz({ d }) {
   return <span className={`abst-diff ${d.ok ? 'abst-diff-ok' : 'abst-diff-fehler'}`}>{d.ok ? '✓ ' : ''}{betrag(d.betrag)}</span>;
 }
 
-// Zeile "Bezeichnung | Wert | Vergleich | Differenz" einer Abstimmung.
-function Zeile({ label, hinweis, children, vergleich, d }) {
+function Karte({ titel, zusatz, children }) {
   return (
-    <tr>
+    <div className="karte abst-karte">
+      <div className="abst-karte-titel">{titel}{zusatz && <span className="abst-karte-zusatz">{zusatz}</span>}</div>
+      {children}
+    </div>
+  );
+}
+
+// Zeile "Bezeichnung | Ist | Soll | Differenz".
+function Zeile({ label, hinweis, ist, soll, d, summe = false }) {
+  return (
+    <tr className={summe ? 'abst-summe' : ''}>
       <td>{label}{hinweis && <div className="text-gedaempft">{hinweis}</div>}</td>
-      <td className="zahl">{children}</td>
-      <td className="zahl">{vergleich}</td>
+      <td className="zahl">{ist}</td>
+      <td className="zahl">{soll}</td>
       <td className="zahl">{d !== undefined && <Differenz d={d} />}</td>
     </tr>
   );
 }
 
-// Liste "Text | Betrag" (Korrekturen / Ueberleitung).
-function Korrekturen({ liste, onChange, platzhalter }) {
-  const aendern = (i, patch) => onChange(liste.map((k, j) => (j === i ? { ...k, ...patch } : k)));
+// ---------------------------------------------------------------------------------------------
+// MWST
+// ---------------------------------------------------------------------------------------------
+function MwstTabelle({ titel, seite, daten, setDaten, r }) {
+  const setze = (i, feld, wert) => setDaten({
+    ...daten,
+    perioden: daten.perioden.map((p, j) => (j === i ? { ...p, [seite]: { ...p[seite], [feld]: wert } } : p)),
+  });
+  // Block aus Excel ab Zelle (Periode i, Spalte s) einfuegen: Zeilen = Perioden, Spalten = Felder.
+  const block = (i0, s0) => (zeilen) => {
+    const perioden = daten.perioden.map((p) => ({ ...p, [seite]: { ...p[seite] } }));
+    zeilen.forEach((zeile, dz) => zeile.forEach((zelle, ds) => {
+      const p = perioden[i0 + dz];
+      const spalte = MWST_SPALTEN[s0 + ds];
+      if (p && spalte) p[seite][spalte.feld] = String(zahl(zelle) ?? zelle).trim();
+    }));
+    setDaten({ ...daten, perioden });
+  };
+  const total = r[seite];
   return (
-    <>
-      {liste.map((k, i) => (
-        <tr key={i} className="abst-korrektur">
-          <td>
-            <input className="abst-text" value={k.text ?? ''} placeholder={platzhalter} onChange={(e) => aendern(i, { text: e.target.value })} />
-          </td>
-          <td className="zahl"><Zahl wert={k.betrag} onChange={(v) => aendern(i, { betrag: v })} /></td>
-          <td colSpan={2}>
-            <button type="button" className="btn-klein btn-gefahr-text" onClick={() => onChange(liste.filter((_, j) => j !== i))} aria-label="Korrektur entfernen">×</button>
-          </td>
-        </tr>
-      ))}
-      <tr>
-        <td colSpan={4}>
-          <button type="button" className="btn-klein" onClick={() => onChange([...liste, { text: '', betrag: '' }])}>+ Korrektur (±)</button>
-        </td>
-      </tr>
-    </>
+    <Karte titel={titel} zusatz="Tipp: Block aus Excel kopieren und ins erste Feld einfügen (Ctrl+V)">
+      <table className="tabelle abst-tabelle abst-tabelle-eng">
+        <thead>
+          <tr>
+            <th>Periode</th>
+            {seite === 'estv' && <th className="zahl">Satz %</th>}
+            {MWST_SPALTEN.map((s) => <th key={s.feld} className="zahl">{s.label}</th>)}
+            <th className="zahl">2200 Steuer</th>
+            <th className="zahl">Zahllast</th>
+            {seite === 'buch' && <th className="zahl">Delta zu ESTV</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {daten.perioden.map((p, i) => (
+            <tr key={p.label}>
+              <td>{p.label}</td>
+              {seite === 'estv' && (
+                <td className="zahl">
+                  <Zahl wert={p.satz} schmal platzhalter={String(daten.satz)} onChange={(v) => setDaten({ ...daten, perioden: daten.perioden.map((x, j) => (j === i ? { ...x, satz: v } : x)) })} />
+                </td>
+              )}
+              {MWST_SPALTEN.map((s, si) => (
+                <td key={s.feld} className="zahl">
+                  <Zahl wert={p[seite]?.[s.feld]} breit={s.feld === 'umsatz'} onChange={(v) => setze(i, s.feld, v)} onBlock={block(i, si)} />
+                </td>
+              ))}
+              <td className="zahl">{betrag(r.perioden[i]?.[seite].steuer)}</td>
+              <td className="zahl">{betrag(r.perioden[i]?.[seite].zahllast)}</td>
+              {seite === 'buch' && <td className="zahl"><Differenz d={r.perioden[i]?.delta} /></td>}
+            </tr>
+          ))}
+          <tr className="abst-summe">
+            <td>Total</td>
+            {seite === 'estv' && <td />}
+            {MWST_SPALTEN.map((s) => <td key={s.feld} className="zahl">{betrag(total[s.feld])}</td>)}
+            <td className="zahl">{betrag(total.steuer)}</td>
+            <td className="zahl">{betrag(total.zahllast)}</td>
+            {seite === 'buch' && <td className="zahl"><Differenz d={r.diffZahllast} /></td>}
+          </tr>
+        </tbody>
+      </table>
+    </Karte>
   );
 }
 
 function MwstFormular({ daten, setDaten }) {
   const r = mwstBerechnen(daten);
-  const saldo = daten.methode === 'saldo';
-  const feld = (name) => (v) => setDaten({ ...daten, [name]: v });
-  const periode = (i, name) => (v) => setDaten({ ...daten, perioden: daten.perioden.map((p, j) => (j === i ? { ...p, [name]: v } : p)) });
+  const s = r.spalten;
   return (
     <>
       <div className="abst-methode">
-        <span>Abrechnungsmethode</span>
-        {[['effektiv', 'effektiv (Quartal)'], ['saldo', 'Saldosteuersatz (Semester)']].map(([wert, label]) => (
-          <button key={wert} type="button" className={`btn-klein ${daten.methode === wert ? 'gewaehlt' : ''}`} onClick={() => setDaten(mwstMethodeWechseln(daten, wert))}>{label}</button>
+        <span>Abrechnung</span>
+        {[['quartal', 'Quartal'], ['semester', 'Semester'], ['monat', 'Monat']].map(([wert, label]) => (
+          <button key={wert} type="button" className={`btn-klein ${daten.rhythmus === wert ? 'gewaehlt' : ''}`} onClick={() => setDaten(mwstRhythmusWechseln(daten, wert))}>{label}</button>
         ))}
-        {saldo && <label className="abst-sss">Saldosteuersatz <Zahl wert={daten.sssSatz} onChange={feld('sssSatz')} platzhalter="%" schmal /> %</label>}
+        <label className="abst-sss">Steuersatz (Standard) <Zahl wert={daten.satz} schmal onChange={(v) => setDaten({ ...daten, satz: v })} platzhalter="8.1" /> %</label>
+        <span className="text-gedaempft">Saldosteuersatz: Satz eintragen, Vorsteuer leer lassen.</span>
       </div>
 
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Abrechnungen ESTV</div>
-        <table className="tabelle abst-tabelle">
-          <thead>
-            <tr>
-              <th>Periode</th>
-              <th className="zahl">Umsatz deklariert<br /><span className="abst-kopf-zusatz">Ziff. 200{saldo ? ' (inkl. MWST)' : ''}</span></th>
-              <th className="zahl">Umsatzsteuer<br /><span className="abst-kopf-zusatz">Ziff. 399</span></th>
-              {!saldo && <th className="zahl">Vorsteuer<br /><span className="abst-kopf-zusatz">Ziff. 479</span></th>}
-              <th className="zahl">Zahllast</th>
-              <th className="zahl">Bezahlt bis 31.12.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {daten.perioden.map((p, i) => (
-              <tr key={p.label}>
-                <td>{p.label}</td>
-                <td className="zahl"><Zahl wert={p.umsatz} onChange={periode(i, 'umsatz')} breit /></td>
-                <td className="zahl"><Zahl wert={p.steuer} onChange={periode(i, 'steuer')} /></td>
-                {!saldo && <td className="zahl"><Zahl wert={p.vorsteuer} onChange={periode(i, 'vorsteuer')} /></td>}
-                <td className="zahl">{betrag(r.perioden[i]?.zahllast)}</td>
-                <td className="zahl"><Zahl wert={p.bezahlt} onChange={periode(i, 'bezahlt')} /></td>
-              </tr>
-            ))}
-            <tr className="abst-summe">
-              <td>Total</td>
-              <td className="zahl">{betrag(r.umsatzDeklariert)}</td>
-              <td className="zahl">{betrag(r.steuerDeklariert)}</td>
-              {!saldo && <td className="zahl">{betrag(r.vorsteuerDeklariert)}</td>}
-              <td className="zahl">{betrag(r.zahllast)}</td>
-              <td className="zahl">{betrag(r.bezahlt)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <MwstTabelle titel="Abrechnungen ESTV (My ESTV)" seite="estv" daten={daten} setDaten={setDaten} r={r} />
+      <MwstTabelle titel="Verbuchung Buchhaltung (Abacus)" seite="buch" daten={daten} setDaten={setDaten} r={r} />
 
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Umsatzabstimmung</div>
+      <Karte titel="Jahresabstimmung" zusatz="Verbuchung − Abrechnung (+ = in der Buchhaltung mehr)">
         <table className="tabelle abst-tabelle">
-          <thead><tr><th>Position</th><th className="zahl">Betrag</th><th className="zahl">Vergleich</th><th className="zahl">Differenz</th></tr></thead>
+          <thead><tr><th>Position</th><th className="zahl">Differenz</th><th className="zahl">Wirkung auf Zahllast</th><th className="zahl">Check</th></tr></thead>
           <tbody>
-            <Zeile label="Betriebsertrag laut Erfolgsrechnung" hinweis={saldo ? 'inkl. MWST' : 'exkl. MWST'}><Zahl wert={daten.umsatzBuchhaltung} onChange={feld('umsatzBuchhaltung')} breit /></Zeile>
-            <Korrekturen liste={daten.korrekturen ?? []} onChange={feld('korrekturen')} platzhalter="z.B. Zinsertrag, Eigenverbrauch, Debitorenveränderung" />
-            <tr className="abst-summe"><td>= zu deklarierender Umsatz</td><td className="zahl">{betrag(r.umsatzSoll)}</td><td /><td /></tr>
-            <Zeile label="Umsatz deklariert (Total Abrechnungen)" vergleich={betrag(r.umsatzSoll)} d={r.diffUmsatz}>{betrag(r.umsatzDeklariert)}</Zeile>
+            <Zeile label="Umsatz" ist={betrag(s.umsatz)} />
+            <Zeile label="Umsatz steuerfrei" ist={betrag(s.steuerfrei)} />
+            <Zeile label="Steuerbarer Umsatz × Satz" hinweis="Steuer 2200" ist={betrag(r.umsatzNetto)} soll={betrag(s.steuer)} />
+            <Zeile label="1170 Vorsteuer" ist={betrag(s.v1170)} soll={betrag(-s.v1170)} />
+            <Zeile label="1171 Vorsteuer" ist={betrag(s.v1171)} soll={betrag(-s.v1171)} />
+            <Zeile label="2203" ist={betrag(s.k2203)} soll={betrag(s.k2203)} />
+            <Zeile summe label="Zahllast: zu bezahlen (+) / Gutschrift (−)" ist={<Differenz d={r.diffZahllast} />} soll={betrag(r.erklaert)} d={{ betrag: r.check, ok: Math.abs(r.check) < 0.01 }} />
           </tbody>
         </table>
-      </div>
-
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Steuer- und Kontenabstimmung per 31.12.</div>
-        <table className="tabelle abst-tabelle">
-          <thead><tr><th>Konto</th><th className="zahl">Saldo Buchhaltung</th><th className="zahl">laut Abrechnungen</th><th className="zahl">Differenz</th></tr></thead>
-          <tbody>
-            <Zeile label="Umsatzsteuer" hinweis="Konto 2200, Bewegung im Jahr" vergleich={betrag(r.steuerDeklariert)} d={r.diffSteuer}><Zahl wert={daten.steuerKonto} onChange={feld('steuerKonto')} /></Zeile>
-            {saldo && <Zeile label="Steuer zum Saldosteuersatz" hinweis={`Umsatz × ${daten.sssSatz || '?'} %`} vergleich={betrag(r.steuerSoll)} d={r.diffSss}>{betrag(r.steuerDeklariert)}</Zeile>}
-            {!saldo && <Zeile label="Vorsteuer" hinweis="Konten 1170/1171, Bewegung im Jahr" vergleich={betrag(r.vorsteuerDeklariert)} d={r.diffVorsteuer}><Zahl wert={daten.vorsteuerKonto} onChange={feld('vorsteuerKonto')} /></Zeile>}
-            <Zeile label="MWST-Abrechnungskonto" hinweis="Schuld +, Guthaben − · Zahllast − bezahlt" vergleich={betrag(r.offen)} d={r.diffKonto}><Zahl wert={daten.saldoAbrechnungskonto} onChange={feld('saldoAbrechnungskonto')} /></Zeile>
-          </tbody>
-        </table>
-      </div>
+        <div className="text-gedaempft abst-fuss">Check: Die Summe der Wirkungen muss der Zahllast-Differenz entsprechen. Differenzen mit Korrekturabrechnung bereinigen oder in der Bemerkung begründen.</div>
+      </Karte>
     </>
   );
 }
 
-function SvFormular({ bereich, daten, setDaten }) {
-  const r = svBerechnen(daten);
+// ---------------------------------------------------------------------------------------------
+// Sozialversicherungen
+// ---------------------------------------------------------------------------------------------
+function GrundlagenKarte({ grundlagen, onDateien, laedt }) {
+  const [ziehen, setZiehen] = useState(false);
+  const eingabeRef = useRef(null);
+  const g = grundlagen ?? {};
+  return (
+    <Karte titel="Grundlagen (für AHV, BVG, UVG und KTG gemeinsam)">
+      <div className="abst-grundlagen">
+        <div className={`abst-quelle ${g.konten?.length ? 'abst-quelle-ok' : ''}`}>
+          <strong>Erfolgsrechnung / Saldenliste</strong>
+          {g.konten?.length
+            ? <span>{g.konten.length} Konten · {g.kontenDatei} · {formatiereDatum(g.kontenAm)}</span>
+            : <span className="text-gedaempft">fehlt – Export mit Spalten Nummer, Bezeichnung, Saldo</span>}
+        </div>
+        <div className={`abst-quelle ${g.lohnarten?.length ? 'abst-quelle-ok' : ''}`}>
+          <strong>Kumulativjournal</strong>
+          {g.lohnarten?.length
+            ? <span>{g.lohnarten.length} Lohnarten{g.personen ? `, ${g.personen} Personen` : ''} · {g.journalDatei} · {formatiereDatum(g.journalAm)}</span>
+            : <span className="text-gedaempft">fehlt – Export mit Spalten LA, Lohnartentext, Total</span>}
+        </div>
+        <div
+          className={`beleg-drop abst-drop ${ziehen ? 'aktiv' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setZiehen(true); }}
+          onDragLeave={() => setZiehen(false)}
+          onDrop={(e) => { e.preventDefault(); setZiehen(false); onDateien(e.dataTransfer.files); }}
+          onClick={() => eingabeRef.current?.click()}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="beleg-drop-titel">{laedt ? 'Liest…' : 'Exporte hierher ziehen'}</div>
+          <div className="beleg-drop-text">Excel oder CSV aus Abacus · beide auf einmal möglich · wird erkannt</div>
+          <input ref={eingabeRef} type="file" multiple hidden accept=".xlsx,.csv,.txt" onChange={(e) => { onDateien(e.target.files); e.target.value = ''; }} />
+        </div>
+      </div>
+      {(g.konten?.length > 0 || g.lohnarten?.length > 0) && (
+        <details className="abst-details">
+          <summary>Eingelesene Konten und Lohnarten anzeigen</summary>
+          <div className="abst-listen">
+            <table className="tabelle abst-tabelle abst-mini">
+              <tbody>{(g.konten ?? []).filter((k) => /^5/.test(k.konto) || /^2[23]/.test(k.konto)).map((k) => <tr key={k.konto}><td>{k.konto}</td><td>{k.text}</td><td className="zahl">{betrag(k.saldo)}</td></tr>)}</tbody>
+            </table>
+            <table className="tabelle abst-tabelle abst-mini">
+              <tbody>{(g.lohnarten ?? []).map((l) => <tr key={l.la}><td>{l.la}</td><td>{l.text}</td><td className="zahl">{betrag(l.total)}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </Karte>
+  );
+}
+
+function SvFormular({ bereich, daten, setDaten, grundlagen }) {
+  const r = svBerechnen(daten, grundlagen);
   const feld = (name) => (v) => setDaten({ ...daten, [name]: v });
   const beitrag = (i, patch) => setDaten({ ...daten, beitraege: daten.beitraege.map((b, j) => (j === i ? { ...b, ...patch } : b)) });
-  const bvg = bereich === 'bvg';
+  const korrektur = (i, patch) => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.map((k, j) => (j === i ? { ...k, ...patch } : k)) });
+  const kurz = BEREICHE[bereich].kurz;
+  const ohne = !r.hatKonten || !r.hatJournal;
   return (
     <>
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Lohnsumme</div>
-        <table className="tabelle abst-tabelle">
-          <thead><tr><th>Position</th><th className="zahl">Betrag</th><th /><th /></tr></thead>
-          <tbody>
-            <Zeile label="Lohnsumme laut Lohnjournal" hinweis={bvg ? 'Jahreslöhne der versicherten Personen' : 'Bruttolohn Jahr'}><Zahl wert={daten.lohnsumme} onChange={feld('lohnsumme')} breit /></Zeile>
-            <Korrekturen liste={daten.korrekturen ?? []} onChange={feld('korrekturen')} platzhalter={bereich === 'ahv' ? 'z.B. Rentnerfreibetrag, Spesen, über Höchstlohn' : 'z.B. Lohn über Höchstbetrag, nicht versicherte Personen'} />
-            <tr className="abst-summe"><td>= massgebende Lohnsumme</td><td className="zahl">{betrag(r.massgebend)}</td><td /><td /></tr>
-          </tbody>
-        </table>
-      </div>
+      {ohne && <div className="abst-hinweis">Zuerst oben Erfolgsrechnung und Kumulativjournal einlesen – dann rechnet die Abstimmung automatisch.</div>}
 
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Beiträge (Soll)</div>
+      <Karte titel={`Beiträge laut Lohnjournal und Abrechnung ${kurz}`}>
+        <div className="abst-zuordnung">
+          <label>Aufwandkonto FiBu <Text schmal wert={daten.konten} onChange={feld('konten')} platzhalter="5700" /></label>
+          <span className="text-gedaempft">Lohnarten mit Komma trennen, Bereiche mit Bindestrich (z.B. 9500, 9510-9520).</span>
+        </div>
         <table className="tabelle abst-tabelle">
           <thead>
             <tr>
-              <th>Beitragsart</th>
-              <th className="zahl">Basis<br /><span className="abst-kopf-zusatz">leer = massgebend</span></th>
-              <th className="zahl">Satz %</th>
-              <th className="zahl">oder Betrag</th>
-              <th className="zahl">AN-Anteil %</th>
-              <th className="zahl">Soll</th>
-              <th className="zahl">davon AN</th>
-              <th />
+              <th>Beitragsart</th><th>LA AN</th><th>LA AG</th>
+              <th className="zahl">AN</th><th className="zahl">AG</th><th className="zahl">Total Lohnjournal</th>
+              <th className="zahl">Jahresbeitrag laut Abrechnung</th><th className="zahl">Delta</th><th />
             </tr>
           </thead>
           <tbody>
             {daten.beitraege.map((b, i) => (
               <tr key={i}>
-                <td><input className="abst-text" value={b.bez ?? ''} onChange={(e) => beitrag(i, { bez: e.target.value })} /></td>
-                <td className="zahl"><Zahl wert={b.basis} onChange={(v) => beitrag(i, { basis: v })} platzhalter={betrag(r.massgebend)} /></td>
-                <td className="zahl"><Zahl wert={b.satz} onChange={(v) => beitrag(i, { satz: v })} platzhalter="%" schmal /></td>
-                <td className="zahl"><Zahl wert={b.betrag} onChange={(v) => beitrag(i, { betrag: v })} platzhalter="–" /></td>
-                <td className="zahl"><Zahl wert={b.an} onChange={(v) => beitrag(i, { an: v })} platzhalter="%" schmal /></td>
-                <td className="zahl">{betrag(r.zeilen[i]?.soll)}</td>
+                <td><Text wert={b.bez} onChange={(v) => beitrag(i, { bez: v })} /></td>
+                <td><Text schmal wert={b.laAN} onChange={(v) => beitrag(i, { laAN: v })} platzhalter="–" /></td>
+                <td><Text schmal wert={b.laAG} onChange={(v) => beitrag(i, { laAG: v })} platzhalter="–" /></td>
                 <td className="zahl">{betrag(r.zeilen[i]?.an)}</td>
-                <td><button type="button" className="btn-klein btn-gefahr-text" onClick={() => setDaten({ ...daten, beitraege: daten.beitraege.filter((_, j) => j !== i) })} aria-label="Beitragsart entfernen">×</button></td>
+                <td className="zahl">{betrag(r.zeilen[i]?.ag)}</td>
+                <td className="zahl">{betrag(r.zeilen[i]?.lohn)}</td>
+                <td className="zahl"><Zahl wert={b.rechnung} onChange={(v) => beitrag(i, { rechnung: v })} /></td>
+                <td className="zahl"><Differenz d={r.zeilen[i]?.delta} /></td>
+                <td><button type="button" className="btn-klein btn-gefahr-text" aria-label="Beitragsart entfernen" onClick={() => setDaten({ ...daten, beitraege: daten.beitraege.filter((_, j) => j !== i) })}>×</button></td>
               </tr>
             ))}
-            <tr>
-              <td colSpan={5}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, beitraege: [...daten.beitraege, { bez: '', satz: '', an: 0 }] })}>+ Beitragsart</button></td>
-              <td className="zahl abst-summe-zelle">{betrag(r.sollTotal)}</td>
-              <td className="zahl abst-summe-zelle">{betrag(r.anSoll)}</td>
+            <tr className="abst-summe">
+              <td colSpan={3}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, beitraege: [...daten.beitraege, { bez: '', laAN: '', laAG: '', rechnung: '' }] })}>+ Beitragsart</button></td>
+              <td className="zahl">{betrag(r.an)}</td>
+              <td className="zahl">{betrag(r.ag)}</td>
+              <td className="zahl">{betrag(r.lohn)}</td>
+              <td className="zahl">{betrag(r.rechnung)}</td>
+              <td className="zahl"><Differenz d={r.diffRechnung} /></td>
               <td />
             </tr>
           </tbody>
         </table>
-      </div>
+      </Karte>
 
-      <div className="karte abst-karte">
-        <div className="abst-karte-titel">Abstimmung</div>
+      <Karte titel="Abstimmung FiBu – Lohnbuchhaltung – Versicherung">
         <table className="tabelle abst-tabelle">
-          <thead><tr><th>Position</th><th className="zahl">Ist</th><th className="zahl">Soll</th><th className="zahl">Differenz</th></tr></thead>
+          <thead><tr><th>Prüfung</th><th className="zahl">Ist</th><th className="zahl">Soll</th><th className="zahl">Differenz</th></tr></thead>
           <tbody>
-            <Zeile label="Beiträge laut Schlussabrechnung" hinweis={`Total ${BEREICHE[bereich].kurz}-Abrechnung des Jahres`} vergleich={betrag(r.sollTotal)} d={r.diffAbrechnung}><Zahl wert={daten.abrechnung} onChange={feld('abrechnung')} /></Zeile>
-            <Zeile label="Akontozahlungen im Jahr" hinweis="Rechnungen bzw. Zahlungen laut Konto"><Zahl wert={daten.akonto} onChange={feld('akonto')} /></Zeile>
-            <tr className="abst-summe"><td>= Nachzahlung (+) / Guthaben (−) laut Schlussabrechnung</td><td className="zahl">{betrag(r.erwarteterSaldo)}</td><td /><td /></tr>
-            <Zeile label="Saldo Kontokorrent per 31.12." hinweis="Schuld +, Guthaben −" vergleich={betrag(r.erwarteterSaldo)} d={r.diffKonto}><Zahl wert={daten.saldoKonto} onChange={feld('saldoKonto')} /></Zeile>
-            <Zeile label="AN-Abzüge laut Lohnjournal" vergleich={betrag(r.anSoll)} d={r.diffAN}><Zahl wert={daten.anAbzuege} onChange={feld('anAbzuege')} /></Zeile>
+            <Zeile label={`Aufwand FiBu (Konto ${daten.konten || '–'})`} hinweis="Soll: AG-Anteil laut Kumulativjournal" ist={betrag(r.fibu)} soll={betrag(r.ag)} d={r.diffFibuJournal} />
+            <Zeile label={`Abrechnung ${kurz}`} hinweis="Soll: AN + AG laut Kumulativjournal" ist={betrag(r.rechnung)} soll={betrag(r.lohn)} d={r.diffRechnung} />
+            <Zeile label={`Abrechnung ${kurz}`} hinweis="Soll: Aufwand FiBu + AN-Abzüge" ist={betrag(r.rechnung)} soll={betrag(r.fibu + r.an)} d={r.diffRechnungFibu} />
           </tbody>
         </table>
-      </div>
+      </Karte>
+
+      <Karte titel="Abgrenzung per 31.12.">
+        <table className="tabelle abst-tabelle">
+          <thead><tr><th>Position</th><th className="zahl">Betrag</th><th className="zahl">Vergleich</th><th className="zahl">Differenz</th></tr></thead>
+          <tbody>
+            <Zeile label="Jahresbeitrag laut Abrechnung" ist={betrag(r.rechnung)} />
+            <Zeile label="./. bereits fakturiert (Akonto)" hinweis="im Geschäftsjahr verbuchte Rechnungen" ist={<Zahl wert={daten.akonto} onChange={feld('akonto')} />} />
+            <Zeile summe label="= abzugrenzen (+) / Guthaben (−)" ist={betrag(r.abzugrenzen)} />
+            <Zeile
+              label={<>Saldo Bilanzkonto <Text schmal wert={daten.kontoBilanz} onChange={feld('kontoBilanz')} platzhalter="z.B. 2270" /></>}
+              hinweis={r.saldoAusListe != null && zahl(daten.saldoBilanz) == null
+                ? <button type="button" className="link-knopf" onClick={() => setDaten({ ...daten, saldoBilanz: String(r.saldoAusListe) })}>{`aus Saldenliste übernehmen: ${betrag(r.saldoAusListe)}`}</button>
+                : 'Passive Abgrenzung bzw. Kontokorrent'}
+              ist={<Zahl wert={daten.saldoBilanz} onChange={feld('saldoBilanz')} />}
+              soll={betrag(r.abzugrenzen)}
+              d={r.diffBilanz}
+            />
+          </tbody>
+        </table>
+      </Karte>
+
+      {bereich === 'ahv' ? (
+        <Karte titel="Abstimmung gemeldete Lohnsumme">
+          <div className="abst-zuordnung">
+            <label>Lohnkonten <Text wert={daten.lohnKonten} onChange={feld('lohnKonten')} platzhalter="leer = alle 5000–5099" /></label>
+          </div>
+          <table className="tabelle abst-tabelle">
+            <thead><tr><th>Position</th><th className="zahl">Betrag</th><th className="zahl">Vergleich</th><th className="zahl">Differenz</th></tr></thead>
+            <tbody>
+              {(r.lohnKonten ?? []).map((k) => <Zeile key={k.konto} label={`${k.konto} ${k.text}`} ist={betrag(k.betrag)} />)}
+              <Zeile summe label="Lohnaufwand FiBu" ist={betrag(r.lohnFibu)} soll={betrag(r.brutto)} d={r.diffBrutto} hinweis="Vergleich: Bruttolohn LA 5000 laut Kumulativjournal" />
+              {(daten.lohnKorrekturen ?? []).map((k, i) => (
+                <tr key={i}>
+                  <td><Text wert={k.text} onChange={(v) => korrektur(i, { text: v })} platzhalter="z.B. Privatanteil nicht deklariert, QST-Bezugsprovision" /></td>
+                  <td className="zahl"><Zahl wert={k.betrag} onChange={(v) => korrektur(i, { betrag: v })} platzhalter="±" /></td>
+                  <td colSpan={2}><button type="button" className="btn-klein btn-gefahr-text" aria-label="Korrektur entfernen" onClick={() => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.filter((_, j) => j !== i) })}>×</button></td>
+                </tr>
+              ))}
+              <tr><td colSpan={4}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, lohnKorrekturen: [...(daten.lohnKorrekturen ?? []), { text: '', betrag: '' }] })}>+ Korrektur (±)</button></td></tr>
+              <Zeile summe label="= AHV-pflichtige Lohnsumme" ist={betrag(r.pflichtig)} />
+              <Zeile label="AHV-Lohnsumme laut Deklaration" ist={<Zahl wert={daten.deklaration} onChange={feld('deklaration')} breit />} soll={betrag(r.pflichtig)} d={r.diffDeklaration} />
+            </tbody>
+          </table>
+        </Karte>
+      ) : (
+        <Karte titel="Gemeldete Lohnsumme">
+          <table className="tabelle abst-tabelle">
+            <tbody>
+              <Zeile label={`Lohnsumme laut Deklaration ${kurz}`} hinweis="Vergleich: Bruttolohn LA 5000 – Abweichung z.B. wegen Höchstlohn begründen" ist={<Zahl wert={daten.deklaration} onChange={feld('deklaration')} breit />} soll={betrag(r.brutto)} d={r.diffDeklaration} />
+            </tbody>
+          </table>
+        </Karte>
+      )}
     </>
   );
 }
 
+// ---------------------------------------------------------------------------------------------
+// Seite
+// ---------------------------------------------------------------------------------------------
 function leereDaten(bereich, mandant, vorjahr) {
-  return bereich === 'mwst' ? mwstLeer(mandant) : svLeer(bereich, vorjahr);
+  return bereich === 'mwst' ? mwstLeer(mandant, vorjahr) : svLeer(bereich, vorjahr);
+}
+function berechnen(bereich, daten, grundlagen) {
+  return bereich === 'mwst' ? mwstBerechnen(daten) : svBerechnen(daten, grundlagen);
 }
 
-function berechnen(bereich, daten) {
-  return bereich === 'mwst' ? mwstBerechnen(daten) : svBerechnen(daten);
-}
-
-// Status einer Zeile in der Mandantenliste.
-function listenStatus(eintrag, bereich) {
+function listenStatus(eintrag, bereich, grundlagen) {
   if (!eintrag) return { klasse: 'abst-pille-offen', text: STATUS.offen };
   if (eintrag.status === 'abgestimmt') return { klasse: 'abst-pille-ok', text: STATUS.abgestimmt };
   if (eintrag.status === 'entfaellt') return { klasse: 'abst-pille-entfaellt', text: STATUS.entfaellt };
-  const b = bewertungGesamt(berechnen(bereich, { ...leereDaten(bereich, null, null), ...eintrag.daten }));
+  const b = bewertungGesamt(berechnen(bereich, { ...leereDaten(bereich, null, null), ...eintrag.daten }, grundlagen));
   return b === 'differenz' ? { klasse: 'abst-pille-fehler', text: 'Differenz' } : { klasse: 'abst-pille-arbeit', text: STATUS.in_arbeit };
+}
+
+async function tabelleLesen(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx')) return xlsxZeilen(await file.arrayBuffer());
+  if (name.endsWith('.xls')) throw new Error(`${file.name}: altes Excel-Format – bitte als .xlsx oder CSV speichern.`);
+  return csvZerlegen(await file.text());
 }
 
 // Abstimmung MWST bzw. einer Sozialversicherung fuer den Jahresabschluss: links die Mandanten
@@ -249,21 +372,28 @@ export default function Abstimmung({ bereich }) {
   const mandantId = params.get('mandant') ? Number(params.get('mandant')) : null;
   const [suche, setSuche] = useState('');
   const [liste, setListe] = useState([]);
-  const [eintrag, setEintrag] = useState(null); // gespeicherte Zeile
+  const [grundlagenListe, setGrundlagenListe] = useState([]);
+  const [eintrag, setEintrag] = useState(null);
   const [daten, setDatenRoh] = useState(null);
+  const [grundlagen, setGrundlagen] = useState(null);
   const [bemerkung, setBemerkung] = useState('');
   const [geaendert, setGeaendert] = useState(false);
   const [fehler, setFehler] = useState(null);
   const [meldung, setMeldung] = useState(null);
   const [laedt, setLaedt] = useState(false);
+  const [liest, setLiest] = useState(false);
   const [ziehen, setZiehen] = useState(false);
   const eingabeRef = useRef(null);
 
   const setDaten = (d) => { setDatenRoh(d); setGeaendert(true); };
 
   const listeLaden = useCallback(() => {
-    api.abstimmungen.liste({ jahr, bereich }).then((l) => { setListe(l); setFehler(null); }).catch((err) => setFehler(/abstimmungen/.test(err.message)
-      ? 'Tabelle fehlt – bitte zuerst supabase/abstimmungen-v7.sql in Supabase ausführen.' : err.message));
+    Promise.all([
+      api.abstimmungen.liste({ jahr, bereich }),
+      istSv(bereich) ? api.abstimmungen.liste({ jahr, bereich: GRUNDLAGEN }).catch(() => []) : Promise.resolve([]),
+    ]).then(([l, g]) => { setListe(l); setGrundlagenListe(g); setFehler(null); })
+      .catch((err) => setFehler(/abstimmungen/.test(err.message)
+        ? 'Tabelle fehlt – bitte zuerst supabase/abstimmungen-v7.sql in Supabase ausführen.' : err.message));
   }, [jahr, bereich]);
   useEffect(() => { listeLaden(); }, [listeLaden]);
 
@@ -274,21 +404,24 @@ export default function Abstimmung({ bereich }) {
     let abbruch = false;
     setDatenRoh(null);
     setEintrag(null);
+    setGrundlagen(null);
     setGeaendert(false);
     setMeldung(null);
     if (!mandantId || !mandanten.length) return undefined;
     setLaedt(true);
     (async () => {
       try {
-        const [gespeichert, vorjahr] = await Promise.all([
+        const [gespeichert, vorjahr, g] = await Promise.all([
           api.abstimmungen.lesen({ mandantId, jahr, bereich }),
           api.abstimmungen.lesen({ mandantId, jahr: jahr - 1, bereich }),
+          istSv(bereich) ? api.abstimmungen.lesen({ mandantId, jahr, bereich: GRUNDLAGEN }).catch(() => null) : null,
         ]);
         if (abbruch) return;
         const m = mandanten.find((x) => x.id === mandantId);
         const leer = leereDaten(bereich, m, vorjahr?.daten);
         setEintrag(gespeichert);
         setDatenRoh(gespeichert ? { ...leer, ...gespeichert.daten } : leer);
+        setGrundlagen(g?.daten ?? null);
         setBemerkung(gespeichert?.bemerkung ?? '');
       } catch (err) {
         if (!abbruch) setFehler(err.message);
@@ -319,7 +452,40 @@ export default function Abstimmung({ bereich }) {
     } catch (err) { setFehler(err.message); }
   }
 
-  const ordner = abstimmungOrdner(relativerOrdner(mandant, grund), jahr, bereich);
+  const basis = relativerOrdner(mandant, grund);
+  const ordner = abstimmungOrdner(basis, jahr, bereich);
+
+  // Erfolgsrechnung / Kumulativjournal einlesen (Datei bleibt in OneDrive, hier nur die Totale).
+  async function grundlagenEinlesen(files) {
+    const dateien = [...files];
+    if (!dateien.length) return;
+    setFehler(null);
+    setLiest(true);
+    try {
+      let neu = { ...(grundlagen ?? {}) };
+      const gelesen = [];
+      for (const f of dateien) {
+        const r = grundlagenLesen(await tabelleLesen(f));
+        if (!r) throw new Error(`${f.name}: weder Erfolgsrechnung (Nummer, Bezeichnung, Saldo) noch Kumulativjournal (LA, Total) erkannt.`);
+        if (r.art === 'konten') neu = { ...neu, konten: r.konten, kontenDatei: f.name, kontenAm: heutigesDatumISO() };
+        else neu = { ...neu, lohnarten: r.lohnarten, personen: r.personen, journalDatei: f.name, journalAm: heutigesDatumISO() };
+        gelesen.push(r.art === 'konten' ? `Erfolgsrechnung (${r.konten.length} Konten)` : `Kumulativjournal (${r.lohnarten.length} Lohnarten)`);
+        const ziel = abstimmungOrdner(basis, jahr, GRUNDLAGEN);
+        if (unterstuetzt() && ziel) {
+          try { await dateiAblegen(f, f.name, ziel); } catch { /* Ablage optional */ }
+        }
+      }
+      await api.abstimmungen.speichern({ mandantId, jahr, bereich: GRUNDLAGEN, daten: neu, status: 'in_arbeit' });
+      setGrundlagen(neu);
+      setMeldung(`Eingelesen: ${gelesen.join(', ')}.`);
+      listeLaden();
+    } catch (err) {
+      setFehler(/lohn_grundlagen|check constraint/i.test(err.message)
+        ? 'Bitte zuerst supabase/abstimmungen-grundlagen-v7.sql in Supabase ausführen.' : err.message);
+    } finally {
+      setLiest(false);
+    }
+  }
 
   async function unterlagenAblegen(files) {
     const neu = [...files];
@@ -349,10 +515,11 @@ export default function Abstimmung({ bereich }) {
   }
 
   const nachMandant = new Map(liste.map((e) => [e.mandant_id, e]));
+  const grundlagenNach = new Map(grundlagenListe.map((e) => [e.mandant_id, e.daten]));
   const t = suche.trim().toLowerCase();
   const sichtbar = aktive.filter((m) => !t || `${m.name} ${m.kunden_nr ?? ''}`.toLowerCase().includes(t));
   const erledigt = aktive.filter((m) => ['abgestimmt', 'entfaellt'].includes(nachMandant.get(m.id)?.status)).length;
-  const ergebnis = daten ? berechnen(bereich, daten) : null;
+  const ergebnis = daten ? berechnen(bereich, daten, grundlagen) : null;
   const gesamt = ergebnis ? bewertungGesamt(ergebnis) : 'leer';
   const offeneDifferenzen = ergebnis?.differenzen.filter((d) => !d.ok).length ?? 0;
   const jahre = [0, 1, 2, 3].map((i) => standardJahr() + 1 - i);
@@ -376,7 +543,7 @@ export default function Abstimmung({ bereich }) {
           <input type="search" className="mandanten-suche" placeholder="Mandant suchen" value={suche} onChange={(e) => setSuche(e.target.value)} />
           <div className="mandanten-liste-eintraege">
             {sichtbar.map((m) => {
-              const s = listenStatus(nachMandant.get(m.id), bereich);
+              const s = listenStatus(nachMandant.get(m.id), bereich, grundlagenNach.get(m.id));
               return (
                 <button type="button" key={m.id} className={`uebersicht-kategorie ${mandantId === m.id ? 'aktiv' : ''}`} onClick={() => wechseln({ mandant: m.id })}>
                   <span className="mandanten-name">{m.name}</span>
@@ -422,16 +589,19 @@ export default function Abstimmung({ bereich }) {
 
               {bereich === 'mwst'
                 ? <MwstFormular daten={daten} setDaten={setDaten} />
-                : <SvFormular bereich={bereich} daten={daten} setDaten={setDaten} />}
+                : (
+                  <>
+                    <GrundlagenKarte grundlagen={grundlagen} onDateien={grundlagenEinlesen} laedt={liest} />
+                    <SvFormular bereich={bereich} daten={daten} setDaten={setDaten} grundlagen={grundlagen} />
+                  </>
+                )}
 
-              <div className="karte abst-karte">
-                <div className="abst-karte-titel">Bemerkung</div>
+              <Karte titel="Bemerkung">
                 <textarea className="abst-bemerkung" value={bemerkung} rows={3} placeholder="Begründung von Differenzen, Korrekturabrechnung, offene Fragen an den Kunden"
                   onChange={(e) => { setBemerkung(e.target.value); setGeaendert(true); }} />
-              </div>
+              </Karte>
 
-              <div className="karte abst-karte">
-                <div className="abst-karte-titel">Unterlagen</div>
+              <Karte titel="Unterlagen">
                 {(daten.unterlagen ?? []).length > 0 && (
                   <ul className="abst-unterlagen">
                     {daten.unterlagen.map((u, i) => (
@@ -453,11 +623,11 @@ export default function Abstimmung({ bereich }) {
                   role="button"
                   tabIndex={0}
                 >
-                  <div className="beleg-drop-titel">Abrechnungen, Kontoauszüge, Lohnjournal hierher ziehen</div>
+                  <div className="beleg-drop-titel">{bereich === 'mwst' ? 'MWST-Abrechnungen, Kontoauszüge hierher ziehen' : 'Abrechnungen der Versicherung hierher ziehen'}</div>
                   <div className="beleg-drop-text">{ordner ? `Ablage: ${ordner.join(' › ')}` : 'Beim Mandanten ist kein Ablage-Ordner hinterlegt.'}</div>
                   <input ref={eingabeRef} type="file" multiple hidden onChange={(e) => { unterlagenAblegen(e.target.files); e.target.value = ''; }} />
                 </div>
-              </div>
+              </Karte>
             </>
           )}
         </div>
