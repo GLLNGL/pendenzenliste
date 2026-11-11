@@ -5,7 +5,8 @@
 // Aufruf aus der App: supabase.functions.invoke('beleg-lesen', { body: { art, dateiname, typ,
 // base64, firma } }) -- nur angemeldete Personen (Supabase prueft das JWT). Im Dashboard heisst
 // die Funktion "rapid-handler". Mit modus: 'buchungen' zaehlt sie stattdessen die Buchungen pro
-// Monat in einem Bankauszug/Buchungsjournal (Preiskalkulation der Offerte).
+// Monat in einem Bankauszug/Buchungsjournal (Preiskalkulation der Offerte); mit modus:
+// 'kontoauszug' liest sie die einzelnen Buchungen eines Kontoauszugs (Debitoren-Abgleich).
 //
 // Secret: ANTHROPIC_API_KEY (dasselbe wie fuer "mail-eingang").
 
@@ -58,6 +59,35 @@ const SCHEMA_BUCHUNGEN = {
 };
 const SYSTEM_BUCHUNGEN = 'Du zählst für ein Schweizer Treuhandbüro die Buchungen in einem Bankauszug oder Buchungsjournal, um den Aufwand für die Buchhaltung zu schätzen. Zähle jede einzelne Bewegung (Gutschrift oder Belastung) bzw. jeden Buchungsbeleg genau einmal, gruppiert nach Monat des Buchungsdatums. Nicht zählen: Anfangs- und Schlusssalden, Überträge, Zwischentotale, Seitenköpfe. Bei Splitbuchungen im Journal (mehrere Zeilen mit derselben Beleg-Nummer) zählt der Beleg einmal.';
 
+// Modus "kontoauszug" (Debitoren): Buchungen eines Kontoauszugs (PDF) fuer den Abgleich der
+// Zahlungseingaenge.
+const SCHEMA_KONTOAUSZUG = {
+  type: 'object',
+  properties: {
+    buchungen: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          datum: { type: 'string', description: 'Buchungsdatum YYYY-MM-DD' },
+          richtung: { type: 'string', enum: ['gutschrift', 'belastung'] },
+          betrag: { type: 'number', description: 'Betrag positiv' },
+          gegenpartei: { type: 'string', description: 'Auftraggeber bzw. Empfänger, sonst leer' },
+          referenz: { type: 'string', description: 'QR- oder RF-Referenz ohne Leerzeichen, sonst leer' },
+          text: { type: 'string', description: 'Buchungstext / Mitteilung, kurz' },
+        },
+        required: ['datum', 'richtung', 'betrag', 'gegenpartei', 'referenz', 'text'],
+        additionalProperties: false,
+      },
+    },
+    schlusssaldo: { type: ['number', 'null'] },
+    schlusssaldo_datum: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+  },
+  required: ['buchungen', 'schlusssaldo', 'schlusssaldo_datum'],
+  additionalProperties: false,
+};
+const SYSTEM_KONTOAUSZUG = 'Du liest Kontoauszüge eines Schweizer Treuhandbüros für den Abgleich mit offenen Rechnungen. Gib jede Bewegung einzeln zurück (Gutschrift = Geld kommt herein, Belastung = Geld geht hinaus), mit Datum, Betrag, Gegenpartei, Referenz und Text. Keine Salden, Überträge oder Zwischentotale als Buchung. Bei Sammelgutschriften mit Einzelpositionen die Einzelpositionen angeben.';
+
 function antwort(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 }
@@ -76,6 +106,23 @@ Deno.serve(async (req) => {
     const beleg = istPdf
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
       : { type: 'image', source: { type: 'base64', media_type: typ, data: base64 } };
+    if (modus === 'kontoauszug') {
+      const ki = await anthropic.beta.messages.create({
+        model: 'claude-opus-5-5',
+        max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_KONTOAUSZUG } },
+        system: SYSTEM_KONTOAUSZUG,
+        messages: [{ role: 'user', content: [beleg, { type: 'text', text: `Dateiname: ${dateiname ?? ''}. Gib alle Buchungen dieses Kontoauszugs zurück.` }] }],
+      // deno-lint-ignore no-explicit-any
+      } as any, { timeout: 140000, maxRetries: 1 });
+      if (ki.stop_reason === 'refusal' || ki.stop_reason === 'max_tokens') return antwort({ fehler: `Auswertung abgebrochen (${ki.stop_reason}) – bitte als camt-XML oder CSV exportieren.` }, 502);
+      const block = ki.content.find((b: { type: string }) => b.type === 'text') as { text: string } | undefined;
+      if (!block) return antwort({ fehler: 'Keine Antwort der KI erhalten.' }, 502);
+      return antwort({ ok: true, kontoauszug: JSON.parse(block.text) });
+    }
+
     if (modus === 'buchungen') {
       const ki = await anthropic.beta.messages.create({
         model: 'claude-opus-5-5',

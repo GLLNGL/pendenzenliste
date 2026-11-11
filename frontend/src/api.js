@@ -705,6 +705,28 @@ const api = {
     return data.buchungen;
   },
 
+  // Debitoren-Abgleich (v7): Buchungen eines PDF-Kontoauszugs per KI lesen.
+  kontoauszugLesen: async (file) => {
+    if (file.size > 25 * 1024 * 1024) throw new Error('PDF grösser als 25 MB – bitte als camt-XML oder CSV exportieren.');
+    const base64 = await blobZuBase64(file);
+    const { data, error } = await supabase.functions.invoke('rapid-handler', {
+      body: { modus: 'kontoauszug', dateiname: file.name, typ: file.type || 'application/pdf', base64 },
+    });
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        const koerper = await fehlerKoerperLesen(error);
+        throw new Error(koerper?.fehler || error.message);
+      }
+      throw new Error(error.message);
+    }
+    if (!data?.kontoauszug) throw new Error('Die KI-Funktion kennt Kontoauszüge noch nicht – bitte rapid-handler neu deployen (oder camt-XML/CSV verwenden).');
+    const k = data.kontoauszug;
+    return {
+      buchungen: (k.buchungen ?? []).map((b) => ({ ...b, waehrung: 'CHF', referenz: String(b.referenz ?? '').replace(/\s+/g, '') })),
+      schlusssaldo: k.schlusssaldo != null ? { betrag: Number(k.schlusssaldo), datum: k.schlusssaldo_datum } : null,
+    };
+  },
+
   // Zahlungslaeufe (v7): pain.001-Datei aus offenen Kreditorenbelegen.
   zahlungslaeufe: {
     liste: async () => {

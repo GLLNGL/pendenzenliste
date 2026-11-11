@@ -4,6 +4,7 @@ import api from '../api.js';
 import FormularModal from '../components/FormularModal.jsx';
 import BelegAnsicht from '../components/BelegAnsicht.jsx';
 import ZahlungslaufModal from '../components/ZahlungslaufModal.jsx';
+import KontoauszugModal from '../components/KontoauszugModal.jsx';
 import { useAblageGrund, useMandanten } from '../hooks.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
@@ -44,6 +45,7 @@ export default function Belege({ art }) {
   const [sendenBeleg, setSendenBeleg] = useState(null); // Debitorenrechnung per E-Mail
   const [rechnungText, setRechnungText] = useState(RECHNUNG_VORLAGE);
   const [vorlageOffen, setVorlageOffen] = useState(false);
+  const [auszugOffen, setAuszugOffen] = useState(false);
   const dateiRef = useRef(null);
   const mandanten = useMandanten();
   const grund = useAblageGrund();
@@ -237,6 +239,7 @@ export default function Belege({ art }) {
         <h1 className="seiten-titel">{t.titel}</h1>
         <span className="cockpit-kopf-hinweis">{t.hinweis}</span>
         <span className="kopfzeile-aktionen">
+          {art === 'debitor' && <button type="button" className="btn btn-primary" onClick={() => setAuszugOffen(true)} disabled={tabelleFehlt}>Kontoauszug einlesen</button>}
           {art === 'debitor' && <button type="button" className="btn" onClick={() => setVorlageOffen(true)}>Rechnungstext</button>}
           <button type="button" className="btn" onClick={() => setAktuell({ file: null, angaben: null })} disabled={tabelleFehlt}>+ Von Hand</button>
         </span>
@@ -472,6 +475,14 @@ export default function Belege({ art }) {
           />
         );
       })()}
+
+      {auszugOffen && (
+        <KontoauszugModal
+          debitoren={belege ?? []}
+          onSchliessen={() => setAuszugOffen(false)}
+          onVerbucht={(n) => { setMeldung(`${n} Zahlungseingang/-eingänge verbucht.`); laden(); }}
+        />
+      )}
 
       {vorlageOffen && (
         <FormularModal

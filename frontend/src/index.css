@@ -2656,3 +2656,12 @@ tr.inaktiv td { opacity: 0.55; }
 .liq-info-tabelle { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
 .liq-info-tabelle td { padding: 3px 8px 3px 0; }
 .liq-theoretisch { color: var(--text-muted); font-style: italic; }
+.kontoauszug-tabelle td { vertical-align: top; }
+.kontoauszug-tabelle select { max-width: 320px; }
+.kontoauszug-text { max-width: 320px; font-size: var(--fs-klein); }
+.kontoauszug-ohne td { color: var(--text-muted); }
+.kontoauszug-sicher { background: var(--success-bg); color: var(--success); }
+.kontoauszug-wahrscheinlich, .kontoauszug-manuell { background: var(--warning-bg); color: var(--warning); }
+.kontoauszug-unsicher { background: var(--danger-bg); color: var(--danger); }
+.kontoauszug-saldo { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--fs-text); }
+.modal.kontoauszug-modal .modal-koerper { display: block; }
