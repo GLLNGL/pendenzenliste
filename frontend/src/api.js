@@ -621,6 +621,30 @@ const api = {
     },
   },
 
+  // Abstimmungen Jahresabschluss (v7): MWST, AHV, BVG, UVG, KTG pro Mandant und Jahr.
+  abstimmungen: {
+    // Alle Abstimmungen eines Bereichs und Jahres (fuer den Status in der Mandantenliste).
+    liste: async ({ jahr, bereich }) => {
+      const { data, error } = await supabase.from('abstimmungen').select('*').eq('jahr', jahr).eq('bereich', bereich);
+      pruefeFehler(error);
+      return data;
+    },
+    lesen: async ({ mandantId, jahr, bereich }) => {
+      const { data, error } = await supabase.from('abstimmungen').select('*')
+        .eq('mandant_id', mandantId).eq('jahr', jahr).eq('bereich', bereich).maybeSingle();
+      pruefeFehler(error);
+      return data;
+    },
+    speichern: async ({ mandantId, jahr, bereich, daten, status, bemerkung, abgestimmtAm }) => {
+      const { data, error } = await supabase.from('abstimmungen').upsert({
+        mandant_id: mandantId, jahr, bereich, daten, status: status || 'in_arbeit', bemerkung: textOderNull(bemerkung),
+        abgestimmt_am: status === 'abgestimmt' ? (abgestimmtAm || heutigesDatumISO()) : null, geaendert_am: new Date().toISOString(),
+      }, { onConflict: 'mandant_id,jahr,bereich' }).select().single();
+      pruefeFehler(error);
+      return data;
+    },
+  },
+
   // Buchhaltung (v7): eigene Kreditoren-/Debitorenrechnungen. Der Beleg liegt nur in OneDrive.
   belege: {
     liste: async (art = null) => {

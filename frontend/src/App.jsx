@@ -10,6 +10,7 @@ import Mandanten from './views/Mandanten.jsx';
 import OnboardingUnterlagen from './views/OnboardingUnterlagen.jsx';
 import Belege from './views/Belege.jsx';
 import Liquiditaet from './views/Liquiditaet.jsx';
+import Abstimmung from './views/Abstimmung.jsx';
 import Regeln from './views/Regeln.jsx';
 import Archiv from './views/Archiv.jsx';
 import Wochenrueckblick from './views/Wochenrueckblick.jsx';
@@ -51,6 +52,11 @@ export default function App() {
         <Route path="/kreditoren" element={<Belege key="kreditor" art="kreditor" />} />
         <Route path="/debitoren" element={<Belege key="debitor" art="debitor" />} />
         <Route path="/liquiditaet" element={<Liquiditaet />} />
+        <Route path="/abstimmung/mwst" element={<Abstimmung key="mwst" bereich="mwst" />} />
+        <Route path="/abstimmung/ahv" element={<Abstimmung key="ahv" bereich="ahv" />} />
+        <Route path="/abstimmung/bvg" element={<Abstimmung key="bvg" bereich="bvg" />} />
+        <Route path="/abstimmung/uvg" element={<Abstimmung key="uvg" bereich="uvg" />} />
+        <Route path="/abstimmung/ktg" element={<Abstimmung key="ktg" bereich="ktg" />} />
         <Route path="/team" element={<Team />} />
         <Route path="/einstellungen" element={<Einstellungen />} />
       </Route>

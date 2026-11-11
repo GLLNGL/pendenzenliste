@@ -2665,3 +2665,33 @@ tr.inaktiv td { opacity: 0.55; }
 .kontoauszug-unsicher { background: var(--danger-bg); color: var(--danger); }
 .kontoauszug-saldo { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--fs-text); }
 .modal.kontoauszug-modal .modal-koerper { display: block; }
+
+/* Abstimmungen Jahresabschluss (MWST, AHV, BVG, UVG, KTG) */
+.abst-jahr { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-klein); color: var(--text-muted); }
+.abst-pille { font-size: var(--fs-klein); padding: 1px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; background: var(--surface-3); color: var(--text-muted); }
+.abst-pille-ok { background: var(--success-bg); color: var(--success); }
+.abst-pille-fehler { background: var(--danger-bg); color: var(--danger); }
+.abst-pille-arbeit { background: var(--warning-bg); color: var(--warning); }
+.abst-pille-entfaellt { background: var(--surface-3); color: var(--text-faint); }
+.abst-pille-offen { background: transparent; color: var(--text-faint); }
+.abst-status-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--fs-klein); }
+.abst-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.abst-meldung { margin-bottom: 8px; }
+.abst-methode { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; font-size: var(--fs-klein); color: var(--text-muted); }
+.abst-sss { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+.abst-karte { padding: 10px 14px; margin-bottom: 12px; max-width: 1100px; }
+.abst-karte-titel { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.abst-tabelle { width: 100%; }
+.abst-tabelle td, .abst-tabelle th { vertical-align: middle; }
+.abst-kopf-zusatz { font-weight: 400; color: var(--text-faint); font-size: var(--fs-label); }
+.abst-zahl { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.abst-zahl-breit { width: 140px; }
+.abst-text { width: 100%; min-width: 180px; }
+.abst-summe td, .abst-summe-zelle { font-weight: 600; border-top: 1px solid var(--border); }
+.abst-diff { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.abst-diff-ok { color: var(--success); }
+.abst-diff-fehler { color: var(--danger); }
+.abst-diff-leer { color: var(--text-faint); font-weight: 400; }
+.abst-bemerkung { width: 100%; resize: vertical; }
+.abst-unterlagen { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.abst-unterlagen li { display: flex; align-items: center; gap: 6px; }

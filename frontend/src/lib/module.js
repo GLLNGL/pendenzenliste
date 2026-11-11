@@ -49,7 +49,7 @@ const MODULE = [
     ],
   },
   {
-    id: 'buchhaltung', nr: 40, name: 'Buchhaltung', symbol: '₣', beschreibung: 'Kreditoren, Debitoren und Liquiditätsplan',
+    id: 'buchhaltung', nr: 40, name: 'Buchhaltung', symbol: '₣', beschreibung: 'Kreditoren, Debitoren, Liquiditätsplan, Abstimmungen Jahresabschluss',
     gruppen: [
       { nr: 1, name: 'Belege', eintraege: [
         { nr: 11, pfad: '/kreditoren', label: 'Kreditoren' },
@@ -57,6 +57,15 @@ const MODULE = [
       ] },
       { nr: 2, name: 'Auswertungen', eintraege: [
         { nr: 21, pfad: '/liquiditaet', label: 'Liquiditätsplan' },
+      ] },
+      { nr: 3, name: 'Abstimmung MWST', eintraege: [
+        { nr: 31, pfad: '/abstimmung/mwst', label: 'MWST' },
+      ] },
+      { nr: 4, name: 'Abstimmung Sozialversicherungen', eintraege: [
+        { nr: 41, pfad: '/abstimmung/ahv', label: 'AHV' },
+        { nr: 42, pfad: '/abstimmung/bvg', label: 'BVG' },
+        { nr: 43, pfad: '/abstimmung/uvg', label: 'UVG' },
+        { nr: 44, pfad: '/abstimmung/ktg', label: 'KTG' },
       ] },
     ],
   },
