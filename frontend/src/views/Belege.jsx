@@ -366,8 +366,8 @@ export default function Belege({ art }) {
               <thead><tr><th>Ausführung</th><th className="zahl">Zahlungen</th><th className="zahl">Summe</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {laeufe.map((l) => {
-                  // Offene Laeufe sind aufgeklappt, bezahlte zugeklappt -- Klick schaltet um.
-                  const offenAuf = l.bezahlt_am ? laufAuf.has(l.id) : !laufAuf.has(l.id);
+                  // Alle Laeufe sind aufgeklappt (Rechnungen sichtbar) -- Klick auf die Zeile klappt zu.
+                  const offenAuf = !laufAuf.has(l.id);
                   const inLauf = (belege ?? []).filter((b) => b.zahlungslauf_id === l.id);
                   return [
                   <tr key={l.id} className="klickbar zahlungslauf-zeile" onClick={() => laufUmschalten(l.id)}>
