@@ -13,10 +13,10 @@ import {
 
 const betrag = (x) => (x == null ? '–' : chf(x).replace('CHF ', ''));
 
-function Zahl({ wert, onChange, breit = false, platzhalter = '0.00' }) {
+function Zahl({ wert, onChange, breit = false, schmal = false, platzhalter = '0.00' }) {
   return (
     <input
-      className={`abst-zahl ${breit ? 'abst-zahl-breit' : ''}`}
+      className={`abst-zahl ${breit ? 'abst-zahl-breit' : ''} ${schmal ? 'abst-zahl-schmal' : ''}`}
       inputMode="decimal"
       value={wert ?? ''}
       placeholder={platzhalter}
@@ -79,7 +79,7 @@ function MwstFormular({ daten, setDaten }) {
         {[['effektiv', 'effektiv (Quartal)'], ['saldo', 'Saldosteuersatz (Semester)']].map(([wert, label]) => (
           <button key={wert} type="button" className={`btn-klein ${daten.methode === wert ? 'gewaehlt' : ''}`} onClick={() => setDaten(mwstMethodeWechseln(daten, wert))}>{label}</button>
         ))}
-        {saldo && <label className="abst-sss">Saldosteuersatz <Zahl wert={daten.sssSatz} onChange={feld('sssSatz')} platzhalter="%" /> %</label>}
+        {saldo && <label className="abst-sss">Saldosteuersatz <Zahl wert={daten.sssSatz} onChange={feld('sssSatz')} platzhalter="%" schmal /> %</label>}
       </div>
 
       <div className="karte abst-karte">
@@ -185,10 +185,10 @@ function SvFormular({ bereich, daten, setDaten }) {
             {daten.beitraege.map((b, i) => (
               <tr key={i}>
                 <td><input className="abst-text" value={b.bez ?? ''} onChange={(e) => beitrag(i, { bez: e.target.value })} /></td>
-                <td className="zahl"><Zahl wert={b.basis} onChange={(v) => beitrag(i, { basis: v })} platzhalter={betrag(r.massgebend)} breit /></td>
-                <td className="zahl"><Zahl wert={b.satz} onChange={(v) => beitrag(i, { satz: v })} platzhalter="%" /></td>
+                <td className="zahl"><Zahl wert={b.basis} onChange={(v) => beitrag(i, { basis: v })} platzhalter={betrag(r.massgebend)} /></td>
+                <td className="zahl"><Zahl wert={b.satz} onChange={(v) => beitrag(i, { satz: v })} platzhalter="%" schmal /></td>
                 <td className="zahl"><Zahl wert={b.betrag} onChange={(v) => beitrag(i, { betrag: v })} platzhalter="–" /></td>
-                <td className="zahl"><Zahl wert={b.an} onChange={(v) => beitrag(i, { an: v })} platzhalter="%" /></td>
+                <td className="zahl"><Zahl wert={b.an} onChange={(v) => beitrag(i, { an: v })} platzhalter="%" schmal /></td>
                 <td className="zahl">{betrag(r.zeilen[i]?.soll)}</td>
                 <td className="zahl">{betrag(r.zeilen[i]?.an)}</td>
                 <td><button type="button" className="btn-klein btn-gefahr-text" onClick={() => setDaten({ ...daten, beitraege: daten.beitraege.filter((_, j) => j !== i) })} aria-label="Beitragsart entfernen">×</button></td>
@@ -262,7 +262,7 @@ export default function Abstimmung({ bereich }) {
   const setDaten = (d) => { setDatenRoh(d); setGeaendert(true); };
 
   const listeLaden = useCallback(() => {
-    api.abstimmungen.liste({ jahr, bereich }).then(setListe).catch((err) => setFehler(/abstimmungen/.test(err.message)
+    api.abstimmungen.liste({ jahr, bereich }).then((l) => { setListe(l); setFehler(null); }).catch((err) => setFehler(/abstimmungen/.test(err.message)
       ? 'Tabelle fehlt – bitte zuerst supabase/abstimmungen-v7.sql in Supabase ausführen.' : err.message));
   }, [jahr, bereich]);
   useEffect(() => { listeLaden(); }, [listeLaden]);
@@ -401,7 +401,7 @@ export default function Abstimmung({ bereich }) {
                     {eintrag?.status === 'abgestimmt' && <span className="abst-pille abst-pille-ok">abgestimmt am {formatiereDatum(eintrag.abgestimmt_am)}</span>}
                     {eintrag?.status === 'entfaellt' && <span className="abst-pille abst-pille-entfaellt">entfällt</span>}
                     {gesamt === 'ok' && <span className="hinweis-erfolg">Alle erfassten Positionen stimmen.</span>}
-                    {gesamt === 'differenz' && <span className="text-ueberfaellig">{offeneDifferenzen} Differenz{offeneDifferenzen === 1 ? '' : 'en'} – abklären oder in der Bemerkung begründen.</span>}
+                    {gesamt === 'differenz' && <span className="text-ueberfaellig">{offeneDifferenzen} Differenz{offeneDifferenzen === 1 ? '' : 'en'}{bemerkung.trim() ? ' – in der Bemerkung begründet.' : ' – abklären oder in der Bemerkung begründen.'}</span>}
                     {gesamt === 'leer' && <span className="text-gedaempft">Noch keine Werte erfasst.</span>}
                     {bereich === 'mwst' && mandant.mwst_periode === 'keine' && <span className="text-gedaempft"> · Mandant laut Stammdaten nicht MWST-pflichtig.</span>}
                   </div>
