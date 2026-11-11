@@ -45,7 +45,8 @@ function durchschnittFrist(belege) {
  *   ausgang  = Zahlungsausgaenge: Kreditoren bezahlt (Zahlungsdatum) oder im Zahlungslauf
  *              (Ausfuehrungsdatum) -- so zaehlt keine Rechnung doppelt.
  * Bewegungen bis heute nach dem Stichtag des Kontostands stehen in der Zeile "seit Kontostand";
- * fruehere stecken bereits im Kontostand. Ueberfaellige offene Rechnungen gelten als sofort.
+ * fruehere stecken bereits im Kontostand. Ueberfaellige offene Rechnungen sind nicht im Stand
+ * (nur Info, theoretischer Stand und "bezahlbar ab").
  * @param belege   alle Belege
  * @param optionen { heute, start, perioden, einheit: 'woche' | 'monat', kontostandDatum, laeufe }
  */
@@ -59,13 +60,13 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
   const bewegungen = [];
   for (const b of chf) {
     if (b.art === 'debitor') {
-      bewegungen.push({ art: 'zufluss', datum: b.bezahlt_am || b.faelligkeit || null, bezahlt: !!b.bezahlt_am, betrag: betrag(b) });
+      bewegungen.push({ art: 'zufluss', datum: b.bezahlt_am || b.faelligkeit || null, bezahlt: !!b.bezahlt_am, betrag: betrag(b), beleg: b });
     } else if (b.bezahlt_am) {
-      bewegungen.push({ art: 'ausgang', datum: b.bezahlt_am, bezahlt: true, betrag: betrag(b) });
+      bewegungen.push({ art: 'ausgang', datum: b.bezahlt_am, bezahlt: true, betrag: betrag(b), beleg: b });
     } else if (b.zahlungslauf_id && laufDatum.get(b.zahlungslauf_id)) {
-      bewegungen.push({ art: 'ausgang', datum: laufDatum.get(b.zahlungslauf_id), bezahlt: true, betrag: betrag(b) });
+      bewegungen.push({ art: 'ausgang', datum: laufDatum.get(b.zahlungslauf_id), bezahlt: true, betrag: betrag(b), beleg: b });
     } else {
-      bewegungen.push({ art: 'abfluss', datum: b.faelligkeit || null, bezahlt: false, betrag: betrag(b) });
+      bewegungen.push({ art: 'abfluss', datum: b.faelligkeit || null, bezahlt: false, betrag: betrag(b), beleg: b });
     }
   }
   const summe = (liste, art) => liste.filter((x) => x.art === art).reduce((s, x) => s + x.betrag, 0);
@@ -93,15 +94,14 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
   // Ohne Stichtag gelten alle bisherigen Zahlungen als enthalten.
   const seit = bewegungen.filter((x) => x.bezahlt && x.datum && x.datum <= heute && kontostandDatum && x.datum >= kontostandDatum);
   const bezahltSeitStand = { zufluss: summe(seit, 'zufluss'), ausgang: summe(seit, 'ausgang'), anzahl: seit.length };
-  // Offene, ueberfaellige Rechnungen: sofort.
+  // Offene, ueberfaellige Rechnungen: NICHT im Liq. Stand (noch nicht bezahlt bzw. eingegangen),
+  // nur als Info -- dazu ein theoretischer Stand "inkl. ueberfaellige Kreditoren".
   const ueber = bewegungen.filter((x) => !x.bezahlt && x.datum && x.datum < heute);
   const ueberfaellig = { zufluss: summe(ueber, 'zufluss'), abfluss: summe(ueber, 'abfluss') };
 
   let stand = Number(start) || 0;
   stand += bezahltSeitStand.zufluss - bezahltSeitStand.ausgang;
   const standNachBezahlt = stand;
-  stand += ueberfaellig.zufluss - ueberfaellig.abfluss;
-  const standNachUeberfaellig = stand;
 
   // Ausgefuehrte Zahlungen bis und mit heute sind oben erfasst; in die Perioden kommen nur
   // offene Rechnungen ab heute und Zahlungen mit kuenftigem Datum.
@@ -113,8 +113,24 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
     const ausgang = summe(drin, 'ausgang');
     const saldo = zufluss - abfluss - ausgang;
     stand += saldo;
-    return { ...g, zufluss, abfluss, ausgang, saldo, stand, anzahl: drin.length };
+    return { ...g, zufluss, abfluss, ausgang, saldo, stand, theoretisch: stand - ueberfaellig.abfluss, anzahl: drin.length };
   });
+
+  // Ab wann lassen sich die ueberfaelligen Kreditoren bezahlen, ohne dass der Stand danach unter
+  // null faellt? Aelteste zuerst, kumuliert: frueheste Periode, ab der der tiefste kuenftige
+  // Stand die bis dahin aufgelaufene Summe deckt.
+  const verlauf = [{ label: 'sofort', stand: standNachBezahlt }, ...zeilen.map((z) => ({ label: z.label, von: z.von, stand: z.stand }))];
+  const tiefsterAb = verlauf.map((_, i) => Math.min(...verlauf.slice(i).map((v) => v.stand)));
+  let kumuliert = 0;
+  const ueberfaelligeKreditoren = ueber
+    .filter((x) => x.art === 'abfluss')
+    .sort((a, b) => a.datum.localeCompare(b.datum))
+    .map((x) => {
+      kumuliert += x.betrag;
+      const i = tiefsterAb.findIndex((t) => t - kumuliert >= 0);
+      return { partner: x.beleg.partner, rechnungsnummer: x.beleg.rechnungsnummer, faelligkeit: x.datum, betrag: x.betrag, bezahlbarAb: i < 0 ? null : verlauf[i].label };
+    });
+  ueberfaellig.kreditoren = ueberfaelligeKreditoren;
 
   const vorzeichen = (x) => (x.art === 'zufluss' ? x.betrag : -x.betrag);
   const ohneDatum = bewegungen.filter((x) => !x.datum).reduce((s, x) => s + vorzeichen(x), 0);
@@ -123,8 +139,9 @@ function liquiditaetsplan(belege, { heute, start = 0, perioden = 12, einheit = '
   const fremdwaehrung = mitBetrag.filter((b) => !b.bezahlt_am && (b.waehrung || 'CHF') !== 'CHF');
   const engpass = zeilen.find((z) => z.stand < 0) ?? null;
   return {
-    zeilen, ueberfaellig, bezahltSeitStand, standNachBezahlt, standNachUeberfaellig, ohneDatum, spaeter, fremdwaehrung, engpass,
-    tiefsterStand: Math.min(standNachBezahlt, standNachUeberfaellig, ...zeilen.map((z) => z.stand)),
+    zeilen, ueberfaellig, bezahltSeitStand, standNachBezahlt, ohneDatum, spaeter, fremdwaehrung, engpass,
+    tiefsterStand: Math.min(standNachBezahlt, ...zeilen.map((z) => z.stand)),
+    tiefsterTheoretisch: Math.min(standNachBezahlt - ueberfaellig.abfluss, ...zeilen.map((z) => z.theoretisch)),
   };
 }
 

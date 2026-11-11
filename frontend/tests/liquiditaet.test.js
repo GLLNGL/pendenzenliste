@@ -35,17 +35,32 @@ test('Liquiditätsplan pro Woche', () => {
     { art: 'debitor', betrag: 9000, faelligkeit: '2027-06-01' },          // nach dem Plan
   ];
   const plan = liquiditaetsplan(belege, { heute, start: 10000, perioden: 3 });
-  assert.deepEqual(plan.ueberfaellig, { zufluss: 0, abfluss: 500 });
-  assert.equal(plan.standNachUeberfaellig, 9500);
-  assert.deepEqual(plan.zeilen.map((z) => [z.von, z.zufluss, z.abfluss, z.stand]), [
-    [heute, 5000, 0, 14500],
-    ['2026-11-16', 0, 2000, 12500],
-    ['2026-11-23', 0, 0, 12500],
+  assert.equal(plan.ueberfaellig.abfluss, 500);
+  // Überfälliges ist nicht im Liq. Stand, nur im theoretischen Stand.
+  assert.deepEqual(plan.zeilen.map((z) => [z.von, z.zufluss, z.abfluss, z.stand, z.theoretisch]), [
+    [heute, 5000, 0, 15000, 14500],
+    ['2026-11-16', 0, 2000, 13000, 12500],
+    ['2026-11-23', 0, 0, 13000, 12500],
   ]);
   assert.equal(plan.ohneDatum, 800);
   assert.equal(plan.spaeter, 9000);
   assert.equal(plan.fremdwaehrung.length, 1);
-  assert.equal(plan.tiefsterStand, 9500);
+  assert.equal(plan.tiefsterStand, 10000);
+  assert.equal(plan.ueberfaellig.kreditoren[0].bezahlbarAb, 'sofort');
+});
+
+test('Liquiditätsplan: überfällige Kreditoren – bezahlbar ab', () => {
+  const belege = [
+    { art: 'kreditor', partner: 'Customize AG', betrag: 3297.05, faelligkeit: '2026-11-06' },
+    { art: 'debitor', betrag: 7262.75, faelligkeit: '2026-12-01' },
+    { art: 'kreditor', betrag: 1913.35, faelligkeit: '2026-12-02' },
+  ];
+  const plan = liquiditaetsplan(belege, { heute, start: 194.44, perioden: 5 });
+  assert.equal(plan.engpass, null); // ohne das Überfällige kein Engpass
+  assert.ok(plan.tiefsterTheoretisch < 0); // theoretisch im Minus
+  assert.deepEqual(plan.ueberfaellig.kreditoren.map((k) => [k.partner, k.bezahlbarAb]), [['Customize AG', 'KW ab 30.11.']]);
+  const zuWenig = liquiditaetsplan([belege[0]], { heute, start: 100, perioden: 3 });
+  assert.equal(zuWenig.ueberfaellig.kreditoren[0].bezahlbarAb, null);
 });
 
 test('Liquiditätsplan pro Monat', () => {

@@ -2651,3 +2651,8 @@ tr.inaktiv td { opacity: 0.55; }
 .liq-kopf-zusatz { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-faint); font-size: var(--fs-label); }
 .liq-engpass td { border-top: 2px solid var(--danger); }
 .liq-engpass-marke { color: var(--danger); font-weight: 600; }
+.liq-info { border: 1px solid var(--warning); background: var(--warning-bg); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: var(--fs-text); }
+.liq-info-titel { font-weight: 600; margin-bottom: 6px; }
+.liq-info-tabelle { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+.liq-info-tabelle td { padding: 3px 8px 3px 0; }
+.liq-theoretisch { color: var(--text-muted); font-style: italic; }

@@ -53,6 +53,7 @@ export default function Liquiditaet() {
   const fristKred = durchschnittFrist(kreditoren);
   const ueberfaelligeDeb = debitoren.filter((b) => belegStatus(b, heute) === 'ueberfaellig');
   const { engpass } = plan;
+  const mitUeber = plan.ueberfaellig.abfluss > 0;
 
   let fristText = 'Noch zu wenige Belege mit Rechnungsdatum und Fälligkeit für einen Vergleich.';
   if (fristDeb != null && fristKred != null) {
@@ -68,7 +69,7 @@ export default function Liquiditaet() {
     <div className="liquiditaet">
       <div className="cockpit-kopfzeile">
         <h1 className="seiten-titel">Liquiditätsplan</h1>
-        <span className="cockpit-kopf-hinweis">Kontostand + Zuflüsse − Kreditoren nach Fälligkeit − Zahlungsausgänge (bezahlt oder im Zahlungslauf), in CHF.</span>
+        <span className="cockpit-kopf-hinweis">Kontostand + Zuflüsse − Kreditoren nach Fälligkeit − Zahlungsausgänge, in CHF. Überfällige offene Rechnungen sind nur als Info aufgeführt.</span>
         <span className="kopfzeile-aktionen mandanten-filter">
           <button type="button" className={`mandanten-filter-knopf ${einheit === 'woche' ? 'aktiv' : ''}`} onClick={() => setEinheit('woche')}>Wochen</button>
           <button type="button" className={`mandanten-filter-knopf ${einheit === 'monat' ? 'aktiv' : ''}`} onClick={() => setEinheit('monat')}>Monate</button>
@@ -110,6 +111,34 @@ export default function Liquiditaet() {
         </div>
       </div>
 
+      {mitUeber && (
+        <div className="liq-info">
+          <div className="liq-info-titel">
+            Überfällige Kreditoren: {chf(plan.ueberfaellig.abfluss)} – nicht im Liq. Stand eingerechnet
+            {plan.tiefsterTheoretisch < 0 && <span className="liq-minus"> · sofort bezahlt wäre der Stand theoretisch im Minus (tiefster Wert {chf(plan.tiefsterTheoretisch)})</span>}
+          </div>
+          <table className="liq-info-tabelle">
+            <tbody>
+              {plan.ueberfaellig.kreditoren.map((k, i) => (
+                <tr key={`${k.partner}-${i}`}>
+                  <td>{k.partner}{k.rechnungsnummer ? <span className="text-gedaempft"> · {k.rechnungsnummer}</span> : null}</td>
+                  <td className="text-gedaempft">fällig seit {formatiereDatum(k.faelligkeit)}</td>
+                  <td className="zahl">{chf(k.betrag)}</td>
+                  <td>
+                    {k.bezahlbarAb === 'sofort'
+                      ? <span className="beleg-status beleg-status-bezahlt">sofort bezahlbar</span>
+                      : k.bezahlbarAb
+                        ? <strong>bezahlbar ab {k.bezahlbarAb}</strong>
+                        : <span className="liq-minus">im Planungszeitraum nicht gedeckt</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="liq-kachel-text">«Bezahlbar ab»: ab dieser Periode bleibt der Stand auch nach der Zahlung bis zum Ende des Plans im Plus (älteste Rechnung zuerst).</div>
+        </div>
+      )}
+
       <div className="karte">
         <table className="tabelle liq-tabelle">
           <thead>
@@ -120,38 +149,41 @@ export default function Liquiditaet() {
               <th className="zahl">Zahlungsausgänge<br /><span className="liq-kopf-zusatz">bezahlt / Zahlungslauf</span></th>
               <th className="zahl">Saldo</th>
               <th className="zahl">Liq. Stand</th>
+              {mitUeber && <th className="zahl">inkl. Überfälliges<br /><span className="liq-kopf-zusatz">theoretisch</span></th>}
               <th className="liq-balken-spalte"></th>
             </tr>
           </thead>
           <tbody>
             <tr className="liq-startzeile">
               <td>Kontostand {stand.datum ? `per ${formatiereDatum(stand.datum)}` : ''}</td><td /><td /><td /><td />
-              <td className="zahl"><strong>{chf(start)}</strong></td><td />
+              <td className="zahl"><strong>{chf(start)}</strong></td>{mitUeber && <td />}<td />
             </tr>
             {plan.bezahltSeitStand.anzahl > 0 && (
               <tr className="liq-bezahlt">
-                <td>Zahlungen seit Kontostand ({plan.bezahltSeitStand.anzahl}){stand.datum ? ` · ab ${formatiereDatum(stand.datum)}` : ""}</td>
+                <td>Zahlungen seit Kontostand ({plan.bezahltSeitStand.anzahl}){stand.datum ? ` · ab ${formatiereDatum(stand.datum)}` : ''}</td>
                 <td className="zahl liq-plus">{plan.bezahltSeitStand.zufluss ? chf(plan.bezahltSeitStand.zufluss) : ''}</td>
                 <td />
                 <td className="zahl liq-minus">{plan.bezahltSeitStand.ausgang ? chf(plan.bezahltSeitStand.ausgang) : ''}</td>
                 <td className="zahl">{chf(plan.bezahltSeitStand.zufluss - plan.bezahltSeitStand.ausgang)}</td>
                 <td className={`zahl ${plan.standNachBezahlt < 0 ? 'liq-minus' : ''}`}>{chf(plan.standNachBezahlt)}</td>
+                {mitUeber && <td />}
                 <td />
               </tr>
             )}
             {(plan.ueberfaellig.zufluss > 0 || plan.ueberfaellig.abfluss > 0) && (
               <tr className="liq-ueberfaellig">
-                <td>Überfällig (sofort)</td>
-                <td className="zahl liq-plus">{plan.ueberfaellig.zufluss ? chf(plan.ueberfaellig.zufluss) : ''}</td>
-                <td className="zahl liq-minus">{plan.ueberfaellig.abfluss ? chf(plan.ueberfaellig.abfluss) : ''}</td>
+                <td>Überfällig, offen <span className="liq-kopf-zusatz">(nur Info)</span></td>
+                <td className="zahl text-gedaempft">{plan.ueberfaellig.zufluss ? chf(plan.ueberfaellig.zufluss) : ''}</td>
+                <td className="zahl text-gedaempft">{plan.ueberfaellig.abfluss ? chf(plan.ueberfaellig.abfluss) : ''}</td>
                 <td />
-                <td className="zahl">{chf(plan.ueberfaellig.zufluss - plan.ueberfaellig.abfluss)}</td>
-                <td className={`zahl ${plan.standNachUeberfaellig < 0 ? 'liq-minus' : ''}`}>{chf(plan.standNachUeberfaellig)}</td>
+                <td className="zahl text-gedaempft">nicht eingerechnet</td>
+                <td />
+                {mitUeber && <td className={`zahl ${plan.standNachBezahlt - plan.ueberfaellig.abfluss < 0 ? 'liq-minus' : ''}`}>{chf(plan.standNachBezahlt - plan.ueberfaellig.abfluss)}</td>}
                 <td />
               </tr>
             )}
             {plan.zeilen.map((z) => {
-              const max = Math.max(1, ...plan.zeilen.map((x) => Math.abs(x.stand)), Math.abs(plan.standNachUeberfaellig));
+              const max = Math.max(1, ...plan.zeilen.map((x) => Math.abs(x.stand)), Math.abs(plan.standNachBezahlt));
               const istEngpass = plan.engpass?.von === z.von;
               return (
                 <tr key={z.von} className={`${z.stand < 0 ? 'liq-negativ' : ''} ${istEngpass ? 'liq-engpass' : ''}`}>
@@ -161,6 +193,7 @@ export default function Liquiditaet() {
                   <td className="zahl liq-minus">{z.ausgang ? chf(z.ausgang) : ''}</td>
                   <td className="zahl">{z.saldo ? chf(z.saldo) : ''}</td>
                   <td className={`zahl ${z.stand < 0 ? 'liq-minus' : ''}`}><strong>{chf(z.stand)}</strong></td>
+                  {mitUeber && <td className={`zahl liq-theoretisch ${z.theoretisch < 0 ? 'liq-minus' : ''}`}>{chf(z.theoretisch)}</td>}
                   <td className="liq-balken-spalte"><div className={`liq-balken ${z.stand < 0 ? 'negativ' : ''}`} style={{ width: `${Math.round((Math.abs(z.stand) / max) * 100)}%` }} /></td>
                 </tr>
               );
