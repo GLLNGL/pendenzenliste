@@ -34,9 +34,11 @@ const RECHNUNG_VORLAGE = {
   mailText: [
     'Guten Tag {ansprechperson}',
     '',
-    'Besten Dank für Ihren Auftrag. Im Anhang erhalten Sie unsere Rechnung {nummer} vom {datum} über {waehrung} {betrag}.',
+    'Im Anhang erhalten Sie unsere Rechnung Nr. {nummer} vom {datum} über {waehrung} {betrag}.',
     '',
-    'Wir bitten Sie, den Betrag bis am {faelligkeit} zu überweisen. Für Fragen stehen wir Ihnen gerne zur Verfügung.',
+    'Wir bitten Sie, den Betrag innert 10 Tagen mit dem beiliegenden QR-Einzahlungsschein zu überweisen. Bitte verwenden Sie für die Zahlung die angegebene QR-Referenz, damit wir Ihre Zahlung korrekt zuordnen können.',
+    '',
+    'Bei Fragen zur Rechnung stehen wir Ihnen gerne zur Verfügung.',
   ].join('\n'),
 };
 

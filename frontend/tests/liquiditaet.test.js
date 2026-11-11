@@ -79,7 +79,7 @@ test('Rechnungs-Mail: Mandant finden und Platzhalter', () => {
   const p = rechnungPlatzhalter({ partner: 'A4 Personal AG', rechnungsnummer: 'R-12', rechnungsdatum: '2026-11-01', faelligkeit: '2026-12-01', betrag: 1250.5, waehrung: 'CHF' }, mandanten[0], { firma: 'estcontrolling GmbH' });
   const text = textErsetzen(RECHNUNG_VORLAGE.mailText, p);
   assert.match(text, /^Guten Tag Herr Lucente/);
-  assert.match(text, /Rechnung R-12 vom 01.11.2026 über CHF 1.250.50/);
-  assert.match(text, /bis am 01.12.2026/);
+  assert.match(text, /Rechnung Nr. R-12 vom 01.11.2026 über CHF 1.250.50./);
+  assert.match(text, /innert 10 Tagen mit dem beiliegenden QR-Einzahlungsschein/);
   assert.equal(textErsetzen(RECHNUNG_VORLAGE.mailBetreff, p), 'Rechnung R-12 – estcontrolling GmbH');
 });
