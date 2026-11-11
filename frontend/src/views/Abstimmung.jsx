@@ -234,7 +234,7 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
           <label>Aufwandkonto FiBu <Text schmal wert={daten.konten} onChange={feld('konten')} platzhalter="5700" /></label>
           <span className="text-gedaempft">Lohnarten mit Komma trennen, Bereiche mit Bindestrich (z.B. 9500, 9510-9520).</span>
         </div>
-        <table className="tabelle abst-tabelle">
+        <table className="tabelle abst-tabelle abst-tabelle-eng">
           <thead>
             <tr>
               <th>Beitragsart</th><th>LA AN</th><th>LA AG</th>
@@ -420,7 +420,10 @@ export default function Abstimmung({ bereich }) {
         const m = mandanten.find((x) => x.id === mandantId);
         const leer = leereDaten(bereich, m, vorjahr?.daten);
         setEintrag(gespeichert);
-        setDatenRoh(gespeichert ? { ...leer, ...gespeichert.daten } : leer);
+        // Erste Fassung (Saetze statt Lohnarten): nur Bemerkung/Unterlagen uebernehmen.
+        const alt = gespeichert?.daten ?? {};
+        const veraltet = istSv(bereich) && Array.isArray(alt.beitraege) && !alt.beitraege.some((b) => 'laAG' in b);
+        setDatenRoh(gespeichert ? (veraltet ? { ...leer, unterlagen: alt.unterlagen } : { ...leer, ...alt }) : leer);
         setGrundlagen(g?.daten ?? null);
         setBemerkung(gespeichert?.bemerkung ?? '');
       } catch (err) {

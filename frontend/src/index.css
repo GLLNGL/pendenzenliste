@@ -2718,3 +2718,6 @@ table.tabelle.abst-tabelle-eng td, table.tabelle.abst-tabelle-eng th { padding: 
 .abst-tabelle-eng .abst-zahl-breit { width: 90px; }
 .abst-tabelle-eng .abst-zahl-schmal { width: 44px; }
 table.tabelle.abst-tabelle-eng th { letter-spacing: 0; }
+table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal; }
+.abst-tabelle-eng .abst-text { min-width: 100px; }
+.abst-tabelle-eng .abst-la { width: 70px; }
