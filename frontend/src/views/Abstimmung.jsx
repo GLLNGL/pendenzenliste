@@ -225,9 +225,61 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
   const korrektur = (i, patch) => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.map((k, j) => (j === i ? { ...k, ...patch } : k)) });
   const kurz = BEREICHE[bereich].kurz;
   const ohne = !r.hatKonten || !r.hatJournal;
+  // Alte Fassung: ein einzelnes Feld "deklaration" -> eine Zeile.
+  const alteDeklaration = zahl(daten.deklaration) != null && !(daten.deklarationen ?? []).some((x) => zahl(x.betrag) != null);
+  const deklarationen = Array.isArray(daten.deklarationen) && daten.deklarationen.length && !alteDeklaration
+    ? daten.deklarationen
+    : [{ text: `${kurz}-Lohnsumme`, betrag: daten.deklaration ?? '' }];
+  const deklaration = (i, patch) => setDaten({ ...daten, deklaration: undefined, deklarationen: deklarationen.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   return (
     <>
       {ohne && <div className="abst-hinweis">Zuerst oben Erfolgsrechnung und Kumulativjournal einlesen – dann rechnet die Abstimmung automatisch.</div>}
+
+      <Karte titel={`Gemeldete Lohnsumme ${kurz}`} zusatz="Betrag laut Lohnmeldung / Deklaration an die Versicherung">
+        {bereich === 'ahv' && (
+          <div className="abst-zuordnung">
+            <label>Lohnkonten <Text wert={daten.lohnKonten} onChange={feld('lohnKonten')} platzhalter="leer = alle 5000–5099" /></label>
+          </div>
+        )}
+        <table className="tabelle abst-tabelle">
+          <thead><tr><th>Position</th><th className="zahl">Betrag</th><th className="zahl">Vergleich</th><th className="zahl">Differenz</th></tr></thead>
+          <tbody>
+            {bereich === 'ahv' && (
+              <>
+                {(r.lohnKonten ?? []).map((k) => <Zeile key={k.konto} label={`${k.konto} ${k.text}`} ist={betrag(k.betrag)} />)}
+                <Zeile summe label="Lohnaufwand FiBu" ist={betrag(r.lohnFibu)} soll={betrag(r.brutto)} d={r.diffBrutto} hinweis="Vergleich: Bruttolohn LA 5000 laut Kumulativjournal" />
+                {(daten.lohnKorrekturen ?? []).map((k, i) => (
+                  <tr key={`k${i}`}>
+                    <td><Text wert={k.text} onChange={(v) => korrektur(i, { text: v })} platzhalter="z.B. Privatanteil nicht deklariert, QST-Bezugsprovision" /></td>
+                    <td className="zahl"><Zahl wert={k.betrag} onChange={(v) => korrektur(i, { betrag: v })} platzhalter="±" /></td>
+                    <td colSpan={2}><button type="button" className="btn-klein btn-gefahr-text" aria-label="Korrektur entfernen" onClick={() => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.filter((_, j) => j !== i) })}>×</button></td>
+                  </tr>
+                ))}
+                <tr><td colSpan={4}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, lohnKorrekturen: [...(daten.lohnKorrekturen ?? []), { text: '', betrag: '' }] })}>+ Korrektur (±)</button></td></tr>
+                <Zeile summe label="= AHV-pflichtige Lohnsumme" ist={betrag(r.pflichtig)} />
+              </>
+            )}
+            {deklarationen.map((x, i) => (
+              <tr key={`d${i}`} className="abst-deklaration">
+                <td><Text wert={x.text} onChange={(v) => deklaration(i, { text: v })} platzhalter="z.B. Männer, Frauen, Kategorie A" /></td>
+                <td className="zahl"><Zahl wert={x.betrag} onChange={(v) => deklaration(i, { betrag: v })} breit /></td>
+                <td colSpan={2}>
+                  {deklarationen.length > 1 && <button type="button" className="btn-klein btn-gefahr-text" aria-label="Zeile entfernen" onClick={() => setDaten({ ...daten, deklarationen: deklarationen.filter((_, j) => j !== i) })}>×</button>}
+                </td>
+              </tr>
+            ))}
+            <tr><td colSpan={4}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, deklarationen: [...deklarationen, { text: '', betrag: '' }] })}>+ Zeile</button></td></tr>
+            <Zeile
+              summe
+              label="Gemeldete Lohnsumme total"
+              hinweis={bereich === 'ahv' ? 'Vergleich: AHV-pflichtige Lohnsumme' : 'Vergleich: Bruttolohn LA 5000 – Abweichung z.B. wegen Höchstlohn begründen'}
+              ist={betrag(r.deklaration)}
+              soll={betrag(bereich === 'ahv' ? r.pflichtig : r.brutto)}
+              d={r.diffDeklaration}
+            />
+          </tbody>
+        </table>
+      </Karte>
 
       <Karte titel={`Beiträge laut Lohnjournal und Abrechnung ${kurz}`}>
         <div className="abst-zuordnung">
@@ -300,38 +352,6 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
         </table>
       </Karte>
 
-      {bereich === 'ahv' ? (
-        <Karte titel="Abstimmung gemeldete Lohnsumme">
-          <div className="abst-zuordnung">
-            <label>Lohnkonten <Text wert={daten.lohnKonten} onChange={feld('lohnKonten')} platzhalter="leer = alle 5000–5099" /></label>
-          </div>
-          <table className="tabelle abst-tabelle">
-            <thead><tr><th>Position</th><th className="zahl">Betrag</th><th className="zahl">Vergleich</th><th className="zahl">Differenz</th></tr></thead>
-            <tbody>
-              {(r.lohnKonten ?? []).map((k) => <Zeile key={k.konto} label={`${k.konto} ${k.text}`} ist={betrag(k.betrag)} />)}
-              <Zeile summe label="Lohnaufwand FiBu" ist={betrag(r.lohnFibu)} soll={betrag(r.brutto)} d={r.diffBrutto} hinweis="Vergleich: Bruttolohn LA 5000 laut Kumulativjournal" />
-              {(daten.lohnKorrekturen ?? []).map((k, i) => (
-                <tr key={i}>
-                  <td><Text wert={k.text} onChange={(v) => korrektur(i, { text: v })} platzhalter="z.B. Privatanteil nicht deklariert, QST-Bezugsprovision" /></td>
-                  <td className="zahl"><Zahl wert={k.betrag} onChange={(v) => korrektur(i, { betrag: v })} platzhalter="±" /></td>
-                  <td colSpan={2}><button type="button" className="btn-klein btn-gefahr-text" aria-label="Korrektur entfernen" onClick={() => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.filter((_, j) => j !== i) })}>×</button></td>
-                </tr>
-              ))}
-              <tr><td colSpan={4}><button type="button" className="btn-klein" onClick={() => setDaten({ ...daten, lohnKorrekturen: [...(daten.lohnKorrekturen ?? []), { text: '', betrag: '' }] })}>+ Korrektur (±)</button></td></tr>
-              <Zeile summe label="= AHV-pflichtige Lohnsumme" ist={betrag(r.pflichtig)} />
-              <Zeile label="AHV-Lohnsumme laut Deklaration" ist={<Zahl wert={daten.deklaration} onChange={feld('deklaration')} breit />} soll={betrag(r.pflichtig)} d={r.diffDeklaration} />
-            </tbody>
-          </table>
-        </Karte>
-      ) : (
-        <Karte titel="Gemeldete Lohnsumme">
-          <table className="tabelle abst-tabelle">
-            <tbody>
-              <Zeile label={`Lohnsumme laut Deklaration ${kurz}`} hinweis="Vergleich: Bruttolohn LA 5000 – Abweichung z.B. wegen Höchstlohn begründen" ist={<Zahl wert={daten.deklaration} onChange={feld('deklaration')} breit />} soll={betrag(r.brutto)} d={r.diffDeklaration} />
-            </tbody>
-          </table>
-        </Karte>
-      )}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   zahl, nummernListe, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen,
-  bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
+  bewertungGesamt, deklarationTotal, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
 } from '../src/lib/abstimmung.js';
 
 // Erfundene Zahlen (keine Kundendaten).
@@ -74,7 +74,7 @@ test('AHV: FiBu vs. Lohnjournal vs. Schlussabrechnung, Lohnsumme, Abgrenzung', (
   d.beitraege[0].rechnung = 10600; // AHV/IV/EO AN+AG
   d.beitraege[2].rechnung = 1500; // FAK
   d.lohnKorrekturen = [{ text: 'Privatanteil nicht deklariert', betrag: -2400 }];
-  d.deklaration = 100000;
+  d.deklarationen = [{ text: 'AHV-Lohnsumme', betrag: 100000 }];
   d.akonto = 10500;
   d.kontoBilanz = '2270';
   d.saldoBilanz = 1600;
@@ -155,4 +155,17 @@ test('Excel-Block und Ablage', () => {
   assert.deepEqual(abstimmungOrdner(['M'], 2025, GRUNDLAGEN), ['M', 'Jahresabschluss', '2025', 'Sozialversicherungen']);
   assert.equal(abstimmungOrdner(null, 2025, 'mwst'), null);
   assert.equal(standardJahr(new Date(2026, 10, 11)), 2025);
+});
+
+test('Gemeldete Lohnsumme: mehrere Zeilen, alte Fassung, Vorjahrestexte', () => {
+  const d = svLeer('uvg');
+  assert.deepEqual(d.deklarationen.map((x) => x.text), ['UVG-Lohnsumme Männer', 'UVG-Lohnsumme Frauen']);
+  d.deklarationen[0].betrag = 60000;
+  d.deklarationen[1].betrag = 40000;
+  const r = svBerechnen(d, grundlagen);
+  assert.equal(r.deklaration, 100000);
+  assert.deepEqual(r.diffDeklaration, { betrag: 0, ok: true });
+  assert.equal(deklarationTotal({ deklaration: 5 }), 5);
+  assert.equal(deklarationTotal({ deklarationen: [{ betrag: '' }] }), null);
+  assert.deepEqual(svLeer('ktg', { deklarationen: [{ text: 'Kat. A', betrag: 1 }] }).deklarationen, [{ text: 'Kat. A', betrag: '' }]);
 });

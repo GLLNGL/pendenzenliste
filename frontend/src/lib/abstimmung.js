@@ -230,11 +230,26 @@ function svLeer(bereich, vorjahr = null) {
   if (bereich === 'ahv') {
     d.lohnKonten = vorjahr?.lohnKonten ?? '';
     d.lohnKorrekturen = (vorjahr?.lohnKorrekturen ?? []).map((k) => ({ text: k.text, betrag: '' }));
-    d.deklaration = '';
-  } else {
-    d.deklaration = '';
   }
+  // Gemeldete Lohnsumme(n): Bezeichnungen aus dem Vorjahr, Betraege leer.
+  const texte = vorjahr?.deklarationen?.length ? vorjahr.deklarationen.map((x) => x.text) : DEKLARATION_TEXTE[bereich];
+  d.deklarationen = texte.map((text) => ({ text, betrag: '' }));
   return d;
+}
+
+const DEKLARATION_TEXTE = {
+  ahv: ['AHV-Lohnsumme'],
+  bvg: ['Gemeldete Jahreslöhne'],
+  uvg: ['UVG-Lohnsumme Männer', 'UVG-Lohnsumme Frauen'],
+  ktg: ['KTG-Lohnsumme Männer', 'KTG-Lohnsumme Frauen'],
+};
+
+// Gemeldete Lohnsumme: Summe der Zeilen (alte Fassung: ein Feld "deklaration"); null = nichts erfasst.
+function deklarationTotal(d) {
+  const zeilen = Array.isArray(d.deklarationen) ? d.deklarationen : [{ betrag: d.deklaration }];
+  const erfasst = zeilen.filter((x) => zahl(x.betrag) != null);
+  if (!erfasst.length && zahl(d.deklaration) != null) return zahl(d.deklaration);
+  return erfasst.length ? summe(erfasst, 'betrag') : null;
 }
 
 // Lohnkonten fuer die AHV-Lohnsumme: eingetragen, sonst alle Konten 5000-5099 der Erfolgsrechnung.
@@ -273,6 +288,8 @@ function svBerechnen(d, grundlagen = {}) {
     diffBilanz: differenz(d.saldoBilanz, abzugrenzen, zahl(d.saldoBilanz) != null && rechnungErfasst),
   };
   // Lohnsumme: Lohnkonten FiBu +/- Korrekturen = pflichtige Lohnsumme vs. Deklaration.
+  const deklaration = deklarationTotal(d);
+  ergebnis.deklaration = deklaration;
   if (d.lohnKorrekturen !== undefined) {
     const lohnKonten = lohnKontenVon(d, grundlagen);
     const lohnFibu = kontenBetrag(konten, lohnKonten.join(','));
@@ -282,12 +299,12 @@ function svBerechnen(d, grundlagen = {}) {
     Object.assign(ergebnis, {
       lohnKonten: lohnKonten.map((k) => ({ konto: k, text: konten.find((x) => x.konto === k)?.text ?? '', betrag: kontenBetrag(konten, k) })),
       lohnFibu, korrekturen, pflichtig, brutto,
-      diffDeklaration: differenz(d.deklaration, pflichtig, zahl(d.deklaration) != null && hatKonten),
+      diffDeklaration: differenz(deklaration, pflichtig, deklaration != null && hatKonten),
       diffBrutto: differenz(brutto, lohnFibu, hatKonten && hatJournal && brutto > 0),
     });
   } else {
     const brutto = laBetrag(lohnarten, '5000');
-    Object.assign(ergebnis, { brutto, diffDeklaration: differenz(d.deklaration, brutto, zahl(d.deklaration) != null && hatJournal) });
+    Object.assign(ergebnis, { brutto, diffDeklaration: differenz(deklaration, brutto, deklaration != null && hatJournal) });
   }
   ergebnis.differenzen = [ergebnis.diffFibuJournal, ergebnis.diffRechnung, ergebnis.diffRechnungFibu, ergebnis.diffBilanz,
     ergebnis.diffDeklaration, ergebnis.diffBrutto, ...zeilen.map((z) => z.delta)].filter((x) => x && x.ok != null);
@@ -325,6 +342,6 @@ function tabellenBlock(text) {
 
 export {
   BEREICHE, SV_BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, zahl, differenz, nummernListe, grundlagenLesen,
-  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon,
+  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon, deklarationTotal,
   bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock,
 };
