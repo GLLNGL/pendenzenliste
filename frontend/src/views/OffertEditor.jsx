@@ -230,8 +230,11 @@ export default function OffertEditor() {
           text: textErsetzen(texte.mailText || '', platzhalter),
         }}
         felder={[
-          { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen,
-            hinweis: adressen.length ? 'Vorschläge aus dem Mandanten (Ansprechperson / Geschäftsführung).' : 'Beim Mandanten ist keine E-Mail hinterlegt.' },
+          { name: 'an', label: 'An', typ: 'text', pflicht: true, auswahl: () => [
+              mandant?.email && { label: 'Ansprechperson', wert: mandant.email },
+              mandant?.geschaeftsfuehrung_email && { label: 'Geschäftsführung', wert: mandant.geschaeftsfuehrung_email },
+            ].filter(Boolean),
+            hinweis: adressen.length ? 'Klick auf eine hinterlegte Adresse setzt sie ein.' : 'Beim Mandanten ist keine E-Mail hinterlegt.' },
           { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
           { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
           { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },

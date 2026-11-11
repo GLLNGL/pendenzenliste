@@ -418,8 +418,15 @@ export default function Belege({ art }) {
               { name: 'mandantId', label: 'Mandant', typ: 'select', leer: '– wählen –',
                 optionen: mandanten.filter((x) => x.aktiv || String(x.id) === String(m?.id ?? '')).map((x) => ({ wert: String(x.id), label: x.name })),
                 hinweis: m ? 'Aus dem Namen auf der Rechnung erkannt.' : 'Kein passender Mandant erkannt – bitte wählen, die E-Mail wird übernommen.' },
-              { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen,
-                hinweis: 'E-Mail des Mandanten (Ansprechperson, sonst Geschäftsführung); mehrere mit ; trennen.' },
+              { name: 'an', label: 'An', typ: 'text', pflicht: true,
+                auswahl: (f) => {
+                  const gewaehlt = mandanten.find((x) => String(x.id) === String(f.mandantId));
+                  return [
+                    gewaehlt?.email && { label: 'Ansprechperson', wert: gewaehlt.email },
+                    gewaehlt?.geschaeftsfuehrung_email && { label: 'Geschäftsführung', wert: gewaehlt.geschaeftsfuehrung_email },
+                  ].filter(Boolean);
+                },
+                hinweis: 'Klick auf eine hinterlegte Adresse setzt sie ein; mehrere Adressen mit ; trennen.' },
               { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
               { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
               { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },

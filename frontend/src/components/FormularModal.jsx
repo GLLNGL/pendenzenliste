@@ -4,7 +4,8 @@ import { hintergrundSchliessen } from '../lib/modal.js';
 // Allgemeines Bearbeiten-Fenster fuer einfache Datensaetze (Preise, Pauschalen). Felder werden
 // beschrieben statt einzeln ausprogrammiert:
 //   { name, label, typ: 'text'|'zahl'|'datum'|'select'|'textarea'|'checkbox', optionen: [{wert, label}],
-//     pflicht, hinweis, halb (zwei halbe Felder nebeneinander), sichtbar(formular), schritt, vorschlaege }
+//     pflicht, hinweis, halb (zwei halbe Felder nebeneinander), sichtbar(formular), schritt, vorschlaege,
+//     auswahl(formular) -> [{ label, wert }] = Knoepfe unter dem Feld zum Einsetzen }
 // mail: grosses E-Mail-Fenster, unten rechts mit der Maus vergroesserbar.
 // seitenansicht: optional links neben dem Formular angezeigt (z.B. die Rechnung als PDF).
 // vorschau(formular) liefert optional eine berechnete Zeile (z.B. Preis pro Einheit).
@@ -126,6 +127,26 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
         {feld.vorschlaege && (
           <datalist id={`${id}-liste`}>{feld.vorschlaege.map((v) => <option key={v} value={v} />)}</datalist>
         )}
+        {feld.auswahl && (() => {
+          // Knoepfe zum Einsetzen (z.B. die E-Mail-Adressen des gewaehlten Mandanten).
+          const liste = feld.auswahl(formular) ?? [];
+          if (!liste.length) return null;
+          return (
+            <div className="feld-auswahl">
+              {liste.map((a) => (
+                <button
+                  key={`${a.label}-${a.wert}`}
+                  type="button"
+                  className={`btn-klein ${wert === a.wert ? 'aktiv' : ''}`}
+                  onClick={() => aendern(feld.name, a.wert)}
+                  title={a.wert}
+                >
+                  {a.label}: {a.wert}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         {feld.hinweis && <p className="feld-hinweis">{feld.hinweis}</p>}
       </>
     );

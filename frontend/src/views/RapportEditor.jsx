@@ -270,7 +270,10 @@ export default function RapportEditor() {
             text: textErsetzen(texte.mailText || '', platzhalter),
           }}
           felder={[
-            { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen },
+            { name: 'an', label: 'An', typ: 'text', pflicht: true, auswahl: () => [
+              mandant?.email && { label: 'Ansprechperson', wert: mandant.email },
+              mandant?.geschaeftsfuehrung_email && { label: 'Geschäftsführung', wert: mandant.geschaeftsfuehrung_email },
+            ].filter(Boolean), },
             { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
             { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
             { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
