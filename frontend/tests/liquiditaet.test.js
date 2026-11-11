@@ -66,3 +66,20 @@ test('Ablage und Dateiname der Belege', () => {
   assert.equal(belegDateiname({ rechnungsdatum: '2026-11-03', partner: 'Swisscom (Schweiz) AG', rechnungsnummer: '12/34' }, 'scan.PDF'), '2026-11-03 Swisscom (Schweiz) AG 12 34.pdf');
   assert.equal(belegDateiname({}, 'x.pdf'), 'x.pdf');
 });
+
+import { mandantZuPartner, rechnungPlatzhalter, RECHNUNG_VORLAGE } from '../src/lib/belege.js';
+import { textErsetzen } from '../src/lib/offerte.js';
+
+test('Rechnungs-Mail: Mandant finden und Platzhalter', () => {
+  const mandanten = [{ id: 1, name: 'A4 Personal AG', ansprechperson: 'Herr Lucente' }, { id: 2, name: 'Bad Ideen GmbH' }];
+  assert.equal(mandantZuPartner('A4 Personal', mandanten).id, 1);
+  assert.equal(mandantZuPartner('Bäd Ideen GmbH', mandanten).id, 2); // Akzente egal
+  assert.equal(mandantZuPartner('Bad Ideen', mandanten).id, 2);
+  assert.equal(mandantZuPartner('Unbekannt AG', mandanten), null);
+  const p = rechnungPlatzhalter({ partner: 'A4 Personal AG', rechnungsnummer: 'R-12', rechnungsdatum: '2026-11-01', faelligkeit: '2026-12-01', betrag: 1250.5, waehrung: 'CHF' }, mandanten[0], { firma: 'estcontrolling GmbH' });
+  const text = textErsetzen(RECHNUNG_VORLAGE.mailText, p);
+  assert.match(text, /^Guten Tag Herr Lucente/);
+  assert.match(text, /Rechnung R-12 vom 01.11.2026 über CHF 1.250.50/);
+  assert.match(text, /bis am 01.12.2026/);
+  assert.equal(textErsetzen(RECHNUNG_VORLAGE.mailBetreff, p), 'Rechnung R-12 – estcontrolling GmbH');
+});

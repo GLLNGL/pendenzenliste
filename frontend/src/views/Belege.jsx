@@ -8,7 +8,8 @@ import { useAblageGrund, useMandanten } from '../hooks.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
 import { belegStatus } from '../lib/liquiditaet.js';
-import { buchhaltungsMandant, belegOrdner, belegDateiname } from '../lib/belege.js';
+import { buchhaltungsMandant, belegOrdner, belegDateiname, RECHNUNG_VORLAGE, mandantZuPartner, rechnungPlatzhalter } from '../lib/belege.js';
+import { textErsetzen } from '../lib/offerte.js';
 import { unterstuetzt, grundOrdnerHolen, dateiAblegen, dateiLesen, herunterladen } from '../lib/ablageOrdner.js';
 
 const TEXTE = {
@@ -38,6 +39,9 @@ export default function Belege({ art }) {
   const [laeufe, setLaeufe] = useState([]);
   const [zahlungslaufOffen, setZahlungslaufOffen] = useState(false);
   const zahlbar = art === 'kreditor';
+  const [sendenBeleg, setSendenBeleg] = useState(null); // Debitorenrechnung per E-Mail
+  const [rechnungText, setRechnungText] = useState(RECHNUNG_VORLAGE);
+  const [vorlageOffen, setVorlageOffen] = useState(false);
   const dateiRef = useRef(null);
   const mandanten = useMandanten();
   const grund = useAblageGrund();
@@ -51,8 +55,9 @@ export default function Belege({ art }) {
     laden();
     api.buero.lesen('buchhaltung').then(setEinstellungen).catch(() => {});
     api.buero.lesen('firma').then(setFirma).catch(() => {});
+    if (art === 'debitor') api.buero.lesen('rechnung').then((w) => setRechnungText({ ...RECHNUNG_VORLAGE, ...w })).catch(() => {});
     grundOrdnerHolen().then((h) => setVerbunden(!!h));
-  }, [laden]);
+  }, [laden, art]);
 
   // Naechste Datei aus der Warteschlange auslesen lassen.
   useEffect(() => {
@@ -228,6 +233,7 @@ export default function Belege({ art }) {
         <h1 className="seiten-titel">{t.titel}</h1>
         <span className="cockpit-kopf-hinweis">{t.hinweis}</span>
         <span className="kopfzeile-aktionen">
+          {art === 'debitor' && <button type="button" className="btn" onClick={() => setVorlageOffen(true)}>Rechnungstext</button>}
           <button type="button" className="btn" onClick={() => setAktuell({ file: null, angaben: null })} disabled={tabelleFehlt}>+ Von Hand</button>
         </span>
       </div>
@@ -329,6 +335,13 @@ export default function Belege({ art }) {
                   <td><span className={`beleg-status beleg-status-${s}`}>{STATUS_TEXT[s]}{s === 'bezahlt' && b.bezahlt_am ? ` ${formatiereDatum(b.bezahlt_am).slice(0, 6)}` : ''}</span></td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {b.ablage_pfad ? <button type="button" className="link-knopf" title={b.ablage_pfad} onClick={() => oeffnen(b)}>📄 öffnen</button> : <span className="text-gedaempft">–</span>}
+                    {art === 'debitor' && (
+                      <>
+                        {' '}
+                        <button type="button" className="btn-klein" onClick={() => setSendenBeleg(b)} title="Rechnung per E-Mail an den Kunden senden">✉ Senden</button>
+                        {b.versendet_am && <div className="beleg-versendet" title={b.versendet_an ?? ''}>gesendet {formatiereDatum(b.versendet_am.slice(0, 10)).slice(0, 6)}</div>}
+                      </>
+                    )}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <button type="button" className="btn-klein" onClick={() => bezahltUmschalten(b)}>{b.bezahlt_am ? 'offen' : '✓ bezahlt'}</button>
@@ -381,6 +394,64 @@ export default function Belege({ art }) {
             setMeldung(`Zahlungsdatei «${dateiname}» heruntergeladen – im UBS E-Banking unter Zahlungen hochladen und freigeben.`);
             laden();
           }}
+        />
+      )}
+
+      {sendenBeleg && (() => {
+        const b = sendenBeleg;
+        const m = mandantZuPartner(b.partner, mandanten);
+        const adressen = [m?.email, m?.geschaeftsfuehrung_email].filter(Boolean);
+        const platzhalter = rechnungPlatzhalter(b, m, firma);
+        return (
+          <FormularModal
+            titel={`Rechnung ${b.rechnungsnummer || ''} an ${b.partner} senden`}
+            breit
+            mail
+            speichernText="Senden"
+            startwerte={{
+              an: adressen[0] || '', cc: '', bcc: '',
+              betreff: textErsetzen(rechnungText.mailBetreff || RECHNUNG_VORLAGE.mailBetreff, platzhalter),
+              text: textErsetzen(rechnungText.mailText || RECHNUNG_VORLAGE.mailText, platzhalter),
+            }}
+            felder={[
+              { name: 'an', label: 'An', typ: 'text', pflicht: true, vorschlaege: adressen,
+                hinweis: m ? (adressen.length ? `Vorschläge aus dem Mandanten «${m.name}».` : `Beim Mandanten «${m.name}» ist keine E-Mail hinterlegt.`) : 'Kein passender Mandant gefunden – Adresse eintragen.' },
+              { name: 'cc', label: 'CC', typ: 'text', halb: true, platzhalter: 'optional, mehrere mit ; trennen' },
+              { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
+              { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
+              { name: 'text', label: 'Text', typ: 'textarea', pflicht: true, hinweis: 'Signatur mit Logo wird automatisch angehängt (Arial 10).' },
+            ]}
+            vorschau={() => (b.ablage_pfad ? `Anhang: ${b.dateiname || b.ablage_pfad.split(/[\\/]/).pop()} (aus OneDrive)` : 'Achtung: kein Beleg hinterlegt – die Mail geht ohne Rechnung.')}
+            onSpeichern={async (f) => {
+              const datei = b.ablage_pfad ? await dateiLesen(b.ablage_pfad) : null;
+              await api.belege.versenden(b, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, datei });
+              setSendenBeleg(null);
+              setMeldung(`Rechnung ${b.rechnungsnummer || ''} an ${f.an} gesendet.`);
+              laden();
+            }}
+            onSchliessen={() => setSendenBeleg(null)}
+          />
+        );
+      })()}
+
+      {vorlageOffen && (
+        <FormularModal
+          titel="Standardtext der Rechnungs-Mail"
+          breit
+          mail
+          startwerte={{ mailBetreff: rechnungText.mailBetreff ?? '', mailText: rechnungText.mailText ?? '' }}
+          felder={[
+            { name: 'mailBetreff', label: 'Betreff', typ: 'text', pflicht: true },
+            { name: 'mailText', label: 'Text', typ: 'textarea', pflicht: true,
+              hinweis: 'Platzhalter: {nummer}, {datum}, {faelligkeit}, {betrag}, {waehrung}, {debitor}, {ansprechperson}, {firma}. Die Signatur kommt automatisch dazu.' },
+          ]}
+          onSpeichern={async (f) => {
+            await api.buero.speichern('rechnung', { mailBetreff: f.mailBetreff, mailText: f.mailText });
+            setRechnungText(f);
+            setVorlageOffen(false);
+            setMeldung('Rechnungstext gespeichert.');
+          }}
+          onSchliessen={() => setVorlageOffen(false)}
         />
       )}
 

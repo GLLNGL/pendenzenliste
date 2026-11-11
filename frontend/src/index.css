@@ -2639,3 +2639,7 @@ tr.inaktiv td { opacity: 0.55; }
 .signatur-raster .hinweis-erfolg, .signatur-raster .hinweis-fehler { grid-column: 1 / -1; }
 .signatur-vorschau { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: #fff; color: #000; }
 @media (max-width: 800px) { .signatur-raster { grid-template-columns: 1fr; } }
+.mail-groesse { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; margin-right: 10px; font-size: var(--fs-klein); color: var(--text-muted); font-weight: 400; }
+.mail-groesse input[type="range"] { width: 120px; }
+.modal.modal-mail { max-width: none; max-height: none; }
+.beleg-versendet { font-size: var(--fs-label); color: var(--success); margin-top: 2px; }

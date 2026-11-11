@@ -8,11 +8,21 @@ import { useEffect, useRef, useState } from 'react';
 // seitenansicht: optional links neben dem Formular angezeigt (z.B. die Rechnung als PDF).
 // vorschau(formular) liefert optional eine berechnete Zeile (z.B. Preis pro Einheit).
 // onAendern(name, wert, formular) darf weitere Felder mitsetzen (Rueckgabe: Teil-Objekt).
+const GROESSE_SCHLUESSEL = 'mail-fenster-groesse';
+
 export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen, speichernText = 'Speichern', breit = false, seitenansicht = null, mail = false }) {
   const [formular, setFormular] = useState(startwerte);
   const [fehler, setFehler] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(false);
   const ersterRef = useRef(null);
+  // Mail-Fenster: Groesse per Regler (Prozent der Bildschirmgroesse), pro Geraet gemerkt.
+  const [groesse, setGroesse] = useState(() => {
+    try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 85; } catch { return 85; }
+  });
+  function groesseAendern(wert) {
+    setGroesse(wert);
+    try { localStorage.setItem(GROESSE_SCHLUESSEL, String(wert)); } catch { /* ohne Speicher weiter */ }
+  }
 
   useEffect(() => { ersterRef.current?.focus(); }, []);
 
@@ -125,9 +135,18 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
 
   return (
     <div className="modal-hintergrund" onClick={onSchliessen}>
-      <div className={`modal ${breit ? 'modal-mittel' : ''} ${seitenansicht ? 'modal-mit-ansicht' : ''} ${mail ? 'modal-mail' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${breit ? 'modal-mittel' : ''} ${seitenansicht ? 'modal-mit-ansicht' : ''} ${mail ? 'modal-mail' : ''}`}
+        style={mail ? { width: `calc(${groesse}vw / var(--app-zoom))`, height: `calc(${groesse}vh / var(--app-zoom))` } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-kopf">
           <span>{titel}</span>
+          {mail && (
+            <label className="mail-groesse" title="Fenstergrösse">
+              <span aria-hidden="true">⤡</span>
+              <input type="range" min="50" max="100" step="5" value={groesse} onChange={(e) => groesseAendern(Number(e.target.value))} aria-label="Fenstergrösse" />
+            </label>
+          )}
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
         </div>
         {seitenansicht && <div className="modal-ansicht">{seitenansicht}</div>}

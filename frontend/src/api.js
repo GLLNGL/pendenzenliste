@@ -660,6 +660,14 @@ const api = {
       const { error } = await supabase.from('belege').delete().eq('id', id);
       pruefeFehler(error);
     },
+    // Debitorenrechnung per E-Mail an den Kunden (PDF aus OneDrive als Anhang) und Versand merken.
+    versenden: async (beleg, { an, cc, bcc, betreff, text, datei }) => {
+      if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
+      const anhaenge = datei ? [{ dateiname: datei.name, base64: await blobZuBase64(datei), typ: datei.type || 'application/pdf' }] : [];
+      await sendMailAufrufen({ an: an.trim(), cc, bcc, betreff, text, anhaenge });
+      // Fehlen die Spalten noch (SQL nicht ausgefuehrt), ist die Mail trotzdem verschickt.
+      await supabase.from('belege').update({ versendet_am: new Date().toISOString(), versendet_an: an.trim() }).eq('id', beleg.id);
+    },
     // KI liest die Rechnung aus (Edge Function "beleg-lesen"); die Datei wird dort nicht gespeichert.
     auslesen: async (file, art, firma) => {
       if (file.size > 10 * 1024 * 1024) throw new Error('Datei grösser als 10 MB – bitte die Angaben von Hand erfassen.');
