@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../api.js';
 import RapportDokument from '../components/RapportDokument.jsx';
+import RechnungDokument from '../components/RechnungDokument.jsx';
 import FormularModal from '../components/FormularModal.jsx';
 import MandantSuche from '../components/MandantSuche.jsx';
-import { useMandanten, useMitarbeitende } from '../hooks.js';
+import { useAblageGrund, useMandanten, useMitarbeitende } from '../hooks.js';
 import { useAuth } from '../AuthContext.jsx';
 import { meldeZeitAenderung } from '../events.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
@@ -12,6 +13,11 @@ import { zeitraum, artLabel, formatiereDauer } from '../lib/zeit.js';
 import { rapportDaten, naechsteRapportNummer, stundenText } from '../lib/rapport.js';
 import { textErsetzen, chf } from '../lib/offerte.js';
 import { elementZuPdf, herunterladen } from '../lib/pdf.js';
+import { qrReferenz, scorReferenz, naechsteRechnungsNr, plusTage, adresseVon, zahlteil, rechnungsPositionen } from '../lib/qrrechnung.js';
+import { qrBildUrl } from '../lib/qrbild.js';
+import { istQrIban } from '../lib/pain001.js';
+import { buchhaltungsMandant, belegOrdner, belegDateiname, RECHNUNG_VORLAGE, rechnungPlatzhalter } from '../lib/belege.js';
+import { unterstuetzt, dateiAblegen, dateiLesen } from '../lib/ablageOrdner.js';
 
 const ZEITRAEUME = [
   { wert: 'vormonat', label: 'Letzter Monat' },
@@ -22,6 +28,13 @@ const ZEITRAEUME = [
 ];
 
 // Detailrapport erstellen (neu) oder einen abgeschlossenen ansehen, drucken, senden, stornieren.
+async function blobBase64(blob) {
+  const puffer = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < puffer.length; i += 0x8000) bin += String.fromCharCode(...puffer.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 export default function RapportEditor() {
   const { id } = useParams();
   const neu = id === 'neu';
@@ -31,6 +44,14 @@ export default function RapportEditor() {
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
   const dokumentRef = useRef(null);
+  const rechnungRef = useRef(null);
+  const grund = useAblageGrund();
+  const [debitoren, setDebitoren] = useState([]);
+  const [rechnungEinst, setRechnungEinst] = useState({});
+  const [buchEinst, setBuchEinst] = useState({});
+  const [rechnungKopf, setRechnungKopf] = useState(null); // { nummer, datum, fristTage }
+  const [vorschau, setVorschau] = useState('rapport');
+  const [qrSrc, setQrSrc] = useState(null);
 
   const [kopf, setKopf] = useState(null);
   const [zeitraumArt, setZeitraumArt] = useState(suchParameter.get('von') ? 'frei' : 'vormonat');
@@ -50,6 +71,11 @@ export default function RapportEditor() {
         const [f, t, alle] = await Promise.all([api.buero.lesen('firma'), api.buero.lesen('rapport'), neu ? api.rapporte.liste() : Promise.resolve([])]);
         if (abgebrochen) return;
         setFirma(f); setTexte(t);
+        const [d, re, bu] = await Promise.all([api.belege.liste('debitor').catch(() => []), api.buero.lesen('rechnung').catch(() => ({})), api.buero.lesen('buchhaltung').catch(() => ({}))]);
+        if (abgebrochen) return;
+        setDebitoren(d); setRechnungEinst({ ...RECHNUNG_VORLAGE, ...re }); setBuchEinst(bu);
+        const heute2 = heutigesDatumISO();
+        setRechnungKopf({ nummer: naechsteRechnungsNr(d, Number(heute2.slice(0, 4))), datum: heute2, fristTage: Number(re.fristTage) || 10 });
         if (neu) {
           const heute = heutigesDatumISO();
           const vor = zeitraum('vormonat', heute);
@@ -96,8 +122,54 @@ export default function RapportEditor() {
   const daten = rapportDaten(enthalten, { runden: Number(kopf.runden_minuten), mwstPflichtig: kopf.mwst_pflichtig, mwstSatz: kopf.mwst_satz });
   const dateiname = `Detailrapport ${kopf.nummer}${mandant ? ` ${mandant.name}` : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '');
   const zeitraumText = `${formatiereDatum(kopf.von)} – ${formatiereDatum(kopf.bis)}`;
+  const rechnungBeleg = !neu && kopf.rechnung_nr ? debitoren.find((d) => String(d.rechnungsnummer) === String(kopf.rechnung_nr)) : null;
+  const rk = rechnungBeleg
+    ? { nummer: rechnungBeleg.rechnungsnummer, datum: rechnungBeleg.rechnungsdatum, faellig: rechnungBeleg.faelligkeit, fristTage: rechnungKopf?.fristTage ?? 10 }
+    : rechnungKopf ? { ...rechnungKopf, faellig: plusTage(rechnungKopf.datum, rechnungKopf.fristTage) } : null;
+  const rechnungIban = rechnungEinst.qrIban || '';
+  const kreditor = adresseVon(firma.firma, firma.strasse, firma.plzOrt);
+  const debitorAdr = mandant ? adresseVon(mandant.name, mandant.strasse, [mandant.plz, mandant.ort].filter(Boolean).join(' ')) : null;
+  const referenzRoh = rk ? (istQrIban(rechnungIban) ? qrReferenz(mandant?.kunden_nr, rk.nummer) : scorReferenz(rk.nummer)) : '';
+  const zt = rk ? zahlteil({
+    iban: rechnungIban, kreditor, debitor: debitorAdr, betrag: daten.summen.total,
+    referenz: rechnungBeleg?.zahlungsreferenz || referenzRoh, mitteilung: `Rechnung ${rk.nummer}`,
+  }) : null;
+  const positionen = rechnungsPositionen(daten, kopf.nummer, zeitraumText);
+  const rechnungDatei = rk && mandant ? belegDateiname({ rechnungsdatum: rk.datum, partner: mandant.name, rechnungsnummer: rk.nummer }, 'Rechnung.pdf') : 'Rechnung.pdf';
 
   function aendern(feld, wert) { setKopf((k) => ({ ...k, [feld]: wert })); }
+  const qrText = zt && !zt.fehler.length ? zt.text : null;
+  if (qrText && qrSrc?.text !== qrText) {
+    setQrSrc({ text: qrText, url: null });
+    qrBildUrl(qrText).then((url) => setQrSrc({ text: qrText, url })).catch(() => setQrSrc({ text: qrText, url: null, fehler: true }));
+  }
+
+  const rechnungErstellen = () => aktion('rechnung-neu', async () => {
+    if (zt.fehler.length) throw new Error(zt.fehler.join(' · '));
+    if (!qrSrc?.url) throw new Error('QR-Code konnte nicht erzeugt werden.');
+    setVorschau('rechnung');
+    await new Promise((r) => setTimeout(r, 50));
+    const { blob } = await elementZuPdf(rechnungRef.current);
+    let ablagePfad = null;
+    const ordner = belegOrdner({ art: 'debitor', datum: rk.datum }, buchEinst, buchhaltungsMandant(buchEinst, mandanten), grund);
+    if (unterstuetzt() && ordner) ablagePfad = await dateiAblegen(blob, rechnungDatei, ordner);
+    else herunterladen(blob, rechnungDatei);
+    const beleg = await api.belege.speichern(null, {
+      art: 'debitor', partner: mandant.name, rechnungsnummer: rk.nummer, rechnungsdatum: rk.datum, faelligkeit: rk.faellig,
+      betrag: daten.summen.total, waehrung: 'CHF', zahlungsreferenz: zt.referenz, notiz: `Detailrapport ${kopf.nummer}`,
+      ...(ablagePfad ? { dateiname: rechnungDatei, ablagePfad } : {}),
+    });
+    await api.rapporte.aktualisieren(kopf.id, { rechnung_nr: rk.nummer });
+    setKopf((k) => ({ ...k, rechnung_nr: rk.nummer }));
+    setDebitoren((alt) => [...alt, beleg]);
+    setMeldung(`Rechnung ${rk.nummer} erstellt${ablagePfad ? ` und abgelegt: ${ablagePfad}` : ' (heruntergeladen)'} – steht unter Debitoren.`);
+  });
+
+  const ibanSpeichern = (wert) => aktion('iban', async () => {
+    const neuEinst = { ...rechnungEinst, qrIban: String(wert).replace(/\s+/g, '').toUpperCase() };
+    await api.buero.speichern('rechnung', neuEinst);
+    setRechnungEinst(neuEinst);
+  });
   function zeitraumWaehlen(art) {
     setZeitraumArt(art);
     const z = zeitraum(art, heutigesDatumISO());
@@ -154,7 +226,7 @@ export default function RapportEditor() {
             </button>
           ) : (
             <>
-              <button type="button" className="btn btn-primary" onClick={() => setMailOffen(true)} disabled={!!beschaeftigt}>Per E-Mail senden</button>
+              <button type="button" className="btn btn-primary" onClick={() => setMailOffen(true)} disabled={!!beschaeftigt}>{rechnungBeleg ? 'Rechnung + Rapport senden' : 'Per E-Mail senden'}</button>
               <button type="button" className="btn btn-gefahr" onClick={stornieren} disabled={!!beschaeftigt}>Stornieren</button>
             </>
           )}
@@ -239,6 +311,37 @@ export default function RapportEditor() {
             </div>
           </div>
 
+          {!neu && daten.summen.betragExtra > 0 && rk && (
+            <div className="karte offert-karte">
+              <div className="karte-kopf">Rechnung mit QR-Einzahlungsschein</div>
+              <div className="modal-koerper">
+                {rechnungBeleg ? (
+                  <>
+                    <div className="hinweis-erfolg">Rechnung {rechnungBeleg.rechnungsnummer} vom {formatiereDatum(rechnungBeleg.rechnungsdatum)} · {chf(rechnungBeleg.betrag)} · fällig {formatiereDatum(rechnungBeleg.faelligkeit)}{rechnungBeleg.bezahlt_am ? ` · bezahlt am ${formatiereDatum(rechnungBeleg.bezahlt_am)}` : ''}{rechnungBeleg.versendet_am ? ` · versendet ${formatiereDatum(rechnungBeleg.versendet_am.slice(0, 10))}` : ''}</div>
+                    <p className="feld-hinweis">Steht unter Buchhaltung › Debitoren; der Zahlungseingang wird beim Kontoauszug über die Referenz erkannt.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="feld-reihe projekt-reihe-3">
+                      <div className="feld"><label htmlFor="re-nr">Rechnung-Nr.</label><input id="re-nr" value={rk.nummer} onChange={(e) => setRechnungKopf((r) => ({ ...r, nummer: e.target.value }))} /></div>
+                      <div className="feld"><label htmlFor="re-datum">Datum</label><input id="re-datum" type="date" value={rk.datum} onChange={(e) => setRechnungKopf((r) => ({ ...r, datum: e.target.value }))} /></div>
+                      <div className="feld"><label htmlFor="re-frist">Zahlbar innert</label><select id="re-frist" value={rk.fristTage} onChange={(e) => setRechnungKopf((r) => ({ ...r, fristTage: Number(e.target.value) }))}>{[10, 20, 30].map((t) => <option key={t} value={t}>{t} Tagen</option>)}</select></div>
+                    </div>
+                    <div className="feld">
+                      <label htmlFor="re-iban">QR-IBAN (bzw. IBAN) für Rechnungen</label>
+                      <input id="re-iban" defaultValue={rechnungIban} placeholder="CH44 3000 0…" onBlur={(e) => { if (e.target.value.replace(/\s+/g, '').toUpperCase() !== rechnungIban) ibanSpeichern(e.target.value); }} />
+                      <p className="feld-hinweis">{istQrIban(rechnungIban) ? 'QR-IBAN – Referenz QRR (Zahlungen werden automatisch zugeordnet).' : rechnungIban ? 'Normale IBAN – Referenz RF (Creditor Reference).' : 'Wird für alle Rechnungen gespeichert.'}</p>
+                    </div>
+                    {zt.fehler.length > 0 && <div className="hinweis-fehler">{zt.fehler.join(' · ')}</div>}
+                    {!debitorAdr && <div className="hinweis-fehler">Adresse des Mandanten unvollständig (Strasse, PLZ, Ort) – im Mandantenstamm ergänzen.</div>}
+                    {qrSrc?.fehler && <div className="hinweis-fehler">QR-Code konnte nicht erzeugt werden.</div>}
+                    <button type="button" className="btn btn-primary" onClick={rechnungErstellen} disabled={!!beschaeftigt || zt.fehler.length > 0 || !qrSrc?.url}>{beschaeftigt === 'rechnung-neu' ? 'Erstellt…' : `Rechnung über ${chf(daten.summen.total)} erstellen`}</button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="karte offert-karte">
             <div className="karte-kopf">Summen</div>
             <table className="tabelle offert-kalkulation">
@@ -252,22 +355,45 @@ export default function RapportEditor() {
         </div>
 
         <div className="offert-vorschau">
-          <div className="rapport-vorschau-skala druck-ziel">
+          {!neu && daten.summen.betragExtra > 0 && rk && (
+            <div className="re-vorschau-wahl">
+              <button type="button" className={`btn-klein ${vorschau === 'rapport' ? 'gewaehlt' : ''}`} onClick={() => setVorschau('rapport')}>Detailrapport</button>
+              <button type="button" className={`btn-klein ${vorschau === 'rechnung' ? 'gewaehlt' : ''}`} onClick={() => setVorschau('rechnung')}>Rechnung</button>
+            </div>
+          )}
+          <div className={`rapport-vorschau-skala ${vorschau === 'rapport' ? 'druck-ziel' : 're-versteckt'}`}>
             <RapportDokument ref={dokumentRef} kopf={kopf} daten={daten} mandant={mandant} bearbeiter={bearbeiter} firma={firma} texte={texte} />
           </div>
+          {!neu && rk && daten.summen.betragExtra > 0 && (
+            <div className={`rapport-vorschau-skala ${vorschau === 'rechnung' ? 'druck-ziel' : 're-versteckt'}`}>
+              <RechnungDokument
+                ref={rechnungRef}
+                kopf={{ ...rk, mwstSatz: kopf.mwst_satz }}
+                positionen={positionen}
+                summen={daten.summen}
+                kreditor={kreditor}
+                debitor={debitorAdr}
+                mandant={mandant}
+                zahlung={{ iban: rechnungIban, referenz: zt.referenz, referenzTyp: zt.referenzTyp, mitteilung: `Rechnung ${rk.nummer}` }}
+                qrSrc={qrSrc?.text === qrText ? qrSrc.url : null}
+                firma={firma}
+                texte={{ zahlungstext: rechnungEinst.zahlungstext }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {mailOffen && (
         <FormularModal
-          titel={`Detailrapport ${kopf.nummer} per E-Mail senden`}
+          titel={rechnungBeleg ? `Rechnung ${rechnungBeleg.rechnungsnummer} mit Detailrapport senden` : `Detailrapport ${kopf.nummer} per E-Mail senden`}
           breit
           mail
           speichernText="Senden"
           startwerte={{
             an: adressen[0] || '', cc: '', bcc: '',
-            betreff: textErsetzen(texte.mailBetreff || 'Detailrapport {nummer} – {mandant}', platzhalter),
-            text: textErsetzen(texte.mailText || '', platzhalter),
+            betreff: rechnungBeleg ? textErsetzen(rechnungEinst.mailBetreff, rechnungPlatzhalter(rechnungBeleg, mandant, firma)) : textErsetzen(texte.mailBetreff || 'Detailrapport {nummer} – {mandant}', platzhalter),
+            text: rechnungBeleg ? textErsetzen(rechnungEinst.mailText, rechnungPlatzhalter(rechnungBeleg, mandant, firma)) : textErsetzen(texte.mailText || '', platzhalter),
           }}
           felder={[
             { name: 'an', label: 'An', typ: 'text', pflicht: true, auswahl: () => [
@@ -279,10 +405,22 @@ export default function RapportEditor() {
             { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
             { name: 'text', label: 'Text', typ: 'textarea', pflicht: true, hinweis: 'Signatur mit Logo wird automatisch angehängt (Arial 10).' },
           ]}
-          vorschau={() => `Anhang: ${dateiname}`}
+          vorschau={() => `Anhang: ${rechnungBeleg ? `${rechnungDatei}, ` : ''}${dateiname}`}
           onSpeichern={async (f) => {
+            setVorschau('rapport');
+            await new Promise((r) => setTimeout(r, 50));
             const { base64 } = await elementZuPdf(dokumentRef.current);
-            await api.rapporte.versenden(kopf, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname });
+            const anhaenge = [];
+            if (rechnungBeleg) {
+              let rBase64 = null;
+              if (rechnungBeleg.ablage_pfad) {
+                try { rBase64 = await blobBase64(await dateiLesen(rechnungBeleg.ablage_pfad)); } catch { rBase64 = null; }
+              }
+              if (!rBase64) { setVorschau('rechnung'); await new Promise((r) => setTimeout(r, 50)); rBase64 = (await elementZuPdf(rechnungRef.current)).base64; }
+              anhaenge.push({ dateiname: rechnungDatei, base64: rBase64 });
+            }
+            await api.rapporte.versenden(kopf, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname, anhaenge });
+            if (rechnungBeleg) await api.belege.versendetMarkieren(rechnungBeleg.id, f.an);
             setKopf((k) => ({ ...k, versendet_am: new Date().toISOString(), versendet_an: f.an }));
             setMailOffen(false);
             setMeldung(`Rapport an ${f.an} gesendet.`);

@@ -2767,3 +2767,30 @@ table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal;
 .zv-knapp { color: var(--warning); font-weight: 600; }
 .zv-tief { color: var(--danger); font-weight: 600; }
 .zv-legende { margin-top: 8px; }
+
+/* Rechnung mit Swiss QR-Zahlteil (A4: 794 x 1123 px; Zahlteil 105 mm = 397 px) */
+.rechnung-dokument { height: 1123px; min-height: 1123px; padding-bottom: 0; position: relative; }
+.re-positionen { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.re-positionen th { background: var(--od-navy); color: #fff; font-weight: 700; text-align: left; padding: 4px 6px; font-size: 10.5px; }
+.re-positionen td { padding: 4px 6px; border-bottom: 1px solid #e3e3e3; }
+.re-totale { margin-top: 14px; width: 50%; margin-left: auto; }
+.re-hinweis { margin-top: 18px; font-size: 10.5px; }
+.qr-zahlteil { position: absolute; left: 0; right: 0; bottom: 0; height: 397px; border-top: 1px dashed #000; display: flex; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; }
+.qr-schere { position: absolute; top: -14px; left: 0; right: 0; text-align: center; font-size: 7.5px; color: #333; }
+.qr-empfangsschein { width: 234px; box-sizing: border-box; padding: 19px; border-right: 1px dashed #000; display: flex; flex-direction: column; font-size: 9px; position: relative; }
+.qr-zahlteil-rechts { flex: 1; display: flex; padding: 19px; box-sizing: border-box; }
+.qr-links { width: 194px; display: flex; flex-direction: column; }
+.qr-angaben { flex: 1; font-size: 11px; padding-left: 8px; }
+.qr-titel { font-size: 11px; font-weight: 700; margin-bottom: 12px; }
+.qr-ueber { font-size: 6px; font-weight: 700; margin-top: 7px; }
+.qr-wert { font-size: 8px; line-height: 1.3; }
+.qr-ueber-gross { font-size: 8px; font-weight: 700; margin-top: 8px; }
+.qr-wert-gross { font-size: 10px; line-height: 1.3; }
+.qr-betrag-zeile { display: flex; gap: 20px; margin-top: auto; }
+.qr-annahme { position: absolute; right: 19px; bottom: 60px; font-size: 6px; font-weight: 700; }
+.qr-code { position: relative; width: 174px; height: 174px; margin: 0 0 10px; }
+.qr-code img { width: 174px; height: 174px; image-rendering: pixelated; display: block; }
+.qr-platzhalter { width: 174px; height: 174px; border: 1px dashed #999; display: flex; align-items: center; justify-content: center; color: #999; font-size: 11px; }
+.qr-kreuz { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); }
+.re-vorschau-wahl { display: flex; gap: 6px; margin-bottom: 8px; }
+.re-versteckt { position: fixed; left: -10000px; top: 0; }

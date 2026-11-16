@@ -694,6 +694,9 @@ const api = {
       // Fehlen die Spalten noch (SQL nicht ausgefuehrt), ist die Mail trotzdem verschickt.
       await supabase.from('belege').update({ versendet_am: new Date().toISOString(), versendet_an: an.trim() }).eq('id', beleg.id);
     },
+    versendetMarkieren: async (id, an) => {
+      await supabase.from('belege').update({ versendet_am: new Date().toISOString(), versendet_an: String(an ?? '').trim() }).eq('id', id);
+    },
     // KI liest die Rechnung aus (Edge Function "beleg-lesen"); die Datei wird dort nicht gespeichert.
     auslesen: async (file, art, firma) => {
       if (file.size > 10 * 1024 * 1024) throw new Error('Datei grösser als 10 MB – bitte die Angaben von Hand erfassen.');
@@ -1142,9 +1145,13 @@ const api = {
       const { error: fehlerLoeschen } = await supabase.from('rapporte').delete().eq('id', id);
       pruefeFehler(fehlerLoeschen);
     },
-    versenden: async (rapport, { an, cc, bcc, betreff, text, pdfBase64, dateiname }) => {
+    // anhaenge: weitere PDFs (z.B. die Rechnung) [{ dateiname, base64 }].
+    versenden: async (rapport, { an, cc, bcc, betreff, text, pdfBase64, dateiname, anhaenge = [] }) => {
       if (!an || !String(an).trim()) throw new Error('Bitte eine E-Mail-Adresse angeben.');
-      await sendMailAufrufen({ an: an.trim(), cc, bcc, betreff, text, anhaenge: [{ dateiname, base64: pdfBase64, typ: 'application/pdf' }] });
+      await sendMailAufrufen({
+        an: an.trim(), cc, bcc, betreff, text,
+        anhaenge: [...anhaenge.map((a) => ({ ...a, typ: 'application/pdf' })), { dateiname, base64: pdfBase64, typ: 'application/pdf' }],
+      });
       const { error } = await supabase.from('rapporte').update({ versendet_am: new Date().toISOString(), versendet_an: an.trim() }).eq('id', rapport.id);
       pruefeFehler(error);
     },
