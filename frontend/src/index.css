@@ -2916,3 +2916,41 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 
 .ra-arbeiten-karte { margin-bottom: 14px; }
 .ra-arbeiten-karte .karte-kopf { padding: 10px 14px; }
+
+/* Arbeitsfenster v2: Groesse per Regler, Projekt oben, aktueller Schritt, Verlauf als Zeitachse */
+.aw-fenster { max-width: calc(100vw / var(--app-zoom, 1)); max-height: calc(100vh / var(--app-zoom, 1)); min-width: 560px; min-height: 420px; resize: both; }
+.aw-laedt { padding: 30px; align-items: center; justify-content: center; width: 400px !important; height: 200px !important; }
+.aw-groesse { margin: 0 4px 0 0; }
+.aw-projekt-label { margin-left: 8px; font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
+.aw-titel { font-size: 23px; }
+.aw-jetzt { display: flex; align-items: center; gap: 12px; padding: 10px 22px; background: #eef4ff; border-bottom: 1px solid #cddcfb; }
+.aw-jetzt.laeuft { background: #fdecec; border-bottom-color: #f3c2c2; }
+.aw-jetzt-text { flex: 1; min-width: 0; }
+.aw-jetzt-label { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 650; color: var(--accent); }
+.aw-jetzt.laeuft .aw-jetzt-label { color: var(--danger); }
+.aw-jetzt-titel { font-size: 15px; font-weight: 600; margin-top: 1px; }
+.aw-jetzt-meta { display: flex; gap: 10px; font-size: var(--fs-klein); color: var(--text-muted); margin-top: 2px; }
+.aw-schritt { cursor: pointer; }
+.aw-schritt.fokus { background: #eef4ff; border-color: #cddcfb; }
+.aw-schritt.fokus .aw-schritt-titel { font-weight: 600; color: var(--accent); }
+.aw-schritt-titel { cursor: pointer; }
+.aw-schritt-bearbeiten { border: none; background: none; color: var(--text-faint); cursor: pointer; padding: 2px 4px; visibility: hidden; }
+.aw-schritt:hover .aw-schritt-bearbeiten { visibility: visible; }
+.aw-schritt-bearbeiten:hover { color: var(--accent); }
+.aw-eingabe { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; }
+.aw-eingabe textarea { border: none; resize: vertical; width: 100%; padding: 4px; outline: none; }
+.aw-eingabe-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aw-eingabe-zeile select { width: auto; max-width: 220px; }
+.aw-eingabe-zeile .btn { margin-left: auto; }
+.aw-eingabe-feld { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-klein); color: var(--text-muted); }
+.aw-eingabe-feld input { width: 64px; text-align: right; }
+.aw-eingabe-feld input.ungueltig { border-color: var(--danger); }
+.aw-v-knopf { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.aw-v-knopf:hover .aw-verlauf-text { color: var(--accent); }
+.aw-verlauf li.aw-v-zeit::before { border-color: var(--accent); background: var(--accent); }
+.aw-verlauf li.aw-v-extra::before { border-color: #e0a526; background: #e0a526; }
+.aw-verlauf li.aw-v-notiz::before { border-color: var(--text-faint); }
+.aw-v-dauer { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.aw-v-schritt { background: var(--surface-3); border-radius: 999px; padding: 0 8px; color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aw-v-rapportiert { color: var(--success); }
+.aw-v-notizlabel { color: var(--text-faint); }
