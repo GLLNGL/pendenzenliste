@@ -33,7 +33,8 @@ const MODULE = [
         { nr: 12, pfad: '/onboarding-unterlagen', label: 'Onboarding-Unterlagen' },
       ] },
       { nr: 2, name: 'Verrechnung', eintraege: [
-        { nr: 21, pfad: '/rapporte', label: 'Detailrapporte' },
+        { nr: 21, pfad: '/zeit-verrechnung', label: 'Zeit & Verrechnung' },
+        { nr: 22, pfad: '/rapporte', label: 'Detailrapporte & Rechnungen' },
       ] },
     ],
   },

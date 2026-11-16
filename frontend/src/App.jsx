@@ -11,6 +11,7 @@ import OnboardingUnterlagen from './views/OnboardingUnterlagen.jsx';
 import Belege from './views/Belege.jsx';
 import Liquiditaet from './views/Liquiditaet.jsx';
 import Abstimmung from './views/Abstimmung.jsx';
+import ZeitVerrechnung from './views/ZeitVerrechnung.jsx';
 import Regeln from './views/Regeln.jsx';
 import Archiv from './views/Archiv.jsx';
 import Wochenrueckblick from './views/Wochenrueckblick.jsx';
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/offerten/:id" element={<OffertEditor />} />
         <Route path="/preise" element={<Preise />} />
         <Route path="/zeit" element={<Zeitjournal />} />
+        <Route path="/zeit-verrechnung" element={<ZeitVerrechnung />} />
         <Route path="/rapporte" element={<Rapporte />} />
         <Route path="/rapporte/:id" element={<RapportEditor />} />
         <Route path="/kreditoren" element={<Belege key="kreditor" art="kreditor" />} />

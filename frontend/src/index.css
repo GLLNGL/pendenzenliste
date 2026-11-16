@@ -2746,3 +2746,24 @@ table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal;
 .abst-stamm-fuss { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 .abst-stamm-fuss > span { margin-right: auto; }
 .ar-klein { font-size: 9.5px; margin-top: 2px; }
+
+/* Zeit & Verrechnung */
+.zv-seite { max-width: 1400px; }
+.zv-zeitraum select { width: auto; }
+.zv-von { font-size: var(--fs-text); font-weight: 400; color: var(--text-muted); }
+.zv-balken { position: relative; display: inline-block; width: 140px; height: 16px; background: var(--surface-3); border-radius: 999px; overflow: hidden; vertical-align: middle; }
+.zv-balken-fuell { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.zv-balken-100 { position: absolute; left: 66.67%; top: 0; bottom: 0; width: 1px; background: var(--text-faint); }
+.zv-balken-text { position: relative; font-size: 10.5px; font-weight: 600; padding-left: 6px; line-height: 16px; color: var(--text); }
+.zv-gruen { background: #b9e3c8; }
+.zv-gelb { background: #f6dd9b; }
+.zv-rot { background: #f3b5b5; }
+.zv-tabelle td { vertical-align: middle; }
+.zv-mandant td { border-top: 1px solid var(--border); }
+.zv-pfeil { color: var(--text-faint); display: inline-block; width: 12px; }
+.zv-leistung td { background: var(--surface-2); font-size: var(--fs-klein); }
+.zv-leistung td:first-child { padding-left: 34px; }
+.zv-gut { color: var(--success); font-weight: 600; }
+.zv-knapp { color: var(--warning); font-weight: 600; }
+.zv-tief { color: var(--danger); font-weight: 600; }
+.zv-legende { margin-top: 8px; }
