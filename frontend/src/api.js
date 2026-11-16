@@ -994,6 +994,7 @@ const api = {
       if (filter.mitarbeiterId) q = q.eq('mitarbeiter_id', Number(filter.mitarbeiterId));
       if (filter.art) q = q.eq('art', filter.art);
       if (filter.pendenzId) q = q.eq('pendenz_id', Number(filter.pendenzId));
+      if (filter.pendenzIds) q = q.in('pendenz_id', filter.pendenzIds.length ? filter.pendenzIds.map(Number) : [-1]);
       const { data, error } = await q;
       pruefeFehler(error);
       return data;

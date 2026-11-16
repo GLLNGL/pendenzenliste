@@ -2,6 +2,7 @@ import { useLeistungen } from '../hooks.js';
 import PendenzZeit from './PendenzZeit.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import ProjektModal from './ProjektModal.jsx';
+import PendenzArbeitsfenster from './PendenzArbeitsfenster.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -78,10 +79,30 @@ export default function PendenzModal(props) {
   // Nachfassdatum). Eingang-Eintraege (auch aus E-Mails, mit To-dos) werden im Projekt-Fenster
   // eingeplant -- dort sind ihre Teilschritte sichtbar und planbar.
   const { pendenz, vorgabe, detail } = props;
-  const alsProjekt = !detail && (pendenz
-    ? pendenz.uebergeordnete_pendenz_id == null
+  // Bestehende, eingeplante Pendenzen oeffnen zuerst das Arbeitsfenster; «Bearbeiten» zeigt
+  // das Formular (fuer das Projekt oder einen Schritt) und kehrt danach zurueck.
+  const [formularFuer, setFormularFuer] = useState(null);
+  const arbeitsfenster = !!pendenz && !detail && pendenz.geplant !== false;
+  if (arbeitsfenster && !formularFuer) {
+    return (
+      <PendenzArbeitsfenster
+        pendenz={pendenz}
+        mandanten={props.mandanten}
+        mitarbeitende={props.mitarbeitende}
+        onSchliessen={() => { props.onGespeichert?.(); props.onSchliessen(); }}
+        onBearbeiten={(p) => setFormularFuer(p)}
+        onGeloescht={props.onGeloescht}
+      />
+    );
+  }
+  const ziel = formularFuer ?? pendenz;
+  const formularProps = formularFuer
+    ? { ...props, pendenz: formularFuer, onSchliessen: () => setFormularFuer(null), onGespeichert: () => setFormularFuer(null), onGeloescht: () => { setFormularFuer(null); if (formularFuer.id === pendenz.id) props.onGeloescht?.(); } }
+    : props;
+  const alsProjekt = !detail && (ziel
+    ? ziel.uebergeordnete_pendenz_id == null
     : !vorgabe?.uebergeordnetePendenzId);
-  return alsProjekt ? <ProjektModal {...props} /> : <PendenzDetailModal {...props} />;
+  return alsProjekt ? <ProjektModal {...formularProps} /> : <PendenzDetailModal {...formularProps} />;
 }
 
 export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, projektModus = false, onSchliessen, onGespeichert, onGeloescht }) {
