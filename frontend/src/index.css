@@ -2872,3 +2872,9 @@ table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal;
 .aw-details dt { color: var(--text-muted); }
 .aw-details dd { margin: 0; }
 @media (max-width: 900px) { .aw-koerper { grid-template-columns: 1fr; } .aw-seite { border-left: none; border-top: 1px solid var(--border); } .aw-kopf { flex-direction: column; } }
+
+.zv-eintraege-zeile > td { background: var(--surface-2); padding: 6px 12px 12px 34px; }
+.zv-eintraege-titel { font-size: var(--fs-klein); color: var(--text-muted); margin: 4px 0 6px; }
+table.tabelle.zv-eintraege { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px; font-size: var(--fs-klein); }
+.zv-verrechnet td { color: var(--text-faint); }

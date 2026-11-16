@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import ZeitModal from '../components/ZeitModal.jsx';
 import { useNavigate } from 'react-router-dom';
 import api from '../api.js';
 import { useMandanten } from '../hooks.js';
 import { aufZeitAenderungHoeren } from '../events.js';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
-import { formatiereStundenSumme } from '../lib/zeit.js';
+import { formatiereStundenSumme, formatiereDauer, artLabel, betragExtra } from '../lib/zeit.js';
 import { zeitraumVon, auswerten, totale } from '../lib/rentabilitaet.js';
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -35,6 +37,7 @@ export default function ZeitVerrechnung() {
   const [daten, setDaten] = useState(null);
   const [offen, setOffen] = useState(new Set());
   const [fehler, setFehler] = useState(null);
+  const [zeitOffen, setZeitOffen] = useState(null);
   const mandanten = useMandanten();
   const navigate = useNavigate();
 
@@ -58,6 +61,13 @@ export default function ZeitVerrechnung() {
   }, [laden]);
 
   const zeilen = useMemo(() => (daten ? auswerten({ ...daten, zeitraum, mandanten }) : []), [daten, zeitraum, mandanten]);
+  const eintraegeVon = (mandantId) => {
+    if (!daten) return [];
+    const imZeitraum = daten.eintraege.filter((e) => e.mandant_id === mandantId && e.minuten != null);
+    const ids = new Set(imZeitraum.map((e) => e.id));
+    const offenAusserhalb = daten.offeneExtra.filter((e) => e.mandant_id === mandantId && e.minuten != null && !ids.has(e.id));
+    return [...imZeitraum, ...offenAusserhalb].sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : b.id - a.id));
+  };
   const t = totale(zeilen);
   const intern = (daten?.eintraege ?? []).filter((e) => e.art === 'intern' && e.minuten != null).reduce((s, e) => s + e.minuten, 0);
   const umschalten = (id) => setOffen((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -121,6 +131,7 @@ export default function ZeitVerrechnung() {
           <tbody>
             {zeilen.map((m) => (
               <MandantZeilen key={m.mandantId} m={m} offen={offen.has(m.mandantId)} onUmschalten={() => umschalten(m.mandantId)}
+                eintraege={offen.has(m.mandantId) ? eintraegeVon(m.mandantId) : []} zeitraum={zeitraum} onEintrag={(e) => setZeitOffen(e)}
                 onVerrechnen={() => navigate(`/rapporte/neu?mandant=${m.mandantId}&von=${m.offenVon}&bis=${m.offenBis}`)} />
             ))}
             {daten && zeilen.length === 0 && <tr><td colSpan={9} className="leer-hinweis">Keine Pauschalen und keine Zeit im Zeitraum.</td></tr>}
@@ -128,12 +139,16 @@ export default function ZeitVerrechnung() {
           </tbody>
         </table>
       </div>
+      {zeitOffen && createPortal(
+        <ZeitModal eintrag={zeitOffen} onSchliessen={() => setZeitOffen(null)} onGespeichert={() => { setZeitOffen(null); laden(); }} />,
+        document.body,
+      )}
       <p className="feld-hinweis zv-legende">Ampel: grün bis 90 % der Planzeit, gelb bis 110 %, rot darüber. Planzeit = Menge × Zeit pro Einheit (Preise &amp; Katalog), anteilig für den Zeitraum. Zeit ohne Leistung zählt beim Mandanten, nicht bei einer Leistung.</p>
     </div>
   );
 }
 
-function MandantZeilen({ m, offen, onUmschalten, onVerrechnen }) {
+function MandantZeilen({ m, offen, onUmschalten, onVerrechnen, eintraege, zeitraum, onEintrag }) {
   const satzKlasse = (satz, ziel) => (satz == null || ziel == null ? '' : satz >= ziel ? 'zv-gut' : satz >= ziel * 0.8 ? 'zv-knapp' : 'zv-tief');
   return (
     <>
@@ -162,6 +177,37 @@ function MandantZeilen({ m, offen, onUmschalten, onVerrechnen }) {
         </tr>
       ))}
       {offen && m.leistungen.length === 0 && <tr className="zv-leistung"><td colSpan={9} className="text-gedaempft">Keine Pauschal-Leistungen.</td></tr>}
+      {offen && (
+        <tr className="zv-eintraege-zeile">
+          <td colSpan={9}>
+            <div className="zv-eintraege-titel">
+              Erfasste Zeit ({eintraege.length}) · Klick auf einen Eintrag zum Korrigieren, z.B. Pauschal ↔ Extra
+            </div>
+            <table className="tabelle zv-eintraege">
+              <thead><tr><th>Datum</th><th>Arbeit</th><th>Leistung</th><th>Person</th><th>Art</th><th className="zahl">Dauer</th><th className="zahl">CHF</th><th>Status</th></tr></thead>
+              <tbody>
+                {eintraege.map((e) => {
+                  const ausserhalb = e.datum < zeitraum.von || e.datum > zeitraum.bis;
+                  return (
+                    <tr key={e.id} className={`klickbar ${e.rapport_id ? 'zv-verrechnet' : ''}`} onClick={() => onEintrag(e)}>
+                      <td>{formatiereDatum(e.datum)}{ausserhalb && <span className="text-gedaempft" title="ausserhalb des Zeitraums, aber noch offen"> *</span>}</td>
+                      <td>{e.beschreibung || e.pendenzen?.titel || '–'}</td>
+                      <td>{e.leistungen?.name ?? '–'}</td>
+                      <td>{e.mitarbeitende?.name ?? ''}</td>
+                      <td><span className={`zeit-art zeit-art-${e.art}`}>{artLabel(e.art)}</span></td>
+                      <td className="zahl">{formatiereDauer(e.minuten)}</td>
+                      <td className="zahl">{e.art === 'extra' ? fr(betragExtra(e)) : ''}</td>
+                      <td>{e.rapport_id ? <span className="text-gedaempft">verrechnet</span> : e.art === 'extra' ? <strong className="liq-plus">offen</strong> : ''}</td>
+                    </tr>
+                  );
+                })}
+                {eintraege.length === 0 && <tr><td colSpan={8} className="leer-hinweis">Keine Zeit im Zeitraum.</td></tr>}
+              </tbody>
+            </table>
+            {eintraege.some((e) => e.datum < zeitraum.von || e.datum > zeitraum.bis) && <div className="feld-hinweis">* noch nicht verrechnete Extra-Zeit ausserhalb des gewählten Zeitraums</div>}
+          </td>
+        </tr>
+      )}
     </>
   );
 }
