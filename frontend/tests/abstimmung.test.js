@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   zahl, nummernListe, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen,
-  bewertungGesamt, deklarationTotal, svDokumentAnwenden, stichwort, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
+  bewertungGesamt, deklarationTotal, svDokumentAnwenden, stichwort, lohnartenstammLesen, kontenAbstimmung, fehlendeAgLohnarten, fehlendeErgaenzen, abstimmungOrdner, standardJahr, tabellenBlock, GRUNDLAGEN,
 } from '../src/lib/abstimmung.js';
 
 // Erfundene Zahlen (keine Kundendaten).
@@ -200,4 +200,80 @@ test('Lohnmeldung und Schlussrechnung übernehmen', () => {
   const r2 = svDokumentAnwenden(r.daten, { art: 'schlussrechnung', beitraege: [{ bezeichnung: 'AHV', betrag: 1 }] });
   assert.equal(r2.daten.beitraege[0].rechnung, '1');
   assert.equal(r2.daten.beitraege[1].rechnung, '');
+});
+
+const STAMM_TEXT = `Lohnartenstamm
+Verbuchungsart
+1000 - Monatslohn
+Fix
+5000 - Löhne
+9980 - Durchlaufskonto Lohn-Fibu
+6000 - AHV-Beitrag
+Fix
+9980 - Durchlaufskonto Lohn-Fibu
+2270 - Kontokorrent AHV
+8530 - Reduktion Geschäftswagen
+Fix
+9980 - Durchlaufskonto Lohn-Fibu
+6270 - Privatanteil Fahrzeugaufwand
+316 - Umsatzsteuer
+8140 - Diverse Spesen
+Fix
+5828 - Diverse Spesen
+9980 - Durchlaufskonto Lohn-Fibu
+111 - VST Material & Dienstleistungen
+9500 - AG AHV-Beitrag
+Fix
+5700 - AHV, IV, EO, ALV
+2270 - Kontokorrent AHV
+9520 - AG ALVZ-Beitrag
+Fix
+5700 - AHV, IV, EO, ALV
+2270 - Kontokorrent AHV
+9570 - AG FAK-Beitrag
+Fix
+5700 - AHV, IV, EO, ALV
+2271 - Kontokorrent FAK
+Online`;
+
+test('Lohnartenstamm aus kopiertem Text (eine Zelle pro Zeile)', () => {
+  const s = lohnartenstammLesen(STAMM_TEXT);
+  assert.deepEqual(s.map((l) => [l.la, l.soll, l.haben]), [
+    ['1000', '5000', '9980'], ['6000', '9980', '2270'], ['8530', '9980', '6270'], ['8140', '5828', '9980'],
+    ['9500', '5700', '2270'], ['9520', '5700', '2270'], ['9570', '5700', '2271'],
+  ]);
+  assert.equal(s[0].text, 'Monatslohn');
+});
+
+test('Lohnartenstamm als Tabelle (Tabulatoren, Excel)', () => {
+  const t = 'Lohnart\tVerbuchungsart\tSoll\tHaben\tMWST Code\n1000 - Monatslohn\tFix\t5000 - Löhne\t9980 - Durchlauf\t\n8150 - Spesen 0%\tFix\t5824 - Spesen\t9980 - Durchlauf\t200 - Vorsteuer steuerfrei\n';
+  assert.deepEqual(lohnartenstammLesen(t).map((l) => [l.la, l.soll, l.haben]), [['1000', '5000', '9980'], ['8150', '5824', '9980']]);
+  const r = grundlagenLesen([['Lohnart', 'Verbuchungsart', 'Soll', 'Haben'], ['9500 - AG AHV', 'Fix', '5700 - AHV', '2270 - KK']]);
+  assert.equal(r.art, 'stamm');
+  assert.deepEqual(r.lohnartenstamm, [{ la: '9500', text: 'AG AHV', soll: '5700', haben: '2270' }]);
+});
+
+test('Kontenabstimmung Lohnjournal - FiBu und fehlende AG-Lohnarten', () => {
+  const g = {
+    lohnartenstamm: lohnartenstammLesen(STAMM_TEXT),
+    konten: [
+      { konto: '5000', text: 'Löhne', saldo: -100000 }, { konto: '5700', text: 'AHV', saldo: -6900 },
+      { konto: '6270', text: 'Privatanteil Fahrzeug', saldo: 2400 }, { konto: '2270', text: 'KK AHV', saldo: -1000 },
+    ],
+    lohnarten: [
+      { la: '1000', total: 100000 }, { la: '6000', total: -5300 }, { la: '8530', total: -2400 },
+      { la: '9500', total: 5300 }, { la: '9520', total: 100 }, { la: '9570', total: 1500 }, { la: '7777', total: 12 },
+    ],
+  };
+  const r = kontenAbstimmung(g);
+  assert.deepEqual(r.zeilen.map((z) => [z.konto, z.fibu, z.lohn, z.d.ok]), [
+    ['5000', 100000, 100000, true], ['5700', 6900, 6900, true], ['6270', -2400, -2400, true],
+  ]);
+  assert.deepEqual(r.ohneStamm, ['7777']);
+  const d = svLeer('ahv');
+  const fehlend = fehlendeAgLohnarten(d, g);
+  assert.deepEqual(fehlend.map((f) => f.la), ['9520']);
+  const neu = fehlendeErgaenzen(d, [{ la: '9520', text: 'AG ALVZ-Beitrag' }]);
+  assert.equal(neu.beitraege.find((x) => x.bez === 'ALV').laAG, '9510, 9520');
+  assert.deepEqual(fehlendeAgLohnarten(neu, g), []);
 });

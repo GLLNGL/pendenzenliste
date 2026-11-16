@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import { chf } from '../lib/offerte.js';
-import { BEREICHE, MWST_SPALTEN, bewertungGesamt } from '../lib/abstimmung.js';
+import { BEREICHE, MWST_SPALTEN, bewertungGesamt, kontenAbstimmung } from '../lib/abstimmung.js';
 
 const LOGO = `${import.meta.env.BASE_URL}logo-est-controlling.png`;
 const b = (x) => (x == null ? '–' : chf(x).replace('CHF ', ''));
@@ -30,10 +30,12 @@ function SvTeil({ bereich, daten, r, grundlagen }) {
   const kurz = BEREICHE[bereich].kurz;
   const dok = daten.dokumente ?? {};
   const g = grundlagen ?? {};
+  const ka = kontenAbstimmung(grundlagen);
   const quellen = [
     [`Lohnmeldung ${kurz}`, dok.lohnmeldung ? `${dok.lohnmeldung.datei}${dok.lohnmeldung.versicherer ? ` (${dok.lohnmeldung.versicherer})` : ''}` : 'von Hand erfasst'],
     ['Erfolgsrechnung', g.kontenDatei ? `${g.kontenDatei}, eingelesen ${formatiereDatum(g.kontenAm)}` : '–'],
     ['Kumulativjournal', g.journalDatei ? `${g.journalDatei}, eingelesen ${formatiereDatum(g.journalAm)}` : '–'],
+    ['Lohnartenstamm', g.lohnartenstamm?.length ? `${g.lohnartenstamm.length} Lohnarten${g.stammVorjahr ? ' (aus Vorjahr)' : ''}` : '–'],
     [`Schlussrechnung ${kurz}`, dok.schlussrechnung ? `${dok.schlussrechnung.datei}${dok.schlussrechnung.versicherer ? ` (${dok.schlussrechnung.versicherer})` : ''}` : 'von Hand erfasst'],
   ];
   const deklarationen = (daten.deklarationen ?? []).filter((x) => x.betrag !== '' && x.betrag != null);
@@ -51,6 +53,18 @@ function SvTeil({ bereich, daten, r, grundlagen }) {
     <>
       <div className="od-zwischentitel">Grundlagen</div>
       <Tabelle kopf={['Unterlage', 'Datei']} zeilen={quellen.map((q) => ({ zellen: q }))} />
+
+      {ka.zeilen.length > 0 && (
+        <>
+          <div className="od-zwischentitel">Abstimmung Lohnbuchhaltung – FiBu pro Konto</div>
+          <Tabelle
+            kopf={['Konto', 'Lohnarten', 'FiBu (ER)', 'Lohnjournal', 'Differenz']}
+            rechts={[2, 3, 4]}
+            zeilen={ka.zeilen.map((z) => ({ zellen: [`${z.konto} ${z.text}`, z.lohnarten.join(', '), b(z.fibu), b(z.lohn), <Diff d={z.d} />] }))}
+          />
+          {ka.ohneStamm.length > 0 && <div className="ar-fehler ar-klein">Lohnarten ohne Kontierung: {ka.ohneStamm.join(', ')}</div>}
+        </>
+      )}
 
       <div className="od-zwischentitel">Gemeldete Lohnsumme</div>
       <Tabelle kopf={['Position', 'Betrag', 'Vergleich', 'Differenz']} rechts={[1, 2, 3]} zeilen={lohnZeilen} />

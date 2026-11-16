@@ -2740,3 +2740,9 @@ table.tabelle.abst-tabelle td:first-child .text-gedaempft { white-space: normal;
 .ar-bemerkung { white-space: pre-wrap; font-size: 10.5px; border: 1px solid #e3e3e3; padding: 6px 8px; min-height: 30px; }
 .ar-unterlagen { margin: 2px 0 0; padding-left: 18px; font-size: 9.5px; }
 .abst-rapport .od-unterschriften { margin-top: 40px; }
+.abst-grundlagen-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.abst-quelle .link-knopf { font-size: var(--fs-klein); margin-top: 2px; }
+.abst-stamm { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-klein); }
+.abst-stamm-fuss { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.abst-stamm-fuss > span { margin-right: auto; }
+.ar-klein { font-size: 9.5px; margin-top: 2px; }

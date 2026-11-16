@@ -93,6 +93,15 @@ const kopfText = (z) => (z ?? []).map((f) => String(f ?? '').trim().toLowerCase(
  *          | { art: 'konten', konten: [{konto, text, saldo}] } | null}
  */
 function grundlagenLesen(zeilen) {
+  // Lohnartenstamm (Abacus Kontierung): Spalten Lohnart, Soll, Haben.
+  const sKopf = zeilen.findIndex((z) => {
+    const k = kopfText(z);
+    return k.some((f) => /^lohnart/.test(f)) && k.includes('soll') && k.includes('haben');
+  });
+  if (sKopf >= 0) {
+    const stamm = lohnartenstammAusTabelle(zeilen.slice(sKopf));
+    return stamm.length ? { art: 'stamm', lohnartenstamm: stamm } : null;
+  }
   // Kumulativjournal: Spalten "LA" und "Total" (dazu Personal-Nr., Lohnartentext, Monate).
   const jKopf = zeilen.findIndex((z) => {
     const k = kopfText(z);
@@ -139,6 +148,134 @@ function grundlagenLesen(zeilen) {
     return konten.length ? { art: 'konten', konten } : null;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Lohnartenstamm: wie eine Lohnart in der FiBu verbucht wird (Soll-/Haben-Konto)
+// ---------------------------------------------------------------------------------------------
+const NUMMER_TEXT = /^\s*(\d+)\s*-\s*(.*?)\s*$/;
+const nummerVon = (zelle) => NUMMER_TEXT.exec(String(zelle ?? ''))?.[1] ?? null;
+
+// Tabelle mit Kopfzeile Lohnart | Verbuchungsart | Soll | Haben | MWST Code (Excel, CSV oder
+// aus Abacus kopiert mit Tabulatoren). Zellen wie "5000 - Löhne".
+function lohnartenstammAusTabelle(zeilen) {
+  const k = kopfText(zeilen[0]);
+  const sLa = k.findIndex((f) => /^lohnart/.test(f));
+  const sSoll = k.indexOf('soll');
+  const sHaben = k.indexOf('haben');
+  const stamm = [];
+  for (const z of zeilen.slice(1)) {
+    const m = NUMMER_TEXT.exec(String(z?.[sLa] ?? ''));
+    if (!m) continue;
+    stamm.push({ la: m[1], text: m[2], soll: nummerVon(z[sSoll]), haben: nummerVon(z[sHaben]) });
+  }
+  return stamm;
+}
+
+/**
+ * Lohnartenstamm aus Text, wie er beim Kopieren aus Abacus entsteht: entweder Tabelle mit
+ * Tabulatoren oder eine Zeile pro Zelle ("8110 - KM-Entschädigung", "Fix", "5823 - Autospesen",
+ * "9980 - Durchlaufskonto Lohn-Fibu", "111 - VST ..."). Eine Lohnart erkennt man an der
+ * Verbuchungsart in der Folgezeile; Konten haben 4+ Ziffern, MWST-Codes 3.
+ * @returns [{ la, text, soll, haben }]
+ */
+function lohnartenstammLesen(text) {
+  const roh = String(text ?? '').replace(/\r/g, '');
+  const tabZeilen = roh.split('\n').filter((z) => z.includes('\t')).map((z) => z.split('\t'));
+  if (tabZeilen.length >= 2) {
+    const kopf = tabZeilen.findIndex((z) => kopfText(z).some((f) => /^lohnart/.test(f)));
+    if (kopf >= 0) return lohnartenstammAusTabelle(tabZeilen.slice(kopf));
+    // ohne Kopfzeile: Spalten Lohnart, Verbuchungsart, Soll, Haben
+    return tabZeilen.map((z) => {
+      const m = NUMMER_TEXT.exec(z[0] ?? '');
+      return m ? { la: m[1], text: m[2], soll: nummerVon(z[2]), haben: nummerVon(z[3]) } : null;
+    }).filter(Boolean);
+  }
+  const zeilen = roh.split('\n').map((z) => z.trim()).filter(Boolean);
+  const stamm = [];
+  let aktuell = null;
+  for (let i = 0; i < zeilen.length; i++) {
+    const m = NUMMER_TEXT.exec(zeilen[i]);
+    const folgt = zeilen[i + 1] ?? '';
+    const danach = zeilen[i + 2] ?? '';
+    if (m && folgt && !NUMMER_TEXT.test(folgt) && /^[A-Za-zÄÖÜäöü]/.test(folgt) && folgt.length <= 30 && NUMMER_TEXT.test(danach)) {
+      aktuell = { la: m[1], text: m[2], soll: null, haben: null, konten: [] };
+      stamm.push(aktuell);
+      i += 1; // Verbuchungsart ueberspringen
+    } else if (m && aktuell && m[1].length >= 4) {
+      aktuell.konten.push(m[1]);
+    }
+  }
+  return stamm.map(({ konten, ...l }) => ({ ...l, soll: konten[0] ?? null, haben: konten[1] ?? null }));
+}
+
+/**
+ * Abstimmung Lohnbuchhaltung - FiBu pro Konto: Jede Lohnart wird mit ihrem Jahrestotal laut
+ * Kumulativjournal im Soll (+) bzw. Haben (-) ihrer Konten verbucht (9980 Durchlaufkonto
+ * ausgenommen). Verglichen werden die
+ * Konten der Erfolgsrechnung (Aufwand im Export negativ -> Soll = -Saldo).
+ * @returns {{ zeilen: [{konto, text, lohn, fibu, d, lohnarten}], ohneStamm: [la], ohneKonto: [la] }}
+ */
+function kontenAbstimmung(grundlagen) {
+  const stamm = new Map((grundlagen?.lohnartenstamm ?? []).map((l) => [l.la, l]));
+  const konten = grundlagen?.konten ?? [];
+  const lohnarten = grundlagen?.lohnarten ?? [];
+  if (!stamm.size || !konten.length || !lohnarten.length) return { zeilen: [], ohneStamm: [], ohneKonto: [] };
+  const wirkung = new Map();
+  const ohneStamm = [];
+  const buche = (konto, betrag, la) => {
+    if (!konto || konto === '9980') return;
+    const w = wirkung.get(konto) ?? { betrag: 0, lohnarten: [] };
+    w.betrag = runden(w.betrag + betrag);
+    if (!w.lohnarten.includes(la)) w.lohnarten.push(la);
+    wirkung.set(konto, w);
+  };
+  for (const l of lohnarten) {
+    const s = stamm.get(l.la);
+    if (!s) { if (n(l.total) !== 0) ohneStamm.push(l.la); continue; }
+    // Abzuege und Reduktionen stehen im Journal negativ und buchen "Soll 9980 / Haben Konto":
+    // dort ist der Buchungsbetrag -Total. Sonst (Lohn, AG-Beitraege) gilt das Total mit Vorzeichen.
+    const betrag = s.soll === '9980' ? -n(l.total) : n(l.total);
+    buche(s.soll, betrag, l.la);
+    buche(s.haben, -betrag, l.la);
+  }
+  const erKonten = new Map(konten.map((k) => [k.konto, k]));
+  const zeilen = [...wirkung.entries()]
+    .filter(([konto]) => erKonten.has(konto) && /^[3-8]/.test(konto))
+    .map(([konto, w]) => {
+      const fibu = runden(-n(erKonten.get(konto).saldo));
+      return { konto, text: erKonten.get(konto).text, lohn: w.betrag, fibu, d: differenz(fibu, w.betrag), lohnarten: w.lohnarten };
+    })
+    .sort((a, b) => a.konto.localeCompare(b.konto));
+  // Konten, die laut Stamm bebucht werden, aber in der Erfolgsrechnung fehlen (Aufwand/Ertrag).
+  const ohneKonto = [...wirkung.entries()].filter(([konto, w]) => /^[3-8]/.test(konto) && !erKonten.has(konto) && w.betrag !== 0).map(([konto]) => konto);
+  return { zeilen, ohneStamm, ohneKonto };
+}
+
+// Lohnarten, die laut Stamm auf die Aufwandkonten der Versicherung buchen, aber in keiner
+// Beitragsart als LA AG stehen.
+function fehlendeAgLohnarten(daten, grundlagen) {
+  const konten = new Set(nummernListe(daten.konten));
+  const erfasst = new Set((daten.beitraege ?? []).flatMap((b) => [...nummernListe(b.laAG), ...nummernListe(b.laAN)]));
+  const imJournal = new Map((grundlagen?.lohnarten ?? []).map((l) => [l.la, l]));
+  return (grundlagen?.lohnartenstamm ?? [])
+    .filter((s) => konten.has(s.soll) && !erfasst.has(s.la) && n(imJournal.get(s.la)?.total) !== 0)
+    .map((s) => ({ la: s.la, text: s.text, total: imJournal.get(s.la).total }));
+}
+
+// Fehlende Lohnarten einer passenden Beitragsart (gleiches Stichwort) bzw. "Uebrige" zuordnen.
+function fehlendeErgaenzen(daten, fehlende) {
+  const beitraege = (daten.beitraege ?? []).map((b) => ({ ...b }));
+  for (const f of fehlende) {
+    const art = stichwort(f.text);
+    let ziel = art && beitraege.find((b) => stichwort(b.bez) === art);
+    if (!ziel) {
+      ziel = beitraege.find((b) => b.bez === 'Übrige Beiträge');
+      if (!ziel) { ziel = { bez: 'Übrige Beiträge', laAN: '', laAG: '', rechnung: '' }; beitraege.push(ziel); }
+    }
+    ziel.laAG = [...nummernListe(ziel.laAG), f.la].join(', ');
+  }
+  return { ...daten, beitraege };
 }
 
 // Betrag (immer positiv) einer Liste von Konten bzw. Lohnarten.
@@ -396,6 +533,6 @@ function tabellenBlock(text) {
 
 export {
   BEREICHE, SV_BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, zahl, differenz, nummernListe, grundlagenLesen,
-  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon, deklarationTotal, svDokumentAnwenden, stichwort,
+  kontenBetrag, laBetrag, mwstPerioden, mwstLeer, mwstRhythmusWechseln, mwstBerechnen, svLeer, svBerechnen, lohnKontenVon, deklarationTotal, svDokumentAnwenden, stichwort, lohnartenstammLesen, kontenAbstimmung, fehlendeAgLohnarten, fehlendeErgaenzen,
   bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock,
 };

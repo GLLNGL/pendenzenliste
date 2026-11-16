@@ -11,7 +11,7 @@ import AbstimmungRapport from '../components/AbstimmungRapport.jsx';
 import { formatiereDatum, heutigesDatumISO } from '../format.js';
 import {
   BEREICHE, GRUNDLAGEN, STATUS, TOLERANZ, MWST_SPALTEN, grundlagenLesen, mwstLeer, mwstRhythmusWechseln, mwstBerechnen,
-  svLeer, svBerechnen, svDokumentAnwenden, bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, zahl,
+  svLeer, svBerechnen, svDokumentAnwenden, lohnartenstammLesen, kontenAbstimmung, fehlendeAgLohnarten, fehlendeErgaenzen, bewertungGesamt, abstimmungOrdner, standardJahr, tabellenBlock, zahl,
 } from '../lib/abstimmung.js';
 
 const betrag = (x) => (x == null ? '–' : chf(x).replace('CHF ', ''));
@@ -179,19 +179,29 @@ function Quelle({ nr, titel, ok, text, fehlt }) {
   );
 }
 
-function GrundlagenKarte({ kurz, grundlagen, dokumente, onDateien, laedt }) {
+function GrundlagenKarte({ kurz, grundlagen, dokumente, onDateien, onStamm, laedt }) {
   const [ziehen, setZiehen] = useState(false);
+  const [stammOffen, setStammOffen] = useState(false);
+  const [stammText, setStammText] = useState('');
   const eingabeRef = useRef(null);
   const g = grundlagen ?? {};
   const lm = dokumente?.lohnmeldung;
   const sr = dokumente?.schlussrechnung;
+  const stammVorschau = stammText.trim() ? lohnartenstammLesen(stammText) : [];
   return (
-    <Karte titel="Unterlagen einlesen" zusatz="Erfolgsrechnung und Kumulativjournal gelten für AHV, BVG, UVG und KTG gemeinsam">
+    <Karte titel="Unterlagen einlesen" zusatz="Erfolgsrechnung, Kumulativjournal und Lohnartenstamm gelten für AHV, BVG, UVG und KTG gemeinsam">
       <div className="abst-grundlagen abst-grundlagen-5">
         <Quelle nr="1" titel={`Lohnmeldung ${kurz}`} ok={!!lm} text={`${lm?.datei} · ${formatiereDatum(lm?.am)}`} fehlt="PDF der Lohnmeldung / Deklaration" />
         <Quelle nr="2" titel="Erfolgsrechnung" ok={g.konten?.length > 0} text={`${g.konten?.length} Konten · ${g.kontenDatei} · ${formatiereDatum(g.kontenAm)}`} fehlt="Excel/CSV (Nummer, Bezeichnung, Saldo) oder PDF" />
         <Quelle nr="3" titel="Kumulativjournal" ok={g.lohnarten?.length > 0} text={`${g.lohnarten?.length} Lohnarten${g.personen ? `, ${g.personen} Personen` : ''} · ${g.journalDatei} · ${formatiereDatum(g.journalAm)}`} fehlt="Excel/CSV (LA, Lohnartentext, Total) oder PDF" />
         <Quelle nr="4" titel={`Schlussrechnung ${kurz}`} ok={!!sr} text={`${sr?.datei} · ${formatiereDatum(sr?.am)}`} fehlt="PDF der Schluss-/Beitragsabrechnung" />
+        <div className={`abst-quelle ${g.lohnartenstamm?.length ? 'abst-quelle-ok' : ''}`}>
+          <strong>{g.lohnartenstamm?.length ? '✓' : '5'} Lohnartenstamm (Kontierung)</strong>
+          {g.lohnartenstamm?.length
+            ? <span>{g.lohnartenstamm.length} Lohnarten{g.stammVorjahr ? ' · aus Vorjahr übernommen' : ` · ${formatiereDatum(g.stammAm)}`}</span>
+            : <span className="text-gedaempft">für die Abstimmung pro Konto</span>}
+          <button type="button" className="link-knopf" onClick={() => setStammOffen((x) => !x)}>{g.lohnartenstamm?.length ? 'neu einfügen' : 'aus Abacus einfügen'}</button>
+        </div>
         <div
           className={`beleg-drop abst-drop ${ziehen ? 'aktiv' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setZiehen(true); }}
@@ -206,6 +216,17 @@ function GrundlagenKarte({ kurz, grundlagen, dokumente, onDateien, laedt }) {
           <input ref={eingabeRef} type="file" multiple hidden accept=".pdf,.xlsx,.csv,.txt,.png,.jpg,.jpeg" onChange={(e) => { onDateien(e.target.files); e.target.value = ''; }} />
         </div>
       </div>
+      {stammOffen && (
+        <div className="abst-stamm">
+          <div className="text-gedaempft">Abacus › Lohn › Definitionen › Lohnartenstamm › Kontierung: Filter «Verbuchen», alle Zeilen markieren (Ctrl+A), kopieren (Ctrl+C) und hier einfügen. Excel-Export geht auch über das Upload-Feld.</div>
+          <textarea className="abst-bemerkung" rows={6} value={stammText} onChange={(e) => setStammText(e.target.value)} placeholder={'1000 - Monatslohn\nFix\n5000 - Löhne\n9980 - Durchlaufskonto Lohn-Fibu\n…'} />
+          <div className="abst-stamm-fuss">
+            <span className="text-gedaempft">{stammText.trim() ? `${stammVorschau.length} Lohnarten erkannt${stammVorschau.length ? ` (z.B. ${stammVorschau[0].la} → Soll ${stammVorschau[0].soll ?? '–'} / Haben ${stammVorschau[0].haben ?? '–'})` : ''}` : ''}</span>
+            <button type="button" className="btn" onClick={() => { setStammOffen(false); setStammText(''); }}>Abbrechen</button>
+            <button type="button" className="btn btn-primary" disabled={!stammVorschau.length} onClick={async () => { await onStamm(stammVorschau); setStammOffen(false); setStammText(''); }}>Übernehmen</button>
+          </div>
+        </div>
+      )}
       {(g.konten?.length > 0 || g.lohnarten?.length > 0) && (
         <details className="abst-details">
           <summary>Eingelesene Konten und Lohnarten anzeigen</summary>
@@ -225,6 +246,8 @@ function GrundlagenKarte({ kurz, grundlagen, dokumente, onDateien, laedt }) {
 
 function SvFormular({ bereich, daten, setDaten, grundlagen }) {
   const r = svBerechnen(daten, grundlagen);
+  const ka = kontenAbstimmung(grundlagen);
+  const fehlende = fehlendeAgLohnarten(daten, grundlagen);
   const feld = (name) => (v) => setDaten({ ...daten, [name]: v });
   const beitrag = (i, patch) => setDaten({ ...daten, beitraege: daten.beitraege.map((b, j) => (j === i ? { ...b, ...patch } : b)) });
   const korrektur = (i, patch) => setDaten({ ...daten, lohnKorrekturen: daten.lohnKorrekturen.map((k, j) => (j === i ? { ...k, ...patch } : k)) });
@@ -239,6 +262,21 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
   return (
     <>
       {ohne && <div className="abst-hinweis">Zuerst oben Erfolgsrechnung und Kumulativjournal einlesen – dann rechnet die Abstimmung automatisch.</div>}
+
+      {ka.zeilen.length > 0 && (
+        <Karte titel="Abstimmung Lohnbuchhaltung – FiBu pro Konto" zusatz="Lohnarten laut Kumulativjournal, verbucht nach Lohnartenstamm, gegen Saldo Erfolgsrechnung">
+          <table className="tabelle abst-tabelle">
+            <thead><tr><th>Konto</th><th className="zahl">FiBu (ER)</th><th className="zahl">Lohnjournal</th><th className="zahl">Differenz</th></tr></thead>
+            <tbody>
+              {ka.zeilen.map((z) => (
+                <Zeile key={z.konto} label={`${z.konto} ${z.text}`} hinweis={`LA ${z.lohnarten.join(', ')}`} ist={betrag(z.fibu)} soll={betrag(z.lohn)} d={z.d} />
+              ))}
+            </tbody>
+          </table>
+          {ka.ohneStamm.length > 0 && <div className="text-ueberfaellig abst-fuss">Lohnarten im Journal ohne Kontierung im Lohnartenstamm: {ka.ohneStamm.join(', ')}</div>}
+          {ka.ohneKonto.length > 0 && <div className="text-ueberfaellig abst-fuss">Laut Lohnartenstamm bebucht, aber nicht in der Erfolgsrechnung: Konto {ka.ohneKonto.join(', ')}</div>}
+        </Karte>
+      )}
 
       <Karte titel={`Gemeldete Lohnsumme ${kurz}`} zusatz="Betrag laut Lohnmeldung / Deklaration an die Versicherung">
         {bereich === 'ahv' && (
@@ -291,6 +329,12 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
           <label>Aufwandkonto FiBu <Text schmal wert={daten.konten} onChange={feld('konten')} platzhalter="5700" /></label>
           <span className="text-gedaempft">Lohnarten mit Komma trennen, Bereiche mit Bindestrich (z.B. 9500, 9510-9520).</span>
         </div>
+        {fehlende.length > 0 && (
+          <div className="abst-hinweis">
+            Laut Lohnartenstamm buchen auf Konto {daten.konten} auch: {fehlende.map((f) => `${f.la} ${f.text} (${betrag(f.total)})`).join(' · ')}{' '}
+            <button type="button" className="link-knopf" onClick={() => setDaten(fehlendeErgaenzen(daten, fehlende))}>als LA AG ergänzen</button>
+          </div>
+        )}
         <table className="tabelle abst-tabelle abst-tabelle-eng">
           <thead>
             <tr>
@@ -439,10 +483,11 @@ export default function Abstimmung({ bereich }) {
     setLaedt(true);
     (async () => {
       try {
-        const [gespeichert, vorjahr, g] = await Promise.all([
+        const [gespeichert, vorjahr, g, gVorjahr] = await Promise.all([
           api.abstimmungen.lesen({ mandantId, jahr, bereich }),
           api.abstimmungen.lesen({ mandantId, jahr: jahr - 1, bereich }),
           istSv(bereich) ? api.abstimmungen.lesen({ mandantId, jahr, bereich: GRUNDLAGEN }).catch(() => null) : null,
+          istSv(bereich) ? api.abstimmungen.lesen({ mandantId, jahr: jahr - 1, bereich: GRUNDLAGEN }).catch(() => null) : null,
         ]);
         if (abbruch) return;
         const m = mandanten.find((x) => x.id === mandantId);
@@ -452,7 +497,9 @@ export default function Abstimmung({ bereich }) {
         const alt = gespeichert?.daten ?? {};
         const veraltet = istSv(bereich) && Array.isArray(alt.beitraege) && !alt.beitraege.some((b) => 'laAG' in b);
         setDatenRoh(gespeichert ? (veraltet ? { ...leer, unterlagen: alt.unterlagen } : { ...leer, ...alt }) : leer);
-        setGrundlagen(g?.daten ?? null);
+        // Lohnartenstamm fehlt in diesem Jahr: den des Vorjahrs verwenden.
+        const stammVj = !g?.daten?.lohnartenstamm?.length && gVorjahr?.daten?.lohnartenstamm?.length ? gVorjahr.daten.lohnartenstamm : null;
+        setGrundlagen(stammVj ? { ...(g?.daten ?? {}), lohnartenstamm: stammVj, stammVorjahr: true } : (g?.daten ?? null));
         setBemerkung(gespeichert?.bemerkung ?? '');
       } catch (err) {
         if (!abbruch) setFehler(err.message);
@@ -508,8 +555,9 @@ export default function Abstimmung({ bereich }) {
         if (tabelle) {
           const r = grundlagenLesen(await tabelleLesen(f));
           if (!r) throw new Error(`${f.name}: weder Erfolgsrechnung (Nummer, Bezeichnung, Saldo) noch Kumulativjournal (LA, Total) erkannt.`);
-          art = r.art === 'konten' ? 'erfolgsrechnung' : 'kumulativjournal';
+          art = { konten: 'erfolgsrechnung', journal: 'kumulativjournal', stamm: 'stamm' }[r.art];
           if (art === 'erfolgsrechnung') g = { ...g, konten: r.konten, kontenDatei: f.name, kontenAm: heute };
+          else if (art === 'stamm') { g = { ...g, lohnartenstamm: r.lohnartenstamm, stammAm: heute, stammVorjahr: false }; gAenderung = true; meldungen.push(`Lohnartenstamm: ${r.lohnartenstamm.length} Lohnarten`); }
           else g = { ...g, lohnarten: r.lohnarten, personen: r.personen, journalDatei: f.name, journalAm: heute };
         } else {
           const dok = await api.svDokumentLesen(f, bereich);
@@ -590,6 +638,16 @@ export default function Abstimmung({ bereich }) {
   }
 
   // Rapport als PDF: herunterladen und (falls moeglich) im Dossier-Ordner ablegen.
+  async function stammUebernehmen(stamm) {
+    setFehler(null);
+    try {
+      const g = { ...(grundlagen ?? {}), lohnartenstamm: stamm, stammAm: heutigesDatumISO(), stammVorjahr: false };
+      await api.abstimmungen.speichern({ mandantId, jahr, bereich: GRUNDLAGEN, daten: g, status: 'in_arbeit' });
+      setGrundlagen(g);
+      setMeldung(`Lohnartenstamm übernommen: ${stamm.length} Lohnarten.`);
+    } catch (err) { setFehler(err.message); }
+  }
+
   async function rapportPdf() {
     setFehler(null);
     try {
@@ -681,7 +739,7 @@ export default function Abstimmung({ bereich }) {
                 ? <MwstFormular daten={daten} setDaten={setDaten} />
                 : (
                   <>
-                    <GrundlagenKarte kurz={info.kurz} grundlagen={grundlagen} dokumente={daten.dokumente} onDateien={dokumenteEinlesen} laedt={liest} />
+                    <GrundlagenKarte kurz={info.kurz} grundlagen={grundlagen} dokumente={daten.dokumente} onDateien={dokumenteEinlesen} onStamm={stammUebernehmen} laedt={liest} />
                     <SvFormular bereich={bereich} daten={daten} setDaten={setDaten} grundlagen={grundlagen} />
                   </>
                 )}
