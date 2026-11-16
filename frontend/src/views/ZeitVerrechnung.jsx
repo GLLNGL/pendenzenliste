@@ -50,8 +50,9 @@ export default function ZeitVerrechnung() {
       api.preise.leistungen.liste(),
       api.preise.ansaetze.liste(),
       api.zeit.liste({ art: 'extra' }),
-    ]).then(([eintraege, pauschalen, leistungen, ansaetze, extra]) => {
-      setDaten({ eintraege, pauschalen, leistungen, ansaetze, offeneExtra: extra.filter((e) => !e.rapport_id) });
+      api.rapporte.offen(),
+    ]).then(([eintraege, pauschalen, leistungen, ansaetze, extra, offenAlle]) => {
+      setDaten({ eintraege, pauschalen, leistungen, ansaetze, offeneExtra: extra.filter((e) => !e.rapport_id), offenAlle });
       setFehler(null);
     }).catch((e) => setFehler(e.message));
   }, [zeitraum.von, zeitraum.bis]);
@@ -69,6 +70,14 @@ export default function ZeitVerrechnung() {
     return [...imZeitraum, ...offenAusserhalb].sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : b.id - a.id));
   };
   const t = totale(zeilen);
+  const offenProMandant = new Map();
+  for (const e of daten?.offenAlle ?? []) {
+    const o = offenProMandant.get(e.mandant_id) ?? { von: e.datum, bis: e.datum, minuten: 0 };
+    if (e.datum < o.von) o.von = e.datum;
+    if (e.datum > o.bis) o.bis = e.datum;
+    o.minuten += e.minuten;
+    offenProMandant.set(e.mandant_id, o);
+  }
   const intern = (daten?.eintraege ?? []).filter((e) => e.art === 'intern' && e.minuten != null).reduce((s, e) => s + e.minuten, 0);
   const umschalten = (id) => setOffen((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const jahre = [jahrHeute + 1, jahrHeute, jahrHeute - 1, jahrHeute - 2];
@@ -132,7 +141,8 @@ export default function ZeitVerrechnung() {
             {zeilen.map((m) => (
               <MandantZeilen key={m.mandantId} m={m} offen={offen.has(m.mandantId)} onUmschalten={() => umschalten(m.mandantId)}
                 eintraege={offen.has(m.mandantId) ? eintraegeVon(m.mandantId) : []} zeitraum={zeitraum} onEintrag={(e) => setZeitOffen(e)}
-                onVerrechnen={() => navigate(`/rapporte/neu?mandant=${m.mandantId}&von=${m.offenVon}&bis=${m.offenBis}`)} />
+                offen2={offenProMandant.get(m.mandantId)}
+                onVerrechnen={() => { const o = offenProMandant.get(m.mandantId); navigate(`/rapporte/neu?mandant=${m.mandantId}&von=${o.von}&bis=${o.bis}`); }} />
             ))}
             {daten && zeilen.length === 0 && <tr><td colSpan={9} className="leer-hinweis">Keine Pauschalen und keine Zeit im Zeitraum.</td></tr>}
             {!daten && !fehler && <tr><td colSpan={9} className="leer-hinweis">Lädt…</td></tr>}
@@ -148,7 +158,7 @@ export default function ZeitVerrechnung() {
   );
 }
 
-function MandantZeilen({ m, offen, onUmschalten, onVerrechnen, eintraege, zeitraum, onEintrag }) {
+function MandantZeilen({ m, offen, onUmschalten, onVerrechnen, eintraege, zeitraum, onEintrag, offen2 }) {
   const satzKlasse = (satz, ziel) => (satz == null || ziel == null ? '' : satz >= ziel ? 'zv-gut' : satz >= ziel * 0.8 ? 'zv-knapp' : 'zv-tief');
   return (
     <>
@@ -162,7 +172,7 @@ function MandantZeilen({ m, offen, onUmschalten, onVerrechnen, eintraege, zeitra
         <td className="zahl">{m.extraMinuten ? `${h(m.extraMinuten)} · ${fr(m.extraBetrag)}` : '–'}</td>
         <td className="zahl">{m.offenMinuten ? <strong className="liq-plus">{fr(m.offenBetrag)}</strong> : '–'}</td>
         <td className="spalte-aktionen" onClick={(e) => e.stopPropagation()}>
-          {m.offenMinuten > 0 && <button type="button" className="btn-klein btn-klein-primaer" onClick={onVerrechnen}>Verrechnen</button>}
+          {offen2?.minuten > 0 && <button type="button" className="btn-klein btn-klein-primaer" onClick={onVerrechnen} title={`${h(offen2.minuten)} noch nicht rapportiert`}>Rapportieren</button>}
         </td>
       </tr>
       {offen && m.leistungen.map((l) => (

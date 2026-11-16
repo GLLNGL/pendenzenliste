@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import PendenzModal from '../components/PendenzModal.jsx';
+import ZeitModal from '../components/ZeitModal.jsx';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../api.js';
 import RapportDokument from '../components/RapportDokument.jsx';
@@ -10,7 +13,7 @@ import { useAuth } from '../AuthContext.jsx';
 import { meldeZeitAenderung } from '../events.js';
 import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { zeitraum, artLabel, formatiereDauer } from '../lib/zeit.js';
-import { rapportDaten, naechsteRapportNummer, stundenText } from '../lib/rapport.js';
+import { rapportDaten, nachPendenz, naechsteRapportNummer, stundenText } from '../lib/rapport.js';
 import { textErsetzen, chf } from '../lib/offerte.js';
 import { elementZuPdf, herunterladen } from '../lib/pdf.js';
 import { qrReferenz, scorReferenz, naechsteRechnungsNr, plusTage, adresseVon, zahlteil, rechnungsPositionen } from '../lib/qrrechnung.js';
@@ -33,6 +36,14 @@ async function blobBase64(blob) {
   let bin = '';
   for (let i = 0; i < puffer.length; i += 0x8000) bin += String.fromCharCode(...puffer.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+
+function FragmentGruppe({ children }) {
+  return <>{children}</>;
+}
+
+function rechnungBelegVorab(kopf, debitoren) {
+  return kopf.rechnung_nr && debitoren.some((d) => String(d.rechnungsnummer) === String(kopf.rechnung_nr));
 }
 
 export default function RapportEditor() {
@@ -63,6 +74,12 @@ export default function RapportEditor() {
   const [meldung, setMeldung] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(null);
   const [mailOffen, setMailOffen] = useState(false);
+  const [pendenzInfo, setPendenzInfo] = useState([]);
+  const [offenePendenz, setOffenePendenz] = useState(null);
+  const [zeitOffen, setZeitOffen] = useState(null);
+  const [aufgeklappt, setAufgeklappt] = useState(new Set());
+  const [ladeZaehler, setLadeZaehler] = useState(0);
+  const neuLaden = useCallback(() => setLadeZaehler((z) => z + 1), []);
 
   useEffect(() => {
     let abgebrochen = false;
@@ -98,13 +115,24 @@ export default function RapportEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Neuer Rapport: offene Zeit des Mandanten im Zeitraum laden.
+  // Neuer Rapport: offene Zeit des Mandanten im Zeitraum laden (bzw. nach einer Korrektur neu).
   useEffect(() => {
-    if (!neu || !kopf?.mandant_id || !kopf.von || !kopf.bis) { if (neu) setEintraege([]); return; }
+    if (!neu) {
+      if (ladeZaehler && kopf?.id) api.rapporte.eintraege({ rapportId: kopf.id }).then(setEintraege).catch((e) => setFehler(e.message));
+      return;
+    }
+    if (!kopf?.mandant_id || !kopf.von || !kopf.bis) { setEintraege([]); return; }
     api.rapporte.eintraege({ mandantId: kopf.mandant_id, von: kopf.von, bis: kopf.bis })
-      .then((d) => { setEintraege(d); setAusgeschlossen(new Set()); })
+      .then((d) => { setEintraege(d); if (!ladeZaehler) setAusgeschlossen(new Set()); })
       .catch((e) => setFehler(e.message));
-  }, [neu, kopf?.mandant_id, kopf?.von, kopf?.bis]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neu, kopf?.mandant_id, kopf?.von, kopf?.bis, ladeZaehler]);
+
+  // Pendenzen (mit Projekt) zu den Eintraegen nachladen.
+  useEffect(() => {
+    const ids = [...new Set(eintraege.map((e) => e.pendenz_id).filter(Boolean))];
+    api.pendenzen.mehrere(ids).then(setPendenzInfo).catch(() => setPendenzInfo([]));
+  }, [eintraege]);
 
   if (fehler && !kopf) {
     return (
@@ -120,6 +148,8 @@ export default function RapportEditor() {
   const bearbeiter = mitarbeitende.find((m) => String(m.id) === String(kopf.bearbeiter_id))?.name;
   const enthalten = eintraege.filter((e) => !ausgeschlossen.has(e.id));
   const daten = rapportDaten(enthalten, { runden: Number(kopf.runden_minuten), mwstPflichtig: kopf.mwst_pflichtig, mwstSatz: kopf.mwst_satz });
+  const gruppen = nachPendenz(eintraege, pendenzInfo, { runden: Number(kopf.runden_minuten) });
+  const schritt = neu ? 1 : rechnungBelegVorab(kopf, debitoren) ? 3 : 2;
   const dateiname = `Detailrapport ${kopf.nummer}${mandant ? ` ${mandant.name}` : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '');
   const zeitraumText = `${formatiereDatum(kopf.von)} – ${formatiereDatum(kopf.bis)}`;
   const rechnungBeleg = !neu && kopf.rechnung_nr ? debitoren.find((d) => String(d.rechnungsnummer) === String(kopf.rechnung_nr)) : null;
@@ -175,6 +205,21 @@ export default function RapportEditor() {
     const z = zeitraum(art, heutigesDatumISO());
     if (z) setKopf((k) => ({ ...k, ...z }));
   }
+  const gruppeArtSetzen = (g, art) => aktion(`art-${g.schluessel}`, async () => {
+    for (const e of g.eintraege) if (e.art !== art && !e.rapport_id) await api.zeit.artSetzen(e, art);
+    if (g.pendenzId) await api.pendenzen.verrechnungSetzen(g.pendenzId, art);
+    meldeZeitAenderung();
+    neuLaden();
+  });
+  function gruppeUmschalten(g, drin) {
+    setAusgeschlossen((alt) => { const n = new Set(alt); for (const e of g.eintraege) { if (drin) n.delete(e.id); else n.add(e.id); } return n; });
+  }
+  async function pendenzOeffnen(pendenzId) {
+    try { setOffenePendenz(await api.pendenzen.holen(pendenzId)); } catch (e) { setFehler(e.message); }
+  }
+  function aufklappen(schluessel) {
+    setAufgeklappt((alt) => { const n = new Set(alt); if (n.has(schluessel)) n.delete(schluessel); else n.add(schluessel); return n; });
+  }
   function umschalten(eintragId) {
     setAusgeschlossen((alt) => { const n = new Set(alt); if (n.has(eintragId)) n.delete(eintragId); else n.add(eintragId); return n; });
   }
@@ -222,7 +267,7 @@ export default function RapportEditor() {
           <button type="button" className="btn" onClick={pdfLaden} disabled={!!beschaeftigt}>{beschaeftigt === 'pdf' ? 'PDF…' : 'PDF'}</button>
           {neu ? (
             <button type="button" className="btn btn-primary" onClick={abschliessen} disabled={!mandant || daten.ids.length === 0 || !!beschaeftigt}>
-              Abschliessen &amp; verrechnen
+              ② Rapport abschliessen
             </button>
           ) : (
             <>
@@ -232,9 +277,77 @@ export default function RapportEditor() {
           )}
         </span>
       </div>
+      <ol className="ra-schritte">
+        <li className={neu ? 'aktiv' : 'fertig'}><span>1</span>Arbeiten prüfen<small>Zeit &amp; Verrechnungsart je Pendenz</small></li>
+        <li className={neu ? '' : 'fertig'}><span>2</span>Rapport abschliessen<small>Zeit gilt als verrechnet</small></li>
+        <li className={neu ? '' : schritt === 3 || daten.summen.betragExtra === 0 ? 'fertig' : 'aktiv'}><span>3</span>Rechnung &amp; Versand<small>{daten.summen.betragExtra > 0 || neu ? 'QR-Rechnung + Rapport' : 'nur Rapport (keine Extra-Zeit)'}</small></li>
+      </ol>
       {fehler && <div className="hinweis-fehler">{fehler}</div>}
       {meldung && <div className="hinweis-erfolg">{meldung}</div>}
       {kopf.versendet_am && <div className="offert-hinweis">Versendet am {formatiereDatum(kopf.versendet_am.slice(0, 10))} an {kopf.versendet_an}.</div>}
+
+          <div className="karte offert-karte ra-arbeiten-karte">
+            <div className="karte-kopf">
+              {neu ? '① ' : ''}Arbeiten ({gruppen.length} {gruppen.length === 1 ? 'Pendenz' : 'Pendenzen'})
+              <span className="pauschalen-zusatz"> · Titel öffnet die Pendenz · ▸ zeigt die einzelnen Zeiten{neu ? ' · Häkchen = in diesem Rapport' : ''}</span>
+            </div>
+            <table className="tabelle ra-arbeiten">
+              <tbody>
+                {gruppen.map((g) => {
+                  const drin = g.eintraege.some((e) => !ausgeschlossen.has(e.id));
+                  const offen = aufgeklappt.has(g.schluessel);
+                  return (
+                    <FragmentGruppe key={g.schluessel}>
+                      <tr className={`ra-gruppe ${drin ? '' : 'ausgeschlossen'}`}>
+                        {neu && <td className="ra-check"><input type="checkbox" checked={drin} onChange={(e) => gruppeUmschalten(g, e.target.checked)} aria-label="Im Rapport" /></td>}
+                        <td className="ra-titel">
+                          <button type="button" className="ra-pfeil" onClick={() => aufklappen(g.schluessel)} aria-label="Zeiten anzeigen">{offen ? '▾' : '▸'}</button>
+                          {g.pendenzId
+                            ? <button type="button" className="link-knopf ra-pendenz" onClick={() => pendenzOeffnen(g.pendenzId)} title="Pendenz öffnen">{g.titel}</button>
+                            : <span>{g.titel}</span>}
+                          <span className="text-gedaempft"> · {g.eintraege.length} {g.eintraege.length === 1 ? 'Eintrag' : 'Einträge'}</span>
+                        </td>
+                        <td className="zahl ra-zeit">{stundenText(g.minuten)}</td>
+                        <td className="ra-art">
+                          {neu ? (
+                            <span className="ra-umschalter" role="group" aria-label="Verrechnung">
+                              {['pauschal', 'extra'].map((a) => (
+                                <button key={a} type="button" className={g.art === a ? 'aktiv' : ''} disabled={!!beschaeftigt} onClick={() => g.art !== a && gruppeArtSetzen(g, a)}>
+                                  {a === 'pauschal' ? 'Pauschal' : 'Extra'}
+                                </button>
+                              ))}
+                            </span>
+                          ) : <span className={`zeit-art zeit-art-${g.art === 'gemischt' ? 'pauschal' : g.art}`}>{g.art === 'gemischt' ? 'gemischt' : artLabel(g.art)}</span>}
+                          {neu && g.art === 'gemischt' && <div className="text-gedaempft ra-gemischt">gemischt – Klick vereinheitlicht</div>}
+                        </td>
+                        <td className="zahl ra-betrag">{g.betrag ? chf(g.betrag).replace('CHF ', '') : ''}</td>
+                      </tr>
+                      {offen && g.eintraege.map((e) => (
+                        <tr key={e.id} className={`ra-eintrag ${ausgeschlossen.has(e.id) ? 'ausgeschlossen' : ''}`}>
+                          {neu && <td className="ra-check"><input type="checkbox" checked={!ausgeschlossen.has(e.id)} onChange={() => umschalten(e.id)} aria-label="Eintrag im Rapport" /></td>}
+                          <td className="ra-titel">
+                            <button type="button" className="link-knopf ra-eintrag-knopf" onClick={() => setZeitOffen(e)} disabled={!neu && !!e.rapport_id} title={neu ? 'Zeit korrigieren' : undefined}>
+                              {formatiereDatum(e.datum)} · {e.schrittTitel || e.beschreibung || e.pendenzen?.titel || '–'}{e.mitarbeitende?.name ? ` · ${e.mitarbeitende.name}` : ''}
+                            </button>
+                          </td>
+                          <td className="zahl">{formatiereDauer(e.minuten)}</td>
+                          <td><span className={`zeit-art zeit-art-${e.art}`}>{artLabel(e.art)}</span></td>
+                          <td className="zahl">{e.art === 'extra' ? chf((e.minuten / 60) * Number(e.stundenansatz_chf ?? 0)).replace('CHF ', '') : ''}</td>
+                        </tr>
+                      ))}
+                    </FragmentGruppe>
+                  );
+                })}
+                {gruppen.length === 0 && <tr><td className="leer-hinweis">{mandant ? 'Keine offene Zeit in diesem Zeitraum.' : 'Zuerst einen Mandanten wählen.'}</td></tr>}
+              </tbody>
+            </table>
+            {neu && gruppen.length > 0 && (
+              <div className="ra-weiter">
+                <span>{stundenText(daten.summen.minutenPauschal)} Pauschal · {stundenText(daten.summen.minutenExtra)} Extra = <strong>{chf(daten.summen.total)}</strong> zu verrechnen</span>
+                <button type="button" className="btn btn-primary" onClick={abschliessen} disabled={!mandant || daten.ids.length === 0 || !!beschaeftigt}>② Rapport abschliessen →</button>
+              </div>
+            )}
+          </div>
 
       <div className="offert-arbeitsbereich">
         <div className="offert-formular">
@@ -271,7 +384,6 @@ export default function RapportEditor() {
               )}
               {neu && <p className="feld-hinweis">{zeitraumText} – nur Zeit, die noch in keinem Rapport verrechnet ist.</p>}
               <div className="feld-reihe">
-                <div className="feld"><label htmlFor="ra-rechnung">Rechnung-Nr. (optional)</label><input id="ra-rechnung" value={kopf.rechnung_nr} onChange={(e) => aendern('rechnung_nr', e.target.value)} /></div>
                 <div className="feld">
                   <label htmlFor="ra-mwst">MWST auf Extra</label>
                   <select id="ra-mwst" value={kopf.mwst_pflichtig ? '1' : '0'} onChange={(e) => aendern('mwst_pflichtig', e.target.value === '1')} disabled={!neu}>
@@ -284,36 +396,13 @@ export default function RapportEditor() {
                 <label htmlFor="ra-bemerkung">Bemerkung auf dem Rapport</label>
                 <textarea id="ra-bemerkung" value={kopf.bemerkung} onChange={(e) => aendern('bemerkung', e.target.value)} />
               </div>
-              {!neu && <button type="button" className="btn-klein" onClick={rechnungSpeichern} disabled={!!beschaeftigt}>Rechnung-Nr. &amp; Bemerkung speichern</button>}
-            </div>
-          </div>
-
-          <div className="karte offert-karte">
-            <div className="karte-kopf">
-              Zeiteinträge ({daten.ids.length}{ausgeschlossen.size ? ` von ${eintraege.length}` : ''})
-              {neu && <span className="pauschalen-zusatz"> · Häkchen entfernen, um einen Eintrag nicht in diesen Rapport zu nehmen. Korrigieren im Zeitjournal.</span>}
-            </div>
-            <div className="rapport-eintraege">
-              <table className="tabelle">
-                <tbody>
-                  {eintraege.map((e) => (
-                    <tr key={e.id} className={ausgeschlossen.has(e.id) ? 'ausgeschlossen' : ''}>
-                      {neu && <td><input type="checkbox" checked={!ausgeschlossen.has(e.id)} onChange={() => umschalten(e.id)} aria-label="Im Rapport" /></td>}
-                      <td>{formatiereDatum(e.datum)}</td>
-                      <td>{e.beschreibung || e.pendenzen?.titel || '–'}</td>
-                      <td><span className={`zeit-art zeit-art-${e.art}`}>{artLabel(e.art)}</span></td>
-                      <td className="zahl">{formatiereDauer(e.minuten)}</td>
-                    </tr>
-                  ))}
-                  {eintraege.length === 0 && <tr><td className="leer-hinweis">{mandant ? 'Keine offene Zeit in diesem Zeitraum.' : 'Zuerst einen Mandanten wählen.'}</td></tr>}
-                </tbody>
-              </table>
+              {!neu && <button type="button" className="btn-klein" onClick={rechnungSpeichern} disabled={!!beschaeftigt}>Bemerkung speichern</button>}
             </div>
           </div>
 
           {!neu && daten.summen.betragExtra > 0 && rk && (
             <div className="karte offert-karte">
-              <div className="karte-kopf">Rechnung mit QR-Einzahlungsschein</div>
+              <div className="karte-kopf">③ Rechnung mit QR-Einzahlungsschein</div>
               <div className="modal-koerper">
                 {rechnungBeleg ? (
                   <>
@@ -383,6 +472,22 @@ export default function RapportEditor() {
           )}
         </div>
       </div>
+
+      {offenePendenz && createPortal(
+        <PendenzModal
+          pendenz={offenePendenz}
+          mandanten={mandanten}
+          mitarbeitende={mitarbeitende}
+          onSchliessen={() => { setOffenePendenz(null); neuLaden(); }}
+          onGespeichert={() => neuLaden()}
+          onGeloescht={() => { setOffenePendenz(null); neuLaden(); }}
+        />,
+        document.body,
+      )}
+      {zeitOffen && createPortal(
+        <ZeitModal eintrag={zeitOffen} onSchliessen={() => setZeitOffen(null)} onGespeichert={() => { setZeitOffen(null); neuLaden(); }} />,
+        document.body,
+      )}
 
       {mailOffen && (
         <FormularModal

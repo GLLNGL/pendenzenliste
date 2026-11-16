@@ -1069,6 +1069,12 @@ const api = {
       }
       return data;
     },
+    // Verrechnungsart eines Eintrags umstellen (Pauschal <-> Extra); bei Extra wird der Ansatz
+    // aus Leistung bzw. Standardansatz neu bestimmt.
+    artSetzen: async (e, art) => api.zeit.speichern(e.id, {
+      mandantId: e.mandant_id, pendenzId: e.pendenz_id, leistungId: e.leistung_id, art, datum: e.datum,
+      minuten: e.minuten, beschreibung: e.beschreibung, stundenansatzChf: art === 'extra' ? e.stundenansatz_chf : null,
+    }),
     loeschen: async (id) => {
       await verrechnetPruefen(id);
       const { error } = await supabase.from('zeiteintraege').delete().eq('id', id);
@@ -1216,6 +1222,18 @@ const api = {
       return count ?? 0;
     },
     // Schritte eines Projekts in ihrer Reihenfolge (Projekt-Logik, Etappe 2).
+    // Kurzinfo mehrerer Pendenzen (fuer die Gruppierung im Rapport).
+    mehrere: async (ids) => {
+      if (!ids.length) return [];
+      const { data, error } = await supabase.from('pendenzen_angereichert')
+        .select('id, titel, uebergeordnete_pendenz_id, eltern_titel, verrechnung, status').in('id', ids);
+      pruefeFehler(error);
+      return data;
+    },
+    verrechnungSetzen: async (id, art) => {
+      const { error } = await supabase.from('pendenzen').update({ verrechnung: art === 'extra' ? 'extra' : 'pauschal' }).eq('id', id);
+      pruefeFehler(error);
+    },
     teilaufgaben: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('uebergeordnete_pendenz_id', id)

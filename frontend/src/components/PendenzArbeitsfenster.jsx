@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
 import DateienListe from './DateienListe.jsx';
@@ -54,6 +54,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const [fehler, setFehler] = useState(null);
   const [beschreibungLang, setBeschreibungLang] = useState(false);
   const timer = useLaufenderTimer();
+  const navigate = useNavigate();
   const leistungen = useLeistungen();
   const notizRef = useRef(null);
 
@@ -122,6 +123,12 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     : pendenz.aufwand_minuten || 0;
   const anteil = geschaetzt ? summe.gesamt / geschaetzt : null;
   const extraOffen = fertig.filter((z) => z.art === 'extra' && !z.rapport_id).reduce((s, z) => s + (betragExtra(z) ?? 0), 0);
+  const offeneZeit = fertig.filter((z) => !z.rapport_id && z.mandant_id && z.art !== 'intern');
+  const rapportieren = () => {
+    const von = offeneZeit.reduce((min, z) => (z.datum < min ? z.datum : min), heute);
+    onSchliessen();
+    navigate(`/rapporte/neu?mandant=${pendenz.mandant_id}&von=${von}&bis=${heute}`);
+  };
   const zeitProSchritt = new Map();
   for (const z of fertig) zeitProSchritt.set(z.pendenz_id, (zeitProSchritt.get(z.pendenz_id) ?? 0) + z.minuten);
 
@@ -245,10 +252,10 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 <span><i className="aw-punkt pauschal" />Pauschal {stunden(summe.pauschal)}</span>
                 <span><i className="aw-punkt extra" />Extra {stunden(summe.extra)}</span>
               </div>
-              {extraOffen > 0 && (
+              {offeneZeit.length > 0 && mandant && (
                 <div className="aw-extra-offen">
-                  Extra noch nicht verrechnet: <strong>{chf(extraOffen)}</strong>
-                  {mandant && <Link to={`/zeit-verrechnung`} onClick={onSchliessen}> → verrechnen</Link>}
+                  Noch nicht rapportiert: <strong>{stunden(offeneZeit.reduce((s2, z) => s2 + z.minuten, 0))}</strong>{extraOffen > 0 ? <> · davon Extra <strong>{chf(extraOffen)}</strong></> : null}
+                  <button type="button" className="btn-klein btn-klein-primaer aw-rapportieren" onClick={rapportieren}>Rapportieren →</button>
                 </div>
               )}
               <ul className="aw-zeitliste">

@@ -46,6 +46,36 @@ function rapportDaten(eintraege, { runden = 5, mwstPflichtig = true, mwstSatz = 
   };
 }
 
+/**
+ * Zeiteintraege nach Pendenz (Projekt) gruppieren -- fuer die Rapport-Ansicht.
+ * @param eintraege Zeiteintraege (mit pendenz_id, art, minuten, stundenansatz_chf)
+ * @param pendenzen Map/Liste { id, titel, uebergeordnete_pendenz_id, eltern_titel }
+ * @returns [{ schluessel, pendenzId, titel, minuten, art: 'pauschal'|'extra'|'gemischt', betrag, eintraege }]
+ */
+function nachPendenz(eintraege, pendenzen = [], { runden = 5 } = {}) {
+  const nach = new Map((Array.isArray(pendenzen) ? pendenzen : [...pendenzen.values()]).map((p) => [p.id, p]));
+  const gruppen = new Map();
+  for (const e of eintraege) {
+    if (e.minuten == null || e.art === 'intern') continue;
+    const p = nach.get(e.pendenz_id);
+    const projektId = p ? (p.uebergeordnete_pendenz_id ?? p.id) : null;
+    const schluessel = projektId ?? `ohne-${e.beschreibung || ''}`;
+    if (!gruppen.has(schluessel)) {
+      const titel = p ? (p.uebergeordnete_pendenz_id ? (p.eltern_titel ?? p.titel) : p.titel) : (e.beschreibung || 'Ohne Pendenz');
+      gruppen.set(schluessel, { schluessel, pendenzId: projektId, titel, minuten: 0, betrag: 0, eintraege: [] });
+    }
+    const g = gruppen.get(schluessel);
+    const minuten = rundeMinuten(e.minuten, runden);
+    g.minuten += minuten;
+    if (e.art === 'extra') g.betrag = runden2(g.betrag + (minuten / 60) * Number(e.stundenansatz_chf ?? 0));
+    g.eintraege.push({ ...e, schrittTitel: p && p.uebergeordnete_pendenz_id ? p.titel : null });
+  }
+  return [...gruppen.values()].map((g) => {
+    const arten = new Set(g.eintraege.map((e) => e.art));
+    return { ...g, art: arten.size > 1 ? 'gemischt' : [...arten][0] };
+  }).sort((a, b) => (a.titel ?? '').localeCompare(b.titel ?? '', 'de-CH'));
+}
+
 function naechsteRapportNummer(rapporte, jahr) {
   const praefix = `R-${jahr}-`;
   const hoechste = rapporte.reduce((max, r) => {
@@ -61,4 +91,4 @@ function stundenText(minuten) {
   return `${Math.floor(minuten / 60)}:${String(minuten % 60).padStart(2, '0')} h`;
 }
 
-export { rundeMinuten, rapportDaten, naechsteRapportNummer, stundenText };
+export { rundeMinuten, rapportDaten, nachPendenz, naechsteRapportNummer, stundenText };
