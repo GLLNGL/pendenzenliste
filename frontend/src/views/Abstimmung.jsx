@@ -273,7 +273,7 @@ function SvFormular({ bereich, daten, setDaten, grundlagen }) {
               ))}
             </tbody>
           </table>
-          {ka.ohneStamm.length > 0 && <div className="text-ueberfaellig abst-fuss">Lohnarten im Journal ohne Kontierung im Lohnartenstamm: {ka.ohneStamm.join(', ')}</div>}
+          {ka.ohneStamm.length > 0 && <div className="text-gedaempft abst-fuss">Nicht verbuchte Lohnarten (Summen-/Info-Lohnarten oder Kontierung fehlt): {ka.ohneStamm.join(', ')}</div>}
           {ka.ohneKonto.length > 0 && <div className="text-ueberfaellig abst-fuss">Laut Lohnartenstamm bebucht, aber nicht in der Erfolgsrechnung: Konto {ka.ohneKonto.join(', ')}</div>}
         </Karte>
       )}

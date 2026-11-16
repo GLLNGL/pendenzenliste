@@ -62,7 +62,7 @@ function SvTeil({ bereich, daten, r, grundlagen }) {
             rechts={[2, 3, 4]}
             zeilen={ka.zeilen.map((z) => ({ zellen: [`${z.konto} ${z.text}`, z.lohnarten.join(', '), b(z.fibu), b(z.lohn), <Diff d={z.d} />] }))}
           />
-          {ka.ohneStamm.length > 0 && <div className="ar-fehler ar-klein">Lohnarten ohne Kontierung: {ka.ohneStamm.join(', ')}</div>}
+          {ka.ohneStamm.length > 0 && <div className="ar-leer ar-klein">Nicht verbuchte Lohnarten: {ka.ohneStamm.join(', ')}</div>}
         </>
       )}
 
