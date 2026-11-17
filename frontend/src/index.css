@@ -3103,3 +3103,15 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 /* Projekt aus einer Teilaufgabe geoeffnet: Zurueck-Knopf ueber dem Kopf */
 .projekt-zurueck { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--border); background: var(--accent-bg, #eef4ff); color: var(--accent); font: inherit; font-weight: 600; padding: 8px 18px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .projekt-zurueck:hover { background: var(--surface-hover); }
+
+/* Antwort erhalten (Warten auf): E-Mail ablegen und neu terminieren */
+.antwort-box { border: 1px solid #f0c36d; background: #fffaf0; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+.antwort-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.antwort-titel { font-weight: 700; color: #8a5a00; }
+.antwort-info { font-size: var(--fs-klein); color: var(--text-muted); }
+.antwort-ablage { border: 2px dashed #e0b100; border-radius: var(--radius); padding: 14px; text-align: center; font-size: var(--fs-klein); color: var(--text-muted); background: var(--surface); }
+.antwort-ablage.aktiv { background: #fff1c2; border-color: #b8860b; color: var(--text); }
+.antwort-box textarea { width: 100%; resize: vertical; }
+.antwort-aktion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--fs-klein); }
+.antwort-aktion label { display: inline-flex; align-items: center; gap: 6px; }
+.offert-nachfassen { margin-left: 10px; }

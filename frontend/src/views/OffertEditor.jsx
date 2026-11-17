@@ -228,6 +228,13 @@ export default function OffertEditor() {
           an: adressen[0] || '', cc: '', bcc: '',
           betreff: textErsetzen(texte.mailBetreff || 'Angebot {nummer} – {firma}', platzhalter),
           text: textErsetzen(texte.mailText || '', platzhalter),
+          // Nachfassen in einer Woche -- spaetestens am letzten Gueltigkeitstag der Offerte.
+          nachfassen: true,
+          nachfassenAm: (() => {
+            const heute = heutigesDatumISO();
+            const woche = datumPlusTage(heute, 7);
+            return kopf.gueltig_bis && kopf.gueltig_bis > heute && kopf.gueltig_bis < woche ? kopf.gueltig_bis : woche;
+          })(),
         }}
         felder={[
           { name: 'an', label: 'An', typ: 'text', pflicht: true, auswahl: () => [
@@ -239,15 +246,28 @@ export default function OffertEditor() {
           { name: 'bcc', label: 'BCC', typ: 'text', halb: true, platzhalter: 'optional' },
           { name: 'betreff', label: 'Betreff', typ: 'text', pflicht: true },
           { name: 'text', label: 'Text', typ: 'textarea', pflicht: true, hinweis: 'Signatur mit Logo wird automatisch angehängt (Arial 10).' },
+          { name: 'nachfassen', label: 'Pendenz zum Nachfassen anlegen', typ: 'checkbox', halb: true },
+          { name: 'nachfassenAm', label: 'Nachfassen am', typ: 'datum', halb: true, hinweis: 'Pendenz «Offerte … nachfassen» im Status «Warten auf», mit der Offerte als PDF.' },
         ]}
         vorschau={() => `Anhang: ${dateiname}`}
         onSpeichern={async (f) => {
           const o = geaendert || neu ? await speichern() : kopf;
-          const { base64 } = await elementZuPdf(dokumentRef.current);
-          await api.offerten.versenden({ ...kopf, ...o }, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname });
+          const { base64, blob } = await elementZuPdf(dokumentRef.current);
+          const offerte = { ...kopf, ...o };
+          await api.offerten.versenden(offerte, { an: f.an, cc: f.cc, bcc: f.bcc, betreff: f.betreff, text: f.text, pdfBase64: base64, dateiname });
           setKopf((k) => ({ ...k, status: k.status === 'Entwurf' ? 'Versendet' : k.status, versendet_an: f.an, versendet_am: new Date().toISOString() }));
+          let zusatz = '';
+          if (f.nachfassen) {
+            try {
+              const pdf = new File([blob], dateiname, { type: 'application/pdf' });
+              const r = await api.offerten.nachfassPendenz(offerte, { datum: f.nachfassenAm, an: f.an, mandantName: mandant?.name, pdf });
+              zusatz = ` ${r.neu ? 'Pendenz zum Nachfassen' : 'Nachfass-Pendenz'} auf ${formatiereDatum(f.nachfassenAm)} ${r.neu ? 'angelegt' : 'verschoben'}.`;
+            } catch (err) {
+              zusatz = ` Achtung: Nachfass-Pendenz nicht angelegt (${err.message}).`;
+            }
+          }
           setDialog(null);
-          setMeldung(`Offerte an ${f.an} gesendet.`);
+          setMeldung(`Offerte an ${f.an} gesendet.${zusatz}`);
         }}
         onSchliessen={() => setDialog(null)}
       />
@@ -367,7 +387,12 @@ export default function OffertEditor() {
           </button>
         </div>
       )}
-      {kopf.versendet_am && <div className="offert-hinweis">Versendet am {formatiereDatum(kopf.versendet_am.slice(0, 10))} an {kopf.versendet_an}.</div>}
+      {kopf.versendet_am && (
+        <div className="offert-hinweis">
+          Versendet am {formatiereDatum(kopf.versendet_am.slice(0, 10))} an {kopf.versendet_an}.
+          {kopf.status === 'Versendet' && <button type="button" className="btn-klein offert-nachfassen" onClick={() => setDialog('nachfassen')}>Pendenz zum Nachfassen…</button>}
+        </div>
+      )}
       {kopf.status === 'Angenommen' && kopf.pauschalen_ab && <div className="offert-hinweis">Angenommen – Pauschalen ab {formatiereDatum(kopf.pauschalen_ab)} beim Mandanten hinterlegt. Weitere Änderungen hier ändern die Pauschalen nicht mehr.</div>}
 
       <div className="offert-arbeitsbereich">
@@ -478,6 +503,20 @@ export default function OffertEditor() {
 
       {dialog === 'mail' && mailDialog()}
       {dialog === 'annahme' && annahmeDialog()}
+      {dialog === 'nachfassen' && (
+        <FormularModal
+          titel={`Offerte ${kopf.nummer} nachfassen`}
+          speichernText="Pendenz anlegen"
+          startwerte={{ nachfassenAm: datumPlusTage(heutigesDatumISO(), 7) }}
+          felder={[{ name: 'nachfassenAm', label: 'Nachfassen am', typ: 'datum', pflicht: true, hinweis: 'Legt die Pendenz «Offerte … nachfassen» im Status «Warten auf» an (gibt es sie schon, wird nur das Datum verschoben).' }]}
+          onSpeichern={async (f) => {
+            const r = await api.offerten.nachfassPendenz(kopf, { datum: f.nachfassenAm, an: kopf.versendet_an || '', mandantName: mandant?.name });
+            setDialog(null);
+            setMeldung(`${r.neu ? 'Pendenz zum Nachfassen angelegt' : 'Nachfass-Pendenz verschoben'}: ${formatiereDatum(f.nachfassenAm)}.`);
+          }}
+          onSchliessen={() => setDialog(null)}
+        />
+      )}
       {dialog === 'mandant' && (
         <MandantModal
           mandant={null}

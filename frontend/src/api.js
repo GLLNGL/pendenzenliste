@@ -985,6 +985,31 @@ const api = {
       const { error } = await supabase.from('offerten').update(patch).eq('id', offerte.id);
       pruefeFehler(error);
     },
+    // Nach dem Versand: Pendenz "Offerte <Nr> nachfassen" im Status "Warten auf" mit
+    // Nachfassdatum. Gibt es schon eine offene fuer diese Offerte (erneuter Versand), wird nur das
+    // Nachfassdatum angepasst. Die versendete Offerte (PDF) haengt an der Pendenz.
+    nachfassPendenz: async (offerte, { datum, an, mandantName, pdf = null }) => {
+      if (!/^20\d{2}-\d{2}-\d{2}$/.test(datum ?? '')) throw new Error('Bitte ein gültiges Nachfassdatum angeben.');
+      const titel = `Offerte ${offerte.nummer} nachfassen`;
+      const person = mandantName || 'Kunde';
+      const { data: bestehend, error: fehlerSuche } = await supabase.from('pendenzen').select('id')
+        .eq('mandant_id', offerte.mandant_id).eq('titel', titel).neq('status', 'Erledigt').limit(1);
+      pruefeFehler(fehlerSuche);
+      if (bestehend?.length) {
+        await api.pendenzen.aktualisieren(bestehend[0].id, { status: 'Warten auf', wartenAufPerson: person, wiedervorlage: datum });
+        return { id: bestehend[0].id, neu: false };
+      }
+      const gueltig = offerte.gueltig_bis ? ` Gültig bis ${offerte.gueltig_bis.split('-').reverse().join('.')}.` : '';
+      const pendenz = await api.pendenzen.erstellen({
+        titel, mandantId: offerte.mandant_id, bearbeiterId: offerte.bearbeiter_id ?? null, prioritaet: 'B',
+        status: 'Warten auf', wartenAufPerson: person, wiedervorlage: datum, aufwandMinuten: 15,
+        beschreibung: `Offerte ${offerte.nummer} am ${heutigesDatumISO().split('-').reverse().join('.')} an ${an} versendet.${gueltig} Beim Nachfassdatum beim Kunden nachfragen; Antwort hier ablegen und neu terminieren.`,
+      });
+      if (pdf) {
+        try { await api.dateien.hochladen(pdf, { pendenzId: pendenz.id, mandantId: offerte.mandant_id }); } catch { /* PDF ist Zusatz -- Pendenz zaehlt */ }
+      }
+      return { id: pendenz.id, neu: true };
+    },
   },
 
   // Zeiterfassung (v7, Etappe 2). Laufender Timer = minuten null (pro Person hoechstens einer).

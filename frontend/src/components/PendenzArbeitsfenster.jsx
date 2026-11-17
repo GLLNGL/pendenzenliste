@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
 import DateienListe from './DateienListe.jsx';
+import AntwortErhalten from './AntwortErhalten.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import PendenzenlisteExport from './PendenzenlisteExport.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
@@ -85,6 +86,8 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const [erledigtMeldung, setErledigtMeldung] = useState(null);
   // Eingabe fuer "Warten auf" (Person, Nachfassdatum) beim Statuswechsel.
   const [warten, setWarten] = useState(null);
+  // Zaehler, damit die Dateiliste nach dem Ablegen einer Antwort neu laedt.
+  const [dateienStand, setDateienStand] = useState(0);
   const [groesse, setGroesse] = useState(() => { try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 75; } catch { return 75; } });
   const timer = useLaufenderTimer();
   const leistungen = useLeistungen();
@@ -422,6 +425,17 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </section>
             )}
 
+            {/* Wartet die Teilaufgabe bzw. das Projekt auf jemanden (z.B. Offerte nachfassen):
+                Antwort ablegen und neu terminieren. */}
+            {(schrittAnsicht ? fokus : projekt)?.status === 'Warten auf' && (
+              <AntwortErhalten
+                key={(schrittAnsicht ? fokus : projekt).id}
+                pendenz={schrittAnsicht ? fokus : projekt}
+                mandant={mandant}
+                onGeaendert={() => { setDateienStand((n) => n + 1); meldeAenderung(); laden(); }}
+              />
+            )}
+
             <section className="aw-abschnitt">
               <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Status & Zeit' : 'Verlauf'} <span className="aw-zaehler">mit Dauer → Rapport · ohne Dauer → Notiz · Timer ergänzt automatisch</span></div>
               <div className="aw-eingabe">
@@ -534,7 +548,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </section>
 
             <section className="aw-karte">
-              <DateienListe pendenzIds={[projekt.id, ...schritte.map((s) => s.id)]} mandant={mandant} hochladenFuer={{ pendenzId: projekt.id, mandantId: projekt.mandant_id }} leerAusblenden={false} />
+              <DateienListe key={dateienStand} pendenzIds={[projekt.id, ...schritte.map((s) => s.id)]} mandant={mandant} hochladenFuer={{ pendenzId: projekt.id, mandantId: projekt.mandant_id }} leerAusblenden={false} />
             </section>
           </aside>
         </div>
