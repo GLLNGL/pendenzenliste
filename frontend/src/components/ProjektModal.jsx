@@ -28,7 +28,7 @@ const neueZeile = (verrechnung = 'pauschal', bearbeitungstag = '') => ({
 // Prioritaet, Frist (abschliessen bis) und Verrechnung; die Arbeit steckt in den Teilschritten --
 // je eine Zeile mit eigenem Bearbeitungsdatum, Aufwand und Verrechnung. Der Aufwand des Projekts
 // ist die Summe der Teilschritte.
-export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, onSchliessen, onGespeichert, onGeloescht }) {
+export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, onSchliessen, onGespeichert, onGeloescht, onArbeitsfenster }) {
   const { benutzer } = useAuth();
   const leistungen = useLeistungen();
   const [kopf, setKopf] = useState(() => ({
@@ -449,6 +449,7 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
             <div style={{ display: 'flex', gap: 8 }}>
               {pendenz && <button type="button" className="btn btn-gefahr" onClick={loeschen} disabled={speichert}>Löschen</button>}
               {pendenz && <button type="button" className="btn" onClick={() => setDetails(true)} title="Status, Warten auf, Notizen, E-Mail, Zeit">Details…</button>}
+              {pendenz && onArbeitsfenster && <button type="button" className="btn" onClick={onArbeitsfenster} title="Arbeitsfenster mit Timer, Zeiterfassung und Verlauf öffnen (ohne zu speichern)">Arbeitsfenster ▶</button>}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn" onClick={onSchliessen}>Abbrechen</button>

@@ -82,7 +82,19 @@ export default function PendenzModal(props) {
   // Bestehende, eingeplante Pendenzen oeffnen zuerst das Arbeitsfenster; «Bearbeiten» zeigt
   // das Formular (fuer das Projekt oder einen Schritt) und kehrt danach zurueck.
   const [formularFuer, setFormularFuer] = useState(null);
+  // Projekte (mit Teilaufgaben) oeffnen direkt «Projekt bearbeiten»; von dort fuehrt ein Knopf
+  // ins Arbeitsfenster. Teilaufgaben und einzelne Pendenzen oeffnen das Arbeitsfenster.
+  const istProjekt = !!pendenz && !pendenz.uebergeordnete_pendenz_id && pendenz.teilaufgaben_gesamt > 0;
+  const [projektFormular, setProjektFormular] = useState(istProjekt && !detail);
   const arbeitsfenster = !!pendenz && !detail && pendenz.geplant !== false;
+  if (projektFormular && !formularFuer) {
+    return (
+      <ProjektModal
+        {...props}
+        onArbeitsfenster={() => setProjektFormular(false)}
+      />
+    );
+  }
   if (arbeitsfenster && !formularFuer) {
     return (
       <PendenzArbeitsfenster
