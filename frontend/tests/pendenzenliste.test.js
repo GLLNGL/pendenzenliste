@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { xlsxBytes, crc32, seriennummer, spaltenName } from '../src/lib/xlsx.js';
-import { dateiname, listeAufbauen, pendenzenlisteBlaetter, protokollHtml } from '../src/lib/pendenzenliste.js';
+import { createRequire } from 'node:module';
+import { dateiname, listeAufbauen, pendenzenlisteBlaetter } from '../src/lib/pendenzenliste.js';
+import { protokollPdf, sauber } from '../src/lib/protokollPdf.js';
+
+const jspdf = createRequire(import.meta.url)('jspdf');
 
 // Minimaler ZIP-Leser fuer den Test (stored).
 function zipLesen(bytes) {
@@ -86,29 +90,31 @@ test('Pendenzenliste: gegliedert nach Projekt, Teilaufgabe und Taetigkeit', () =
   assert.equal(l.anzahlOffen, 3);
 });
 
-test('Pendenzenliste: Excel-Blatt mit Projekt-, Teilaufgaben- und Taetigkeitszeilen', () => {
+test('Pendenzenliste: Excel eine Zeile pro Aufgabe, Arbeiten zusammengefasst', () => {
   const { blaetter } = pendenzenlisteBlaetter({ name: 'A4 Personal AG' }, PENDENZEN, '2026-11-17', ZEITEN, NOTIZEN);
   assert.equal(blaetter.length, 1);
-  const z = blaetter[0].zeilen;
-  const texte = z.slice(4).map((r) => r[1]?.wert ?? r[1] ?? '');
-  assert.deepEqual(texte.slice(0, 9), ['Altprojekt', '1. Teil eines alten Projekts', 'Jahresabschluss', '1. Belege anfordern',
-    'Belege beim Kunden angefordert', 'Nachfassen', '2. Abschluss buchen', 'Warten auf Kontoauszug Dezember', 'MWST Q3']);
-  const nachfassen = z[4 + 5];
-  assert.deepEqual([nachfassen[3].datum, nachfassen[5].wert, nachfassen[6].wert], ['2026-11-10', 0.5, 'Extra']);
-  assert.equal(z[4 + 2][5].wert, 2);
+  const z = blaetter[0].zeilen.slice(4);
+  assert.deepEqual(z.map((r) => r[1].wert), ['Altprojekt', '1. Teil eines alten Projekts', 'Jahresabschluss', '1. Belege anfordern', '2. Abschluss buchen', 'MWST Q3']);
+  const belege = z[3];
+  assert.equal(belege[2].stil, 'statusErledigt');
+  assert.equal(belege[5].wert, '09.11.  Belege beim Kunden angefordert (1:30 h, Pauschal)\n10.11.  Nachfassen (0:30 h, Extra)');
+  assert.deepEqual([belege[6].wert, belege[7].wert, belege[8].stil], [2, 'Pauschal + Extra', 'eingabe']);
+  assert.equal(z[4][5].wert, '13.11.  Warten auf Kontoauszug Dezember');
+  assert.equal(z[5][2].stil, 'statusWarten');
   assert.equal(blaetter[0].fixiereZeilen, 4);
-  const bytes = xlsxBytes(blaetter, new Date(2026, 10, 17));
-  assert.ok(bytes.length > 1000);
+  assert.ok(xlsxBytes(blaetter, new Date(2026, 10, 17)).length > 1000);
 });
 
-test('Protokoll: druckbares HTML mit Unterschriften', () => {
+test('Protokoll-PDF: ausfuellbare Bemerkungsfelder fuer offene Aufgaben', () => {
   const liste = listeAufbauen(PENDENZEN, '2026-11-17', ZEITEN, NOTIZEN);
-  const h = protokollHtml({ mandant: { name: 'Müller & Co' }, liste, heute: '2026-11-17', firma: { firma: 'EST Controlling' }, bearbeiter: 'Angelo' });
-  assert.match(h, /Müller &amp; Co/);
-  assert.ok(h.includes('1. Belege anfordern'));
-  assert.ok(h.includes('Belege beim Kunden angefordert</td><td></td><td class="zahl">1:30 h</td><td>Pauschal'));
-  assert.ok(h.includes('Total Zeitaufwand</td><td class="zahl">2:00 h'));
-  assert.match(h, /Für den Mandanten/);
-  assert.match(h, /Für EST Controlling/);
-  assert.doesNotMatch(h, /intern besprochen/);
+  const { doc, felder, name, seiten } = protokollPdf(jspdf, { mandant: { name: 'Müller & Co' }, liste, heute: '2026-11-17', firma: { firma: 'EST Controlling' }, bearbeiter: 'Angelo' });
+  assert.equal(name, '20261117_Protokoll_Müller & Co.pdf');
+  // 3 offene Aufgaben + allgemeine Bemerkungen + Name + Ort/Datum
+  assert.equal(felder, 6);
+  assert.ok(seiten >= 1);
+  const pdf = doc.output();
+  assert.ok(pdf.includes('/T (bemerkung_3)'));
+  assert.ok(pdf.includes('/T (bemerkungen_allgemein)'));
+  assert.ok(!pdf.includes('(bemerkung_2)'));
+  assert.equal(sauber('MWST → prüfen ✓ «ok»'), 'MWST -> prüfen ok «ok»');
 });

@@ -3,7 +3,8 @@ import api from '../api.js';
 import { useAblageGrund } from '../hooks.js';
 import { relativerOrdner } from '../lib/ablage.js';
 import { unterstuetzt, grundOrdnerHolen, dateiAblegen, herunterladen } from '../lib/ablageOrdner.js';
-import { pendenzenlisteXlsx, listeAufbauen, protokollHtml, ERLEDIGT_TAGE } from '../lib/pendenzenliste.js';
+import { pendenzenlisteXlsx, listeAufbauen, ERLEDIGT_TAGE } from '../lib/pendenzenliste.js';
+import { protokollPdf } from '../lib/protokollPdf.js';
 import { heutigesDatumISO } from '../format.js';
 
 const minusTage = (iso, tage) => {
@@ -11,22 +12,27 @@ const minusTage = (iso, tage) => {
   return new Date(Date.UTC(j, m - 1, t - tage)).toISOString().slice(0, 10);
 };
 
-// HTML-Dokument in einem unsichtbaren Rahmen drucken -- im Druckdialog auch "Als PDF speichern".
-function htmlDrucken(dokument) {
-  const rahmen = document.createElement('iframe');
-  rahmen.setAttribute('aria-hidden', 'true');
-  rahmen.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.appendChild(rahmen);
-  rahmen.onload = () => {
-    const fenster = rahmen.contentWindow;
-    const fertig = () => setTimeout(() => rahmen.remove(), 1000);
-    fenster.addEventListener('afterprint', fertig);
-    // Logo zuerst laden lassen, sonst fehlt es im Ausdruck.
-    const bilder = [...rahmen.contentDocument.images];
-    Promise.all(bilder.map((b) => (b.complete ? null : new Promise((ok) => { b.onload = ok; b.onerror = ok; }))))
-      .then(() => { fenster.focus(); fenster.print(); });
-  };
-  rahmen.srcdoc = dokument;
+// Logo als Data-URL mit Abmessungen (fuer das PDF).
+async function logoLaden() {
+  try {
+    const antwort = await fetch(`${import.meta.env.BASE_URL}logo-est-controlling.png`);
+    const blob = await antwort.blob();
+    const daten = await new Promise((ok, fehler) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = fehler; r.readAsDataURL(blob); });
+    const bild = await new Promise((ok, fehler) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fehler; i.src = daten; });
+    return { daten, breite: bild.naturalWidth, hoehe: bild.naturalHeight };
+  } catch {
+    return null;
+  }
+}
+
+// Schreibrecht fuer den Ablage-Ordner im Klick selbst anfragen -- nach dem Laden der Daten
+// blockiert der Browser die Rueckfrage.
+async function ordnerHandle(ordner) {
+  if (!unterstuetzt() || !ordner?.length) return null;
+  const handle = await grundOrdnerHolen();
+  if (handle && (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted'
+    && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return null;
+  return handle;
 }
 
 // Pendenzenliste des Mandanten: als Excel direkt im Ablage-Ordner des Mandanten
@@ -46,13 +52,7 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
     setMeldung(null);
     try {
       const ordner = relativerOrdner(mandant, grund);
-      // Schreibrecht im Klick selbst anfragen -- nach dem Laden der Daten blockiert der Browser die Rueckfrage.
-      let handle = null;
-      if (unterstuetzt() && ordner?.length) {
-        handle = await grundOrdnerHolen();
-        if (handle && (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted'
-          && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') handle = null;
-      }
+      const handle = await ordnerHandle(ordner);
       const heute = heutigesDatumISO();
       const { pendenzen, zeiten, notizen } = await datenLaden(heute);
       const { blob, name, anzahlOffen } = pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten, notizen);
@@ -70,16 +70,29 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
     }
   }
 
+  // Protokoll als PDF mit ausfuellbaren Bemerkungsfeldern -- im Ordner des Mandanten abgelegt
+  // (20261117_Protokoll_Mandant.pdf), ohne verbundenen Ordner als Download.
   async function protokoll(e) {
     e.stopPropagation();
     setLaeuft('protokoll');
     setMeldung(null);
     try {
+      const ordner = relativerOrdner(mandant, grund);
+      const handle = await ordnerHandle(ordner);
       const heute = heutigesDatumISO();
-      const [{ pendenzen, zeiten, notizen, bearbeiter }, firma] = await Promise.all([datenLaden(heute), api.buero.lesen('firma')]);
+      const [{ pendenzen, zeiten, notizen, bearbeiter }, firma, logo, jspdf] = await Promise.all([
+        datenLaden(heute), api.buero.lesen('firma'), logoLaden(), import('jspdf'),
+      ]);
       const liste = listeAufbauen(pendenzen, heute, zeiten, notizen);
-      const logoUrl = new URL(`${import.meta.env.BASE_URL}logo-est-controlling.png`, window.location.href).href;
-      htmlDrucken(protokollHtml({ mandant, liste, heute, firma, bearbeiter, logoUrl }));
+      const { doc, name, seiten } = protokollPdf(jspdf, { mandant, liste, heute, firma, bearbeiter, logo });
+      const blob = doc.output('blob');
+      if (handle) {
+        const pfad = await dateiAblegen(blob, name, ordner, handle);
+        setMeldung({ ok: true, text: `PDF-Protokoll (${seiten} Seite${seiten === 1 ? '' : 'n'}) abgelegt: ${pfad}` });
+      } else {
+        herunterladen(blob, name);
+        setMeldung({ ok: true, text: `PDF-Protokoll heruntergeladen (kein Ablage-Ordner verbunden).` });
+      }
     } catch (err) {
       setMeldung({ ok: false, text: err.message });
     } finally {
@@ -95,8 +108,8 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
         {laeuft === 'excel' ? 'Erstellt…' : '📊 Pendenzenliste Excel'}
       </button>
       <button type="button" className={knopf} onClick={protokoll} disabled={!!laeuft}
-        title="Protokoll mit Projekten, Teilaufgaben und erledigten Arbeiten drucken – mit Unterschriftsfeldern für den Mandanten (im Druckdialog auch als PDF speicherbar)">
-        {laeuft === 'protokoll' ? 'Bereitet vor…' : '🖨 Protokoll drucken'}
+        title="Protokoll als PDF im Ordner des Mandanten ablegen – mit Feldern, in die der Mandant elektronisch Bemerkungen schreiben kann, und Unterschriftsfeldern">
+        {laeuft === 'protokoll' ? 'Erstellt…' : '📄 PDF-Protokoll'}
       </button>
       {meldung && <span className={`pl-meldung ${meldung.ok ? 'ok' : 'fehler'}`}>{meldung.text}</span>}
     </span>

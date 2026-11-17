@@ -1,5 +1,5 @@
-// Pendenzenliste pro Mandant -- als Excel (zum gemeinsamen Bearbeiten mit dem Mandanten) und
-// als druckbares Protokoll zum Unterzeichnen. Gegliedert nach Projekt:
+// Pendenzenliste pro Mandant -- als Excel (zum gemeinsamen Bearbeiten mit dem Mandanten); das
+// PDF-Protokoll baut protokollPdf.js aus derselben Liste. Gegliedert nach Projekt:
 //
 //   Projekt
 //     Teilaufgabe 1   -> Status, Datum
@@ -122,50 +122,77 @@ function listeAufbauen(pendenzen, heute, zeiten = [], notizen = []) {
   return { projekte, summen: { minuten: summe(alle), pauschal: nachArt('Pauschal'), extra: nachArt('Extra') }, anzahlOffen };
 }
 
+// ---------------------------------------------------------------- Hilfen
+
+const datumCH = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
+function stundenCH(minuten) {
+  if (!minuten) return '';
+  const h = Math.floor(minuten / 60);
+  const m = minuten % 60;
+  return `${h}:${String(m).padStart(2, '0')} h`;
+}
+
 // ---------------------------------------------------------------- Excel
 
-const KOPF = ['Nr.', 'Projekt / Teilaufgabe / Tätigkeit', 'Status', 'Datum', 'Frist', 'Zeit (h)', 'Verrechnung', 'Verantwortlich', 'Rückmeldung / Bemerkung Mandant'];
-const BREITEN = [7, 64, 16, 12, 12, 9, 12, 15, 40];
+// Eine Zeile pro Aufgabe: Projekt als Kopfzeile, Teilaufgaben darunter; die erledigten Arbeiten
+// stehen zusammengefasst in einer Zelle (Datum, was, Zeit, Pauschal/Extra) statt in vielen Zeilen.
+const KOPF = ['Nr.', 'Aufgabe', 'Status', 'Bearbeiten / erledigt am', 'Frist', 'Erledigte Arbeiten', 'Zeit (h)', 'Verrechnung', 'Bemerkung Mandant'];
+const BREITEN = [7, 46, 15, 13, 11, 58, 9, 12, 42];
+
+const STATUS_STIL = { Offen: 'statusOffen', 'In Arbeit': 'statusArbeit', Erledigt: 'statusErledigt' };
+const statusStil = (status) => STATUS_STIL[status] ?? (String(status).startsWith('Warten') ? 'statusWarten' : 'statusOffen');
 
 const leer = (stil) => ({ wert: '', stil });
-const datumZelle = (iso, stil) => (iso ? { datum: iso, stil } : leer(stil === 'projektDatum' ? 'projekt' : stil === 'schrittDatum' ? 'schrittText' : 'text'));
+const datumZelle = (iso, stil, leerStil) => (iso ? { datum: iso, stil } : leer(leerStil));
 const zahlZelle = (minuten, stil, leerStil) => (minuten ? { wert: stunden(minuten), stil } : leer(leerStil));
 
-function taetigkeitZeile(t) {
-  return [leer('text'), { wert: t.text, stil: 'taetigkeit' }, leer('text'), datumZelle(t.datum, 'datum'), leer('text'),
-    zahlZelle(t.minuten, 'zahl', 'text'), { wert: t.art, stil: 'text' }, leer('text'), leer('text')];
+function arbeitenText(taetigkeiten) {
+  return taetigkeiten.map((t) => {
+    const zusatz = [t.minuten ? stundenCH(t.minuten) : '', t.art].filter(Boolean).join(', ');
+    return `${datumCH(t.datum).slice(0, 6)}  ${t.text}${zusatz ? ` (${zusatz})` : ''}`;
+  }).join('\n');
+}
+
+function verrechnungText(taetigkeiten) {
+  const arten = [...new Set(taetigkeiten.filter((t) => t.minuten && t.art).map((t) => t.art))];
+  return arten.join(' + ');
+}
+
+function aufgabenZeile(x, { projektZeile, titel }) {
+  const t = projektZeile ? 'projekt' : 'text';
+  return [
+    { wert: x.id, stil: projektZeile ? 'projekt' : 'text' },
+    { wert: titel, stil: projektZeile ? 'projekt' : 'schritt' },
+    { wert: x.status, stil: statusStil(x.status) },
+    datumZelle(x.datum, projektZeile ? 'projektDatum' : 'datum', t),
+    datumZelle(x.frist, projektZeile ? 'projektDatum' : 'datum', t),
+    { wert: arbeitenText(x.taetigkeiten), stil: projektZeile ? 'projekt' : 'arbeiten' },
+    zahlZelle(x.minuten, projektZeile ? 'projektZahl' : 'zahl', t),
+    { wert: verrechnungText(x.taetigkeiten), stil: t },
+    leer('eingabe'),
+  ];
 }
 
 function pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten = [], notizen = []) {
   const liste = listeAufbauen(pendenzen, heute, zeiten, notizen);
+  const { summen } = liste;
+  const kennzahlen = [`${liste.anzahlOffen} offen`, summen.minuten ? `Zeitaufwand ${stundenCH(summen.minuten)} (Pauschal ${stundenCH(summen.pauschal) || '0:00 h'}, Extra ${stundenCH(summen.extra) || '0:00 h'})` : ''].filter(Boolean).join('   ·   ');
   const titel = [
     [{ wert: `Pendenzenliste ${mandant.name}`, stil: 'titel' }],
-    [{ wert: 'Stand', stil: 'fett' }, { datum: heute, stil: 'datumText' }],
-    [],
+    [{ wert: `Stand ${datumCH(heute)}   ·   ${kennzahlen}`, stil: 'untertitel' }],
+    [{ wert: 'Bitte Rückmeldungen in der gelben Spalte «Bemerkung Mandant» eintragen.', stil: 'untertitel' }],
   ];
   const zeilen = [];
   for (const p of liste.projekte) {
-    zeilen.push([{ wert: p.id, stil: 'projekt' }, { wert: p.titel, stil: 'projekt' }, { wert: p.status, stil: 'projekt' },
-      datumZelle(p.datum, 'projektDatum'), datumZelle(p.frist, 'projektDatum'), zahlZelle(p.minuten, 'projektZahl', 'projekt'),
-      leer('projekt'), { wert: p.verantwortlich, stil: 'projekt' }, leer('projekt')]);
-    for (const t of p.taetigkeiten) zeilen.push(taetigkeitZeile(t));
-    for (const s of p.schritte) {
-      zeilen.push([{ wert: s.id, stil: 'schrittText' }, { wert: `${s.nr}. ${s.titel}`, stil: 'schritt' }, { wert: s.status, stil: 'schrittText' },
-        datumZelle(s.datum, 'schrittDatum'), datumZelle(s.frist, 'schrittDatum'), zahlZelle(s.minuten, 'schrittZahl', 'schrittText'),
-        leer('schrittText'), { wert: s.verantwortlich, stil: 'schrittText' }, leer('schrittText')]);
-      for (const t of s.taetigkeiten) zeilen.push(taetigkeitZeile(t));
-    }
+    // Einzelpendenz: eine Zeile mit ihren Arbeiten. Projekt: Kopfzeile ohne Eingabefeld-Text,
+    // Arbeiten am Projekt selbst dort, die Teilaufgaben je eine Zeile.
+    zeilen.push(aufgabenZeile(p, { projektZeile: p.schritte.length > 0, titel: p.titel }));
+    for (const s of p.schritte) zeilen.push(aufgabenZeile(s, { projektZeile: false, titel: `${s.nr}. ${s.titel}` }));
   }
-  const fuss = liste.summen.minuten ? [
-    [],
-    [null, { wert: 'Total Zeitaufwand', stil: 'fett' }, null, null, null, { wert: stunden(liste.summen.minuten), stil: 'summe' }],
-    [null, 'davon Pauschal', null, null, null, { wert: stunden(liste.summen.pauschal), stil: 'zahl' }],
-    [null, 'davon Extra', null, null, null, { wert: stunden(liste.summen.extra), stil: 'zahl' }],
-  ] : [];
   const blatt = {
     name: 'Pendenzenliste',
     spalten: BREITEN.map((breite) => ({ breite })),
-    zeilen: [...titel, KOPF.map((t) => ({ wert: t, stil: 'kopf' })), ...zeilen, ...fuss],
+    zeilen: [...titel, KOPF.map((t) => ({ wert: t, stil: 'kopf' })), ...zeilen],
     fixiereZeilen: titel.length + 1,
   };
   return { liste, blaetter: [blatt] };
@@ -176,88 +203,4 @@ function pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten = [], notizen = []
   return { blob: xlsxBlob(blaetter), name: dateiname(mandant.name, heute), anzahlOffen: liste.anzahlOffen };
 }
 
-// ---------------------------------------------------------------- Protokoll (Druck)
-
-const html = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const datumCH = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
-function stundenCH(minuten) {
-  if (!minuten) return '';
-  const h = Math.floor(minuten / 60);
-  const m = minuten % 60;
-  return `${h}:${String(m).padStart(2, '0')} h`;
-}
-
-const PROTOKOLL_CSS = `
-@page { size: A4; margin: 16mm 14mm 18mm; }
-* { box-sizing: border-box; }
-body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #1b1f24; margin: 0; }
-.kopf { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f3a5f; padding-bottom: 8px; margin-bottom: 14px; }
-.kopf img { height: 46px; }
-.absender { font-size: 8pt; color: #555; margin-top: 4px; }
-h1 { font-size: 16pt; margin: 0 0 2px; color: #1f3a5f; }
-.meta { font-size: 9pt; color: #444; }
-.meta td { padding: 1px 12px 1px 0; }
-table.liste { width: 100%; border-collapse: collapse; margin-top: 10px; }
-table.liste th { background: #1f3a5f; color: #fff; text-align: left; font-size: 8.5pt; padding: 5px 6px; }
-table.liste td { padding: 4px 6px; border-bottom: 1px solid #dde2e8; vertical-align: top; }
-table.liste thead { display: table-header-group; }
-tr { page-break-inside: avoid; }
-tr.projekt td { background: #dce6f1; font-weight: bold; border-top: 1px solid #b8c7da; }
-tr.schritt td { background: #f3f5f8; }
-tr.schritt td.titel { font-weight: bold; padding-left: 16px; }
-tr.taetigkeit td.titel { padding-left: 30px; }
-tr.taetigkeit td { font-size: 9pt; }
-.erledigt { color: #2e7d32; }
-.frist { font-size: 8pt; font-weight: normal; color: #555; }
-.zahl { text-align: right; white-space: nowrap; }
-.datum { white-space: nowrap; }
-.summen { margin: 12px 0 0 auto; border-collapse: collapse; }
-.summen td { padding: 2px 0 2px 18px; }
-.summen tr:first-child td { font-weight: bold; border-top: 1px solid #1f3a5f; padding-top: 4px; }
-.bemerkungen { margin-top: 18px; page-break-inside: avoid; }
-.bemerkungen .zeile { border-bottom: 1px solid #999; height: 24px; }
-.unterschriften { display: flex; gap: 36px; margin-top: 28px; page-break-inside: avoid; }
-.unterschriften > div { flex: 1; }
-.unterschriften .titel { font-weight: bold; margin-bottom: 4px; }
-.unterschriften .linie { border-bottom: 1px solid #333; height: 44px; }
-.unterschriften .klein { font-size: 8pt; color: #555; margin-top: 3px; }
-.leer { color: #777; font-style: italic; }
-`;
-
-/**
- * Protokoll als eigenstaendiges HTML-Dokument (Druck / "Als PDF speichern").
- * firma: { firma, strasse, plzOrt } aus den Bueroeinstellungen; logoUrl: absolute URL.
- */
-// Frist nur bei offenen Punkten, klein unter dem Status.
-const fristHtml = (x) => (x.frist && !x.erledigt ? `<div class="frist">Frist ${datumCH(x.frist)}</div>` : '');
-
-function protokollHtml({ mandant, liste, heute, firma = {}, bearbeiter = '', logoUrl = '' }) {
-  const absender = [firma.firma, firma.strasse, firma.plzOrt].filter(Boolean).join('  •  ');
-  const taetigkeit = (t) => `<tr class="taetigkeit"><td class="datum">${datumCH(t.datum)}</td><td class="titel">${html(t.text)}</td><td></td><td class="zahl">${stundenCH(t.minuten)}</td><td>${html(t.art)}</td></tr>`;
-  const zeilen = liste.projekte.map((p) => [
-    `<tr class="projekt"><td class="datum">${datumCH(p.datum)}</td><td class="titel">${html(p.titel)}</td><td class="${p.erledigt ? 'erledigt' : ''}">${html(p.status)}${fristHtml(p)}</td><td class="zahl">${stundenCH(p.minuten)}</td><td></td></tr>`,
-    ...p.taetigkeiten.map(taetigkeit),
-    ...p.schritte.flatMap((s) => [
-      `<tr class="schritt"><td class="datum">${datumCH(s.datum)}</td><td class="titel">${s.nr}. ${html(s.titel)}</td><td class="${s.erledigt ? 'erledigt' : ''}">${html(s.status)}${fristHtml(s)}</td><td class="zahl">${stundenCH(s.minuten)}</td><td></td></tr>`,
-      ...s.taetigkeiten.map(taetigkeit),
-    ]),
-  ].join('')).join('');
-  const { summen } = liste;
-  return `<!doctype html><html lang="de-CH"><head><meta charset="utf-8"><title>${html(dateiname(mandant.name, heute, 'pdf', 'Protokoll').replace(/\.pdf$/, ''))}</title><style>${PROTOKOLL_CSS}</style></head><body>
-<div class="kopf"><div><h1>Protokoll Pendenzen</h1><table class="meta"><tbody>
-<tr><td>Mandant</td><td><b>${html(mandant.name)}</b></td></tr>
-<tr><td>Stand</td><td>${datumCH(heute)}</td></tr>
-${bearbeiter ? `<tr><td>Bearbeitet von</td><td>${html(bearbeiter)}</td></tr>` : ''}
-</tbody></table></div><div style="text-align:right">${logoUrl ? `<img src="${html(logoUrl)}" alt="">` : ''}<div class="absender">${html(absender)}</div></div></div>
-<table class="liste"><thead><tr><th style="width:68px">Datum</th><th>Projekt / Teilaufgabe / was wurde erledigt</th><th style="width:96px">Status</th><th style="width:58px" class="zahl">Zeit</th><th style="width:78px">Verrechnung</th></tr></thead>
-<tbody>${zeilen || '<tr><td colspan="5" class="leer">Keine offenen oder kürzlich erledigten Pendenzen.</td></tr>'}</tbody></table>
-${summen.minuten ? `<table class="summen"><tbody><tr><td>Total Zeitaufwand</td><td class="zahl">${stundenCH(summen.minuten)}</td></tr><tr><td>davon Pauschal</td><td class="zahl">${stundenCH(summen.pauschal) || '0:00 h'}</td></tr><tr><td>davon Extra</td><td class="zahl">${stundenCH(summen.extra) || '0:00 h'}</td></tr></tbody></table>` : ''}
-<div class="bemerkungen"><b>Bemerkungen / Vereinbarungen</b><div class="zeile"></div><div class="zeile"></div><div class="zeile"></div></div>
-<div class="unterschriften">
-<div><div class="titel">Für den Mandanten</div><div>${html(mandant.name)}</div><div class="linie"></div><div class="klein">Ort, Datum, Name und Unterschrift</div></div>
-<div><div class="titel">Für ${html(firma.firma || 'den Treuhänder')}</div><div>${html(bearbeiter)}</div><div class="linie"></div><div class="klein">Ort, Datum, Unterschrift</div></div>
-</div>
-</body></html>`;
-}
-
-export { dateiname, listeAufbauen, pendenzenlisteBlaetter, pendenzenlisteXlsx, protokollHtml, stundenCH, ERLEDIGT_TAGE };
+export { dateiname, listeAufbauen, pendenzenlisteBlaetter, pendenzenlisteXlsx, datumCH, stundenCH, ERLEDIGT_TAGE };
