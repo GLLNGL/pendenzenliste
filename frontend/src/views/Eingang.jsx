@@ -118,7 +118,9 @@ export default function Eingang() {
       const r = await api.mail.eingangAbholen();
       const text = r?.hinweis || (r?.neu ? `${r.neu} neue${r.neu === 1 ? 'r Auftrag' : ' Aufträge'} aus E-Mail übernommen.` : 'Keine neuen Aufträge im Ordner «Aufträge».');
       const nachgeholt = r?.nachgeholt ? ` Anhänge von ${r.nachgeholt} früheren Mail${r.nachgeholt === 1 ? '' : 's'} nachgeholt.` : '';
-      setAbruf({ laeuft: false, fehler: null, meldung: `${text}${nachgeholt}${r?.dateiFehler ? ` Anhang nicht gespeichert – ${r.dateiFehler}` : ''}` });
+      const rest = r?.rest ? ` Weitere ${r.rest} Mail${r.rest === 1 ? '' : 's'} folgen beim nächsten Abruf.` : '';
+      const nachholFehler = r?.nachholFehler ? ` (Anhänge früherer Mails nicht nachgeholt: ${r.nachholFehler})` : '';
+      setAbruf({ laeuft: false, fehler: null, meldung: `${text}${rest}${nachgeholt}${nachholFehler}${r?.dateiFehler ? ` Anhang nicht gespeichert – ${r.dateiFehler}` : ''}` });
       if (r?.neu || r?.nachgeholt) { meldeAenderung(); setDateienStand((n) => n + 1); }
     } catch (err) {
       setAbruf({ laeuft: false, meldung: null, fehler: err.message });

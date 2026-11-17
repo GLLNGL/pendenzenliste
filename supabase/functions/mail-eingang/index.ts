@@ -284,17 +284,35 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
     zustand.schritt = 'Mails abrufen';
     const uebernommen: string[] = [];
     const verschieben: number[] = [];
+    const liste: { uid: number; messageId: string | null }[] = [];
     try {
-      const nachrichten = [];
+      // Zuerst nur die Liste (UID + Message-ID, ohne Inhalt) vollstaendig lesen. Frueher wurde
+      // der ganze Inhalt aller Mails gestreamt und nach 5 Mails mitten im Abruf abgebrochen --
+      // das zerstoerte bei mehr als 5 Mails die Verbindung, das Verschieben nach "Übernommen"
+      // schlug still fehl und der Ordner leerte sich nie mehr.
       // Leerer Ordner: manche Server (Dovecot) lehnen "1:*" dann als ungueltig ab.
       // deno-lint-ignore no-explicit-any
       const anzahl = (client as any).mailbox?.exists ?? 0;
-      for await (const msg of (anzahl > 0 ? client.fetch('1:*', { uid: true, source: true }) : [])) {
-        nachrichten.push(msg);
-        if (nachrichten.length >= MAX_PRO_ABRUF) break;
+      if (anzahl > 0) {
+        for await (const m of client.fetch('1:*', { uid: true, envelope: true })) {
+          liste.push({ uid: m.uid, messageId: m.envelope?.messageId ?? null });
+        }
       }
+      // Schon uebernommene Mails (gleiche Message-ID) nur noch wegschieben.
+      zustand.schritt = 'Bekannte Mails prüfen';
+      const ids = liste.map((m) => m.messageId).filter((x): x is string => !!x);
+      const bekannt = new Set<string>();
+      if (ids.length) {
+        const { data } = await supabase.from('pendenzen').select('email_message_id').in('email_message_id', ids);
+        for (const z of data ?? []) bekannt.add(z.email_message_id);
+      }
+      for (const m of liste) if (m.messageId && bekannt.has(m.messageId)) verschieben.push(m.uid);
+      const neue = liste.filter((m) => !(m.messageId && bekannt.has(m.messageId))).slice(0, MAX_PRO_ABRUF);
 
-      for (const msg of nachrichten) {
+      for (const eintrag of neue) {
+        zustand.schritt = `Mail ${eintrag.uid} laden`;
+        const msg = await client.fetchOne(String(eintrag.uid), { uid: true, source: true }, { uid: true });
+        if (!msg || !msg.source) continue;
         zustand.schritt = `Mail ${msg.uid} verarbeiten`;
         const mail = await PostalMime.parse(new Uint8Array(msg.source));
         const gesendet = mail.date ? new Date(mail.date) : null;
@@ -371,14 +389,27 @@ async function verarbeiten(req: Request, zustand: { schritt: string; client: Ima
       }
 
       zustand.schritt = 'Mails nach «Übernommen» verschieben';
-      if (verschieben.length) await client.messageMove(verschieben, ziel, { uid: true });
+      if (verschieben.length) {
+        // imapflow meldet ein misslungenes Verschieben nur mit "false" -- dann laut melden,
+        // sonst bleiben die Mails unbemerkt im Ordner liegen.
+        const verschoben = await client.messageMove(verschieben, ziel, { uid: true });
+        if (!verschoben) throw new Error(`${verschieben.length} Mail(s) konnten nicht nach «Übernommen» verschoben werden`);
+      }
     } finally {
       lock.release();
     }
+    // Zusatz: Anhaenge frueherer Mails nachholen. Ein Fehler hier darf den Abruf nicht als
+    // gescheitert melden -- die neuen Mails sind bereits uebernommen.
     zustand.schritt = 'Anhänge nachholen';
-    const nachgeholt = await anhaengeNachholen(client, supabase, ziel);
-    await client.logout();
-    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, nachgeholt, ordner: quellPfad, ki: !!anthropic, kiFehler, dateiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
+    let nachgeholt = 0;
+    let nachholFehler: string | null = null;
+    try {
+      nachgeholt = await anhaengeNachholen(client, supabase, ziel);
+    } catch (err) {
+      nachholFehler = (err as Error)?.message ?? String(err);
+    }
+    try { await client.logout(); } catch { /* Verbindung schon zu */ }
+    return antwort({ ok: true, neu: uebernommen.length, titel: uebernommen, verschoben: verschieben.length, rest: Math.max(0, liste.length - verschieben.length), nachgeholt, nachholFehler, ordner: quellPfad, ki: !!anthropic, kiFehler, dateiFehler, postfach: Deno.env.get('IMAP_USER') || Deno.env.get('SMTP_USER') });
   } catch (err) {
     try { await client.logout(); } catch { /* Verbindung schon zu */ }
     // imapflow liefert oft nur "Command failed" -- die eigentliche Server-Antwort steht in
