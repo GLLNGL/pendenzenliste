@@ -35,7 +35,7 @@ export default function ZeitModal({ eintrag = null, pendenz = null, onSchliessen
   if (fehler) {
     return (
       <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}><div className="modal-koerper"><div className="hinweis-fehler">{fehler}</div></div></div>
+        <div className="modal modal-klein" onClick={(e) => e.stopPropagation()}><div className="modal-koerper"><div className="hinweis-fehler">{fehler}</div></div></div>
       </div>
     );
   }

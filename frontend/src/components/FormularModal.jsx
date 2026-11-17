@@ -10,7 +10,7 @@ import { hintergrundSchliessen } from '../lib/modal.js';
 // seitenansicht: optional links neben dem Formular angezeigt (z.B. die Rechnung als PDF).
 // vorschau(formular) liefert optional eine berechnete Zeile (z.B. Preis pro Einheit).
 // onAendern(name, wert, formular) darf weitere Felder mitsetzen (Rueckgabe: Teil-Objekt).
-const GROESSE_SCHLUESSEL = 'mail-fenster-groesse';
+const GROESSE_SCHLUESSEL = 'mail-fenster-groesse-v2';
 
 export default function FormularModal({ titel, felder, startwerte, vorschau, onAendern, onSpeichern, onLoeschen, loeschenText, onSchliessen, speichernText = 'Speichern', breit = false, seitenansicht = null, mail = false }) {
   const [formular, setFormular] = useState(startwerte);
@@ -19,7 +19,7 @@ export default function FormularModal({ titel, felder, startwerte, vorschau, onA
   const ersterRef = useRef(null);
   // Mail-Fenster: Groesse per Regler (Prozent der Bildschirmgroesse), pro Geraet gemerkt.
   const [groesse, setGroesse] = useState(() => {
-    try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 85; } catch { return 85; }
+    try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 75; } catch { return 75; }
   });
   function groesseAendern(wert) {
     setGroesse(wert);

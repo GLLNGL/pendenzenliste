@@ -18,8 +18,8 @@ import { hintergrundSchliessen } from '../lib/modal.js';
 import { chf } from '../lib/offerte.js';
 import { useLeistungen } from '../hooks.js';
 
-const GROESSE_SCHLUESSEL = 'arbeitsfenster-groesse';
-const GROESSEN = [60, 70, 80, 90, 100];
+const GROESSE_SCHLUESSEL = 'arbeitsfenster-groesse-v2';
+const GROESSEN = [60, 70, 75, 80, 90, 100];
 
 // Plausibles Datum (Jahr 2000-2099) -- schuetzt vor halb getippten Jahren wie 0002.
 const datumGueltig = (iso) => /^20\d{2}-\d{2}-\d{2}$/.test(iso ?? '');
@@ -83,7 +83,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   // Aus einem Schritt geoeffnet: nur diese Teilaufgabe zeigen (Projekt bleibt im Titel).
   const [nurSchritt, setNurSchritt] = useState(!!start.uebergeordnete_pendenz_id);
   const [erledigtMeldung, setErledigtMeldung] = useState(null);
-  const [groesse, setGroesse] = useState(() => { try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 80; } catch { return 80; } });
+  const [groesse, setGroesse] = useState(() => { try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 75; } catch { return 75; } });
   const timer = useLaufenderTimer();
   const leistungen = useLeistungen();
   const navigate = useNavigate();
@@ -289,12 +289,12 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
           <div className="aw-kopf-aktionen">
             <div className="aw-groesse-wahl" role="group" aria-label="Fenstergrösse">
               <span className="aw-groesse-label">Grösse</span>
-              <button type="button" onClick={() => groesseAendern(Math.max(50, groesse - 10))} disabled={groesse <= 50} title="Fenster kleiner" aria-label="Fenster kleiner">−</button>
+              <button type="button" onClick={() => groesseAendern([...GROESSEN].reverse().find((g) => g < groesse) ?? 50)} disabled={groesse <= 50} title="Fenster kleiner" aria-label="Fenster kleiner">−</button>
               <select value={GROESSEN.includes(groesse) ? groesse : ''} onChange={(e) => groesseAendern(Number(e.target.value))} aria-label="Fenstergrösse in Prozent">
                 {!GROESSEN.includes(groesse) && <option value="">{groesse} %</option>}
                 {GROESSEN.map((g) => <option key={g} value={g}>{g === 100 ? 'Vollbild' : `${g} %`}</option>)}
               </select>
-              <button type="button" onClick={() => groesseAendern(Math.min(100, groesse + 10))} disabled={groesse >= 100} title="Fenster grösser" aria-label="Fenster grösser">+</button>
+              <button type="button" onClick={() => groesseAendern(GROESSEN.find((g) => g > groesse) ?? 100)} disabled={groesse >= 100} title="Fenster grösser" aria-label="Fenster grösser">+</button>
             </div>
             <button type="button" className="btn" onClick={() => onBearbeiten(projekt)}>Bearbeiten</button>
             <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>

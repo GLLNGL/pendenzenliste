@@ -3014,3 +3014,17 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .aw-groesse-wahl button:hover:not(:disabled) { background: var(--surface-hover); color: var(--accent); }
 .aw-groesse-wahl button:disabled { color: var(--text-faint); cursor: default; }
 .aw-groesse-wahl select { border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-radius: 0; height: 32px; width: auto; padding: 0 6px; font-size: var(--fs-klein); background: var(--surface); }
+
+/* Standardgroesse aller Dialoge: 3/4 der Seite (Breite und Hoehe), damit der Inhalt sofort
+   sichtbar ist. Kleine Hinweis-/Suchdialoge (.modal-klein, Mandantensuche) bleiben kompakt. */
+.modal:not(.modal-klein):not(.mandant-suche-popup):not(.modal-mail) {
+  width: calc(75vw / var(--app-zoom, 1));
+  height: calc(75vh / var(--app-zoom, 1));
+  max-width: calc(100vw / var(--app-zoom, 1) - 16px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 16px);
+}
+.modal:not(.modal-klein):not(.mandant-suche-popup):not(.modal-mail) > .modal-koerper { flex: 1 1 auto; }
+.modal-hintergrund:has(> .modal:not(.modal-klein):not(.mandant-suche-popup)) { padding-top: calc(10vh / var(--app-zoom, 1)); }
+@media (max-width: 640px) {
+  .modal:not(.modal-klein):not(.mandant-suche-popup):not(.modal-mail) { width: calc(100vw - 16px); height: auto; }
+}
