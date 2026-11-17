@@ -225,7 +225,7 @@ function pruefeFehler(error) {
 // Leere Formularwerte ('' oder undefined) als null speichern, Zahlen als Zahl.
 // Datum mit unplausiblem Jahr (z.B. halb getipptes «0002») gar nicht erst speichern.
 function datumPruefen(wert, feld) {
-  if (wert && !/^(19|20)d{2}-d{2}-d{2}$/.test(String(wert))) throw new Error(`«${feld}»: ungültiges Datum (${wert}).`);
+  if (wert && !/^(19|20)\d{2}-\d{2}-\d{2}$/.test(String(wert))) throw new Error(`«${feld}»: ungültiges Datum (${wert}).`);
   return wert || null;
 }
 
