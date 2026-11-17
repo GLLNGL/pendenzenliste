@@ -1499,6 +1499,26 @@ const api = {
       pruefeFehler(error);
       return data;
     },
+    // Alles fuer Pendenzenliste/Protokoll: Pendenzen, deren erfasste Zeiten und Statusnotizen,
+    // dazu der Name der angemeldeten Person (Unterschrift im Protokoll).
+    listeDaten: async (mandantId, seit) => {
+      const pendenzen = await api.pendenzen.fuerListe(mandantId, seit);
+      const ids = pendenzen.map((p) => p.id);
+      if (!ids.length) return { pendenzen, zeiten: [], notizen: [], bearbeiter: '' };
+      const [zeitAntwort, notizAntwort, ich] = await Promise.all([
+        supabase.from('zeiteintraege').select('id, pendenz_id, datum, minuten, beschreibung, art').in('pendenz_id', ids).order('datum'),
+        supabase.from('pendenz_notizen').select('id, pendenz_id, text, erstellt_am').in('pendenz_id', ids).order('erstellt_am'),
+        aktuelleMitarbeiterId(),
+      ]);
+      pruefeFehler(zeitAntwort.error);
+      pruefeFehler(notizAntwort.error);
+      let bearbeiter = '';
+      if (ich) {
+        const { data } = await supabase.from('mitarbeitende').select('name').eq('id', ich).maybeSingle();
+        bearbeiter = data?.name ?? '';
+      }
+      return { pendenzen, zeiten: zeitAntwort.data, notizen: notizAntwort.data, bearbeiter };
+    },
     erledigteVon: async (mandantId) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('mandant_id', mandantId).eq('status', 'Erledigt').is('uebergeordnete_pendenz_id', null)

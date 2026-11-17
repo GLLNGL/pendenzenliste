@@ -2998,8 +2998,10 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 
 /* Pendenzenliste als Excel */
 .mandant-kopf-aktionen { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.pl-export { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 420px; }
-.aw-zeit-knoepfe .pl-export { align-items: flex-start; flex-basis: 100%; }
+.pl-export { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; max-width: 460px; }
+.pl-export .pl-meldung { flex-basis: 100%; text-align: right; }
+.aw-zeit-knoepfe .pl-export { justify-content: flex-start; flex-basis: 100%; }
+.aw-zeit-knoepfe .pl-export .pl-meldung { text-align: left; }
 .pl-meldung { font-size: var(--fs-klein); word-break: break-all; }
 .pl-meldung.ok { color: var(--success); }
 .pl-meldung.fehler { color: var(--danger); }
