@@ -20,11 +20,10 @@ export default function CockpitKalender({ offene, heute, onOeffnen }) {
   const [monat, setMonat] = useState(heute.slice(0, 7));
   const [tag, setTag] = useState(heute);
   const [termine, setTermine] = useState([]);
-  const [outlook, setOutlook] = useState(api.outlook.verfuegbar() ? 'laedt' : 'nicht-lokal');
+  const [outlook, setOutlook] = useState('laedt');
   const raster = useMemo(() => monatsRaster(monat), [monat]);
 
   useEffect(() => {
-    if (!api.outlook.verfuegbar()) return undefined;
     let aktiv = true;
     const von = raster[0].tag;
     const bis = plusTage(raster[raster.length - 1].tag, 1);
@@ -73,8 +72,10 @@ export default function CockpitKalender({ offene, heute, onOeffnen }) {
 
       <section className="ck-tagesbereich">
         <h3 className="ck-ueberschrift">{tagUeberschrift(tag, heute)}</h3>
-        {outlook === 'nicht-lokal' && <div className="ck-hinweis">Outlook-Termine erscheinen in der Desktop-App auf diesem PC.</div>}
-        {outlook !== 'ok' && outlook !== 'laedt' && outlook !== 'nicht-lokal' && <div className="ck-hinweis ck-fehler">Outlook: {outlook}</div>}
+        {outlook === 'DIENST_AUS' && (
+          <div className="ck-hinweis">Outlook-Termine: Der Outlook-Dienst auf diesem PC läuft nicht. «Pendenzenliste-starten» ausführen (auf dem Handy gibt es keine Outlook-Termine).</div>
+        )}
+        {outlook !== 'ok' && outlook !== 'laedt' && outlook !== 'DIENST_AUS' && <div className="ck-hinweis ck-fehler">Outlook: {outlook}</div>}
         {outlook === 'laedt' && <div className="ck-hinweis">Termine werden aus Outlook geladen…</div>}
         {outlook === 'ok' && tagesTermine.length === 0 && <div className="ck-leer">Keine Termine in Outlook.</div>}
         {tagesTermine.length > 0 && (

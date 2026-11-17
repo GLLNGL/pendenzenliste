@@ -20,6 +20,8 @@ import { termine as outlookTermine, nurLokal } from './outlook.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIST = join(__dirname, '..', '..', 'frontend', 'dist');
+// Online-Version der App (GitHub Pages) -- darf die Outlook-Termine dieses PCs lesen.
+const ERLAUBTE_HERKUENFTE = ['https://gllngl.github.io'];
 
 function erstelleApp(db) {
   const app = express();
@@ -34,7 +36,23 @@ function erstelleApp(db) {
 
   // Outlook-Termine fuer das Cockpit (v7-App meldet sich bei Supabase an, nicht hier) --
   // darum ohne Login, aber nur vom eigenen PC (siehe nurLokal).
+  // Die installierte Online-App (GitHub Pages) darf diese eine Route vom eigenen PC aus lesen --
+  // nur diese Herkunft, sonst keine Webseite (CORS + Private Network Access fuer Chrome/Edge).
+  const outlookCors = (req, res) => {
+    const herkunft = req.headers.origin;
+    if (herkunft && ERLAUBTE_HERKUENFTE.includes(herkunft)) {
+      res.setHeader('Access-Control-Allow-Origin', herkunft);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+    }
+  };
+  app.options('/api/outlook/termine', (req, res) => {
+    outlookCors(req, res);
+    res.sendStatus(204);
+  });
   app.get('/api/outlook/termine', async (req, res) => {
+    outlookCors(req, res);
     if (!nurLokal(req)) return res.status(403).json({ fehler: 'Outlook-Termine nur in der Desktop-App auf diesem PC' });
     try {
       res.json({ termine: await outlookTermine(String(req.query.von ?? ''), String(req.query.bis ?? '')) });
