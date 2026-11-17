@@ -72,7 +72,16 @@ function nachPendenz(eintraege, pendenzen = [], { runden = 5 } = {}) {
   }
   return [...gruppen.values()].map((g) => {
     const arten = new Set(g.eintraege.map((e) => e.art));
-    return { ...g, art: arten.size > 1 ? 'gemischt' : [...arten][0] };
+    // Teilaufgaben mit erfasster Zeit (in Projektreihenfolge der Eintraege), inkl. Status.
+    const schritte = new Map();
+    for (const e of g.eintraege) {
+      const p = nach.get(e.pendenz_id);
+      if (!p || !p.uebergeordnete_pendenz_id) continue;
+      const s = schritte.get(p.id) ?? { id: p.id, titel: p.titel, status: p.status ?? null, minuten: 0 };
+      s.minuten += rundeMinuten(e.minuten, runden);
+      schritte.set(p.id, s);
+    }
+    return { ...g, art: arten.size > 1 ? 'gemischt' : [...arten][0], schritte: [...schritte.values()] };
   }).sort((a, b) => (a.titel ?? '').localeCompare(b.titel ?? '', 'de-CH'));
 }
 

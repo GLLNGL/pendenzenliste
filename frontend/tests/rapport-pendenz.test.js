@@ -25,3 +25,21 @@ test('Rapport nach Pendenz: Schritte unter dem Projekt, Art und Betrag', () => {
   ]);
   assert.equal(g[0].eintraege.find((e) => e.id === 1).schrittTitel, 'Belege anfordern');
 });
+
+test('Rapport nach Pendenz: Teilaufgaben mit Status und Zeit', () => {
+  const pendenzen = [
+    { id: 10, titel: 'Jahresabschluss', uebergeordnete_pendenz_id: null, status: 'In Arbeit' },
+    { id: 11, titel: 'Belege anfordern', uebergeordnete_pendenz_id: 10, status: 'Erledigt' },
+    { id: 12, titel: 'Abschluss buchen', uebergeordnete_pendenz_id: 10, status: 'Offen' },
+  ];
+  const g = nachPendenz([
+    { id: 1, pendenz_id: 11, art: 'pauschal', minuten: 28 },
+    { id: 2, pendenz_id: 11, art: 'pauschal', minuten: 12 },
+    { id: 3, pendenz_id: 12, art: 'pauschal', minuten: 20 },
+    { id: 4, pendenz_id: 10, art: 'pauschal', minuten: 15 },
+  ], pendenzen);
+  assert.deepEqual(g[0].schritte, [
+    { id: 11, titel: 'Belege anfordern', status: 'Erledigt', minuten: 40 },
+    { id: 12, titel: 'Abschluss buchen', status: 'Offen', minuten: 20 },
+  ]);
+});

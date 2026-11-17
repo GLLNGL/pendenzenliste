@@ -2954,3 +2954,17 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .aw-v-schritt { background: var(--surface-3); border-radius: 999px; padding: 0 8px; color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aw-v-rapportiert { color: var(--success); }
 .aw-v-notizlabel { color: var(--text-faint); }
+
+/* Arbeitsfenster v3: nur die angewaehlte Teilaufgabe, Rapport zeigt Teilaufgaben mit Status */
+.aw-schritt-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-klein); color: var(--text-muted); padding: 2px 0 4px; }
+.aw-schritt-nav .link-knopf { margin-left: auto; }
+.aw-status-klein { font-size: var(--fs-klein); padding: 1px 6px; height: auto; }
+.aw-erledigt-meldung { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 22px; background: #e9f7ee; border-bottom: 1px solid #bfe3cb; color: var(--success); font-size: var(--fs-klein); font-weight: 600; }
+.aw-erledigt-meldung .btn-klein { margin-left: auto; }
+.aw-titel-link { margin-left: 8px; font-size: var(--fs-klein); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.aw-zeit-projekt { font-size: var(--fs-klein); color: var(--text-muted); margin: 2px 0 6px; }
+.ra-schritt td { font-size: var(--fs-klein); padding-top: 2px; padding-bottom: 2px; border-top: none; }
+.ra-schritt .ra-titel { padding-left: 34px; }
+.ra-schritt-haken { display: inline-block; width: 16px; color: var(--text-faint); }
+.ra-schritt-haken.erledigt { color: var(--success); font-weight: 700; }
+.ra-gruppe .ra-titel .ra-pendenz, .ra-schritt .ra-eintrag-knopf { display: inline; text-align: left; white-space: normal; }

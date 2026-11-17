@@ -322,6 +322,18 @@ export default function RapportEditor() {
                         </td>
                         <td className="zahl ra-betrag">{g.betrag ? chf(g.betrag).replace('CHF ', '') : ''}</td>
                       </tr>
+                      {!offen && g.schritte.map((s) => (
+                        <tr key={`s${s.id}`} className={`ra-schritt ${drin ? '' : 'ausgeschlossen'}`}>
+                          {neu && <td className="ra-check" />}
+                          <td className="ra-titel">
+                            <span className={`ra-schritt-haken ${s.status === 'Erledigt' ? 'erledigt' : ''}`} aria-hidden="true">{s.status === 'Erledigt' ? '✓' : '○'}</span>
+                            <button type="button" className="link-knopf ra-eintrag-knopf" onClick={() => pendenzOeffnen(s.id)} title="Teilaufgabe öffnen">{s.titel}</button>
+                            <span className="text-gedaempft"> · {s.status === 'Erledigt' ? 'erledigt' : (s.status ?? 'offen').toLowerCase()}</span>
+                          </td>
+                          <td className="zahl">{stundenText(s.minuten)}</td>
+                          <td /><td />
+                        </tr>
+                      ))}
                       {offen && g.eintraege.map((e) => (
                         <tr key={e.id} className={`ra-eintrag ${ausgeschlossen.has(e.id) ? 'ausgeschlossen' : ''}`}>
                           {neu && <td className="ra-check"><input type="checkbox" checked={!ausgeschlossen.has(e.id)} onChange={() => umschalten(e.id)} aria-label="Eintrag im Rapport" /></td>}

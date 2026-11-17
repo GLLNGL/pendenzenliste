@@ -56,6 +56,9 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const [zeitOffen, setZeitOffen] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [beschreibungLang, setBeschreibungLang] = useState(false);
+  // Aus einem Schritt geoeffnet: nur diese Teilaufgabe zeigen (Projekt bleibt im Titel).
+  const [nurSchritt, setNurSchritt] = useState(!!start.uebergeordnete_pendenz_id);
+  const [erledigtMeldung, setErledigtMeldung] = useState(null);
   const [groesse, setGroesse] = useState(() => { try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 80; } catch { return 80; } });
   const timer = useLaufenderTimer();
   const leistungen = useLeistungen();
@@ -107,7 +110,11 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const arbeitAn = fokus ?? projekt; // Ziel fuer Timer und Verlauf
   const mandant = mandanten.find((m) => m.id === projekt.mandant_id) ?? null;
   const bearbeiter = mitarbeitende.find((m) => m.id === projekt.bearbeiter_id) ?? null;
-  const titelVon = (id) => (id === projekt.id ? null : schritte.find((s) => s.id === id)?.titel ?? null);
+  const schrittAnsicht = nurSchritt && !!fokus;
+  const titelVon = (id) => (schrittAnsicht || id === projekt.id ? null : schritte.find((s) => s.id === id)?.titel ?? null);
+  const fokusIndex = fokus ? schritte.findIndex((s) => s.id === fokus.id) : -1;
+  const naechsterOffen = fokus ? schritte.slice(fokusIndex + 1).find((s) => s.status !== 'Erledigt') ?? schritte.find((s) => s.status !== 'Erledigt' && s.id !== fokus.id) ?? null : null;
+  const schrittWaehlen = (id) => { setFokusId(id); setErledigtMeldung(null); setEingabe((x) => ({ ...x, schrittId: '' })); };
 
   async function tun(fn) {
     setFehler(null);
@@ -133,12 +140,12 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   });
 
   // Verlauf: Eintrag mit Dauer = Zeiteintrag (erscheint im Rapport), ohne Dauer = Notiz.
-  const eintragSchrittId = Number(eingabe.schrittId) || arbeitAn.id;
+  const eintragSchrittId = schrittAnsicht ? fokus.id : Number(eingabe.schrittId) || arbeitAn.id;
   const eintragArt = eingabe.art || (schritte.find((s) => s.id === eintragSchrittId) ?? projekt).verrechnung || 'pauschal';
   const dauerMinuten = eingabe.dauer.trim() ? parseDauer(eingabe.dauer) : null;
-  const eintragen = () => tun(async () => {
+  async function eintragSpeichern() {
     const text = eingabe.text.trim();
-    if (!text) throw new Error('Bitte beschreiben, was gemacht wurde.');
+    if (!text) return false;
     if (eingabe.dauer.trim() && !dauerMinuten) throw new Error('Dauer z.B. als 0:45, 1.5 oder 90 eingeben.');
     if (dauerMinuten) {
       await api.zeit.speichern(null, {
@@ -150,18 +157,33 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
       await api.pendenzen.notizErstellen(eintragSchrittId, text);
     }
     setEingabe((x) => ({ ...x, text: '', dauer: '' }));
+    return true;
+  }
+  const eintragen = () => tun(async () => {
+    if (!eingabe.text.trim()) throw new Error('Bitte beschreiben, was gemacht wurde.');
+    await eintragSpeichern();
+  });
+  // Teilaufgabe erledigen: ein noch nicht eingetragener Statustext wird vorher gespeichert.
+  const schrittErledigen = () => tun(async () => {
+    if (timer?.pendenz_id === fokus.id) throw new Error('Zuerst den Timer stoppen, damit die Zeit bei dieser Teilaufgabe gespeichert wird.');
+    await eintragSpeichern();
+    await api.pendenzen.statusAendern(fokus.id, 'Erledigt');
+    setErledigtMeldung(fokus.titel);
   });
 
-  const fertig = zeiten.filter((z) => z.minuten != null);
+  const fertigAlle = zeiten.filter((z) => z.minuten != null);
+  const fertig = schrittAnsicht ? fertigAlle.filter((z) => z.pendenz_id === fokus.id) : fertigAlle;
   const verlauf = [
     ...fertig.map((z) => ({ typ: 'zeit', id: `z${z.id}`, wann: z.timer_start ?? `${z.datum}T12:00:00`, z })),
-    ...notizen.map((n) => ({ typ: 'notiz', id: `n${n.id}`, wann: n.erstellt_am, n })),
+    ...notizen.filter((n) => !schrittAnsicht || n.pendenz_id === fokus.id).map((n) => ({ typ: 'notiz', id: `n${n.id}`, wann: n.erstellt_am, n })),
   ].sort((a, b) => (a.wann < b.wann ? 1 : -1));
 
   const summe = zusammenfassung(fertig);
-  const geschaetzt = schritte.length ? schritte.reduce((s, x) => s + (x.aufwand_minuten || 0), 0) : projekt.aufwand_minuten || 0;
+  const summeProjekt = zusammenfassung(fertigAlle);
+  const geschaetzt = schrittAnsicht ? fokus.aufwand_minuten || 0
+    : schritte.length ? schritte.reduce((s, x) => s + (x.aufwand_minuten || 0), 0) : projekt.aufwand_minuten || 0;
   const anteil = geschaetzt ? summe.gesamt / geschaetzt : null;
-  const offeneZeit = fertig.filter((z) => !z.rapport_id && z.mandant_id && z.art !== 'intern');
+  const offeneZeit = fertigAlle.filter((z) => !z.rapport_id && z.mandant_id && z.art !== 'intern');
   const extraOffen = offeneZeit.filter((z) => z.art === 'extra').reduce((s, z) => s + (betragExtra(z) ?? 0), 0);
   const rapportieren = () => {
     const von = offeneZeit.reduce((min, z) => (z.datum < min ? z.datum : min), heute);
@@ -169,10 +191,10 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     navigate(`/rapporte/neu?mandant=${projekt.mandant_id}&von=${von}&bis=${heute}`);
   };
   const zeitProSchritt = new Map();
-  for (const z of fertig) zeitProSchritt.set(z.pendenz_id, (zeitProSchritt.get(z.pendenz_id) ?? 0) + z.minuten);
+  for (const z of fertigAlle) zeitProSchritt.set(z.pendenz_id, (zeitProSchritt.get(z.pendenz_id) ?? 0) + z.minuten);
   const erledigt = schritte.length - offeneSchritte.length;
   const fristUeber = projekt.faelligkeit && projekt.faelligkeit < heute && projekt.status !== 'Erledigt';
-  const beschreibung = projekt.beschreibung ?? '';
+  const beschreibung = (schrittAnsicht ? fokus.beschreibung : projekt.beschreibung) ?? '';
   const beschreibungKurz = beschreibung.length > 320 && !beschreibungLang;
 
   return (
@@ -213,11 +235,17 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
 
         <div className={`aw-jetzt ${timer?.pendenz_id === arbeitAn.id ? 'laeuft' : ''}`}>
           <div className="aw-jetzt-text">
-            <div className="aw-jetzt-label">{fokus ? 'Aktueller Schritt' : 'Arbeit am Projekt'}</div>
+            <div className="aw-jetzt-label">{schrittAnsicht ? `Teilaufgabe ${fokusIndex + 1} von ${schritte.length}` : fokus ? 'Aktueller Schritt' : 'Arbeit am Projekt'}</div>
             <div className="aw-jetzt-titel">{arbeitAn.titel}</div>
             {fokus && (
               <div className="aw-jetzt-meta">
-                {fokus.status !== 'Offen' && <span className={`zeile-status-tag status-${statusSlug(fokus.status)}`}>{fokus.status}</span>}
+                {schrittAnsicht
+                  ? (
+                    <select className={`aw-status aw-status-klein status-${statusSlug(fokus.status)}`} value={fokus.status} onChange={(e) => statusSetzen(fokus, e.target.value)} aria-label="Status der Teilaufgabe">
+                      {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )
+                  : fokus.status !== 'Offen' && <span className={`zeile-status-tag status-${statusSlug(fokus.status)}`}>{fokus.status}</span>}
                 {fokus.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(fokus.bearbeitungstag)}</span>}
                 {fokus.aufwand_minuten ? <span>≈ {formatiereAufwand(fokus.aufwand_minuten)}</span> : null}
                 {zeitProSchritt.get(fokus.id) ? <span>erfasst {formatiereDauer(zeitProSchritt.get(fokus.id))}</span> : null}
@@ -226,7 +254,9 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
           </div>
           <TimerKnopf pendenz={arbeitAn} timer={timer} gross beschriftung="Start" onFehler={setFehler} onStopp={(t) => setZeitOffen({ eintrag: t })} />
           {fokus
-            ? <button type="button" className="btn" onClick={() => statusSetzen(fokus, 'Erledigt')} disabled={fokus.status === 'Erledigt'}>✓ Schritt erledigt</button>
+            ? fokus.status === 'Erledigt'
+              ? <button type="button" className="btn" onClick={() => { setErledigtMeldung(null); statusSetzen(fokus, 'Offen'); }}>Wieder öffnen</button>
+              : <button type="button" className="btn btn-primary" onClick={schrittErledigen} title={eingabe.text.trim() ? 'Der Text im Verlauf wird zuerst eingetragen' : undefined}>✓ {schrittAnsicht ? 'Teilaufgabe' : 'Schritt'} erledigt</button>
             : projekt.status !== 'Erledigt'
               ? <button type="button" className="btn" onClick={() => statusSetzen(projekt, 'Erledigt')}>✓ Erledigt</button>
               : <button type="button" className="btn" onClick={() => statusSetzen(projekt, 'Offen')}>Wieder öffnen</button>}
@@ -234,13 +264,27 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
         {timer && timer.pendenz_id !== projekt.id && !schritte.some((s) => s.id === timer.pendenz_id) && (
           <div className="aw-hinweis-timer">Timer läuft bei «{timer.pendenzen?.titel ?? timer.beschreibung ?? 'anderer Arbeit'}» seit {uhrzeitAus(timer.timer_start)} – Start hier stoppt ihn.</div>
         )}
+        {erledigtMeldung && fokus?.status === 'Erledigt' && (
+          <div className="aw-erledigt-meldung">
+            <span>✓ «{erledigtMeldung}» ist erledigt – mit {formatiereDauer(zeitProSchritt.get(fokus.id) ?? 0)} erfasster Zeit. Sie erscheint so im Rapport.</span>
+            {naechsterOffen && <button type="button" className="btn-klein btn-klein-primaer" onClick={() => schrittWaehlen(naechsterOffen.id)}>Nächste Teilaufgabe: {naechsterOffen.titel} →</button>}
+          </div>
+        )}
         {fehler && <div className="hinweis-fehler aw-fehler">{fehler}</div>}
 
         <div className="aw-koerper">
           <main className="aw-haupt">
+            {schrittAnsicht ? (
+              <div className="aw-schritt-nav">
+                <button type="button" className="btn-klein" disabled={fokusIndex <= 0} onClick={() => schrittWaehlen(schritte[fokusIndex - 1].id)}>← vorherige</button>
+                <span>Teilaufgabe {fokusIndex + 1} von {schritte.length} · {erledigt} erledigt</span>
+                <button type="button" className="btn-klein" disabled={fokusIndex >= schritte.length - 1} onClick={() => schrittWaehlen(schritte[fokusIndex + 1].id)}>nächste →</button>
+                <button type="button" className="link-knopf" onClick={() => setNurSchritt(false)}>Ganzes Projekt anzeigen</button>
+              </div>
+            ) : (
             <section className="aw-abschnitt">
               <div className="aw-abschnitt-titel">
-                Schritte <span className="aw-zaehler">{erledigt}/{schritte.length} erledigt · Klick wählt den aktuellen Schritt</span>
+                Schritte <span className="aw-zaehler">{erledigt}/{schritte.length} erledigt · Klick öffnet die Teilaufgabe</span>
                 {schritte.length > 0 && <span className="aw-fortschritt"><span style={{ width: `${(erledigt / schritte.length) * 100}%` }} /></span>}
               </div>
               <ul className="aw-schritte">
@@ -248,7 +292,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                   const fertigS = s.status === 'Erledigt';
                   const minuten = zeitProSchritt.get(s.id) ?? 0;
                   return (
-                    <li key={s.id} className={`aw-schritt ${fertigS ? 'erledigt' : ''} ${fokus?.id === s.id ? 'fokus' : ''}`} onClick={() => !fertigS && setFokusId(s.id)}>
+                    <li key={s.id} className={`aw-schritt ${fertigS ? 'erledigt' : ''} ${fokus?.id === s.id ? 'fokus' : ''}`} onClick={() => { schrittWaehlen(s.id); setNurSchritt(true); }} title="Diese Teilaufgabe bearbeiten">
                       <button type="button" className={`abhaken ${fertigS ? 'aktiv' : ''}`} aria-label={fertigS ? 'Wieder öffnen' : 'Erledigt'} onClick={(e) => { e.stopPropagation(); statusSetzen(s, fertigS ? 'Offen' : 'Erledigt'); }}>{fertigS ? '✓' : ''}</button>
                       <span className="aw-schritt-titel">{s.titel}</span>
                       <span className="aw-schritt-meta">
@@ -269,11 +313,12 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); schrittHinzufuegen(); } }} />
               </div>
             </section>
+            )}
 
             <section className="aw-abschnitt">
-              <div className="aw-abschnitt-titel">Verlauf <span className="aw-zaehler">erledigte Arbeit mit Zeit · Timer-Stopp ergänzt automatisch</span></div>
+              <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Status & Zeit' : 'Verlauf'} <span className="aw-zaehler">mit Dauer → Rapport · ohne Dauer → Notiz · Timer ergänzt automatisch</span></div>
               <div className="aw-eingabe">
-                <textarea rows={2} value={eingabe.text} onChange={(e) => setEingabe((x) => ({ ...x, text: e.target.value }))} placeholder="Was wurde gemacht? z.B. «Belege Q3 kontiert, Rückfragen an Kunde»"
+                <textarea rows={schrittAnsicht ? 3 : 2} value={eingabe.text} onChange={(e) => setEingabe((x) => ({ ...x, text: e.target.value }))} placeholder={schrittAnsicht ? 'Stand / was wurde gemacht? z.B. «Unterlagen geprüft, Rückfrage an Kunde gestellt»' : 'Was wurde gemacht? z.B. «Belege Q3 kontiert, Rückfragen an Kunde»'}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) eintragen(); }} />
                 <div className="aw-eingabe-zeile">
                   <label className="aw-eingabe-feld">Dauer
@@ -286,7 +331,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                       ))}
                     </span>
                   )}
-                  {schritte.length > 0 && (
+                  {schritte.length > 0 && !schrittAnsicht && (
                     <select value={eingabe.schrittId || String(arbeitAn.id)} onChange={(e) => setEingabe((x) => ({ ...x, schrittId: e.target.value }))} aria-label="Gehört zu">
                       <option value={String(projekt.id)}>Projekt allgemein</option>
                       {schritte.map((s) => <option key={s.id} value={String(s.id)}>{s.titel}</option>)}
@@ -327,7 +372,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </section>
 
             <section className="aw-abschnitt">
-              <div className="aw-abschnitt-titel">Beschreibung</div>
+              <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Beschreibung der Teilaufgabe' : 'Beschreibung'}{schrittAnsicht && <button type="button" className="link-knopf aw-titel-link" onClick={() => onBearbeiten(fokus)}>✎ bearbeiten</button>}</div>
               {beschreibung
                 ? <div className="aw-beschreibung">{beschreibungKurz ? `${beschreibung.slice(0, 320)}…` : beschreibung}{beschreibung.length > 320 && <button type="button" className="link-knopf" onClick={() => setBeschreibungLang((x) => !x)}>{beschreibungLang ? ' weniger' : ' mehr anzeigen'}</button>}</div>
                 : <div className="aw-leer">Keine Beschreibung – unter «Bearbeiten» ergänzen.</div>}
@@ -336,8 +381,9 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
 
           <aside className="aw-seite">
             <section className="aw-karte">
-              <div className="aw-abschnitt-titel">Zeit Projekt</div>
+              <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Zeit Teilaufgabe' : 'Zeit Projekt'}</div>
               <div className="aw-zeit-gross">{stunden(summe.gesamt)}<span className="aw-zeit-von">{geschaetzt ? ` von ≈ ${stunden(geschaetzt)}` : ''}</span></div>
+              {schrittAnsicht && <div className="aw-zeit-projekt">Ganzes Projekt: {stunden(summeProjekt.gesamt)}</div>}
               {anteil != null && (
                 <div className="aw-zeitbalken" title={`${Math.round(anteil * 100)} % der Schätzung`}>
                   <span className={anteil > 1.1 ? 'rot' : anteil > 0.9 ? 'gelb' : 'gruen'} style={{ width: `${Math.min(anteil, 1) * 100}%` }} />
