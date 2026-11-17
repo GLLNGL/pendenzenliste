@@ -1484,6 +1484,15 @@ const api = {
       pruefeFehler(error);
     },
     // Erledigte Auftraege eines Mandanten (Projekte bzw. einzelne Pendenzen, ohne Teilschritte).
+    // Pendenzenliste fuer den Mandanten: alle offenen sowie die seit "seit" erledigten.
+    fuerListe: async (mandantId, seit) => {
+      const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
+        .eq('mandant_id', mandantId).eq('geplant', true)
+        .or(`status.neq.Erledigt,erledigt_am.gte.${seit}`)
+        .order('id');
+      pruefeFehler(error);
+      return data;
+    },
     erledigteVon: async (mandantId) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('mandant_id', mandantId).eq('status', 'Erledigt').is('uebergeordnete_pendenz_id', null)

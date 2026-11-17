@@ -2995,3 +2995,11 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 /* Cockpit: «Zu planen» als breite Karte unter den Tageskarten */
 .tp-zuplanen-anker { grid-column: 1 / -1; scroll-margin-top: 12px; }
 .tp-karte-zuplanen .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+
+/* Pendenzenliste als Excel */
+.mandant-kopf-aktionen { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.pl-export { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 420px; }
+.aw-zeit-knoepfe .pl-export { align-items: flex-start; flex-basis: 100%; }
+.pl-meldung { font-size: var(--fs-klein); word-break: break-all; }
+.pl-meldung.ok { color: var(--success); }
+.pl-meldung.fehler { color: var(--danger); }

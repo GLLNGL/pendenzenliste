@@ -5,6 +5,7 @@ import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
 import DateienListe from './DateienListe.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
+import PendenzenlisteExport from './PendenzenlisteExport.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { useLaufenderTimer, timerStarten } from '../lib/timer.js';
@@ -439,6 +440,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
               </dl>
               <div className="aw-zeit-knoepfe">
                 <button type="button" className="btn-klein" onClick={() => ladeICSHerunter(projekt)}>📅 Kalender</button>
+                {mandant && <PendenzenlisteExport mandant={mandant} klein />}
                 <button type="button" className="btn-klein btn-gefahr-text" onClick={loeschen}>Löschen</button>
               </div>
             </section>

@@ -5,6 +5,7 @@ import PendenzModal from '../components/PendenzModal.jsx';
 import MandantModal from '../components/MandantModal.jsx';
 import PauschalenModal from '../components/PauschalenModal.jsx';
 import AblageKnoepfe from '../components/AblageKnoepfe.jsx';
+import PendenzenlisteExport from '../components/PendenzenlisteExport.jsx';
 import DateienListe from '../components/DateienListe.jsx';
 import OnboardingBereich from '../components/OnboardingBereich.jsx';
 import { aktivePauschalen, pauschalenSumme, formatiereCHF } from '../lib/preise.js';
@@ -314,7 +315,10 @@ export default function Mandanten() {
                     {!gewaehlt.aktiv && <span className="mandant-phase inaktiv">inaktiv</span>}
                   </div>
                 </div>
-                <button type="button" className="btn" onClick={() => setDialog('bearbeiten')}>Mandant bearbeiten</button>
+                <div className="mandant-kopf-aktionen">
+                  <PendenzenlisteExport mandant={gewaehlt} />
+                  <button type="button" className="btn" onClick={() => setDialog('bearbeiten')}>Mandant bearbeiten</button>
+                </div>
               </div>
               <div className="uebersicht-reiter mandant-reiter" role="tablist">
                 {REITER.map((r) => (
