@@ -46,7 +46,8 @@ function TimerKnopf({ pendenz, timer, gross = false, beschriftung = 'Start', onF
 // Zeiteintraegen und Notizen), rechts Zeit und Details. Groesse per Regler, pro Geraet gemerkt.
 export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], mitarbeitende = [], onSchliessen, onBearbeiten, onGeloescht }) {
   const projektId = start.uebergeordnete_pendenz_id ?? start.id;
-  const [projekt, setProjekt] = useState(start.uebergeordnete_pendenz_id ? null : start);
+  // Nur eine vollstaendige Pendenz sofort zeigen -- sonst erst nach dem Laden.
+  const [projekt, setProjekt] = useState(start.uebergeordnete_pendenz_id || !start.status ? null : start);
   const [schritte, setSchritte] = useState([]);
   const [fokusId, setFokusId] = useState(start.uebergeordnete_pendenz_id ? start.id : null);
   const [zeiten, setZeiten] = useState([]);

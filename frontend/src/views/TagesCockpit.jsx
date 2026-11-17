@@ -142,8 +142,10 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
                 const geschlossen = zu.has(b.id);
                 return [
                   <li key={`projekt-${b.id}`} className="tp-projektzeile">
-                    <button type="button" onClick={() => umschalten(b.id)} aria-expanded={!geschlossen} title={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'}>
+                    <button type="button" className="tp-projekt-klapp" onClick={() => umschalten(b.id)} aria-expanded={!geschlossen} aria-label={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'} title={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'}>
                       <span className="tp-projekt-pfeil" aria-hidden="true">{geschlossen ? '▸' : '▾'}</span>
+                    </button>
+                    <button type="button" className="tp-projekt-oeffnen" onClick={() => onOeffnen({ id: b.id, titel: b.titel, uebergeordnete_pendenz_id: null })} title="Projektübersicht öffnen">
                       <span className="tp-projekt-titel">{b.titel}</span>
                       <span className="tp-projekt-anzahl">{b.zeilen.length} {b.zeilen.length === 1 ? 'Teilaufgabe' : 'Teilaufgaben'}{offenImProjekt < b.zeilen.length ? ` · ${b.zeilen.length - offenImProjekt} erledigt` : ''}</span>
                     </button>
@@ -194,6 +196,8 @@ export default function TagesCockpit() {
   if (fehler) return <div className="fehleranzeige">Fehler beim Laden: {fehler}</div>;
   if (!daten) return <div className="ladeindikator">Lade Cockpit…</div>;
 
+  // Klick auf einen Projekttitel liefert nur die ID -- die volle Pendenz nachschlagen.
+  const oeffnen = (p) => setAktivePendenz(p.status ? p : daten.offene.find((x) => x.id === p.id) ?? p);
   const plan = tagesplan(daten.offene, daten.erledigte, { heute, ichId: benutzer?.id ?? null });
   const anzahlZuPlanen = zuPlanen(daten.offene).length;
   const morgenName = morgenTitel(heute, plan.morgen.tag);
@@ -259,7 +263,7 @@ export default function TagesCockpit() {
           leerText="Nichts abgelaufen."
           heute={heute}
           aktionen={aktionen('abgelaufen')}
-          onOeffnen={setAktivePendenz}
+          onOeffnen={oeffnen}
           onAbhaken={abhaken}
           klasse="tp-karte-abgelaufen"
         />
@@ -271,7 +275,7 @@ export default function TagesCockpit() {
           leerText="Für heute ist nichts geplant."
           heute={heute}
           aktionen={aktionen('heute')}
-          onOeffnen={setAktivePendenz}
+          onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
         <Karte
@@ -281,7 +285,7 @@ export default function TagesCockpit() {
           leerText={`Für ${morgenName === 'Morgen' ? 'morgen' : morgenName} ist noch nichts geplant.`}
           heute={heute}
           aktionen={aktionen('morgen')}
-          onOeffnen={setAktivePendenz}
+          onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
         <Karte
@@ -292,7 +296,7 @@ export default function TagesCockpit() {
           leerText="Keine Wochenziele – im Wochenrückblick die 3–5 wichtigsten Ergebnisse festlegen."
           heute={heute}
           aktionen={aktionen('wochenziele')}
-          onOeffnen={setAktivePendenz}
+          onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
       </div>

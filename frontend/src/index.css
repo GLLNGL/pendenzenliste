@@ -2981,3 +2981,10 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .projekt-schritte-tabelle td.projekt-auswahl { width: 26px; }
 .projekt-schritte-tabelle td:nth-child(2) { width: 42%; }
 .projekt-schritte-tabelle .projekt-auswahl input { width: auto; }
+
+/* Cockpit: Pfeil klappt ein/aus, Klick auf den Projekttitel oeffnet die Projektuebersicht */
+.tp-projektzeile { display: flex; align-items: stretch; }
+.tp-projektzeile button.tp-projekt-klapp { width: auto; flex: 0 0 auto; padding-right: 4px; }
+.tp-kachel .tp-projektzeile button.tp-projekt-klapp { padding-left: 14px; }
+.tp-projektzeile button.tp-projekt-oeffnen { flex: 1; min-width: 0; padding-left: 6px; }
+.tp-projektzeile button.tp-projekt-oeffnen:hover .tp-projekt-titel { color: var(--accent); text-decoration: underline; }
