@@ -387,7 +387,6 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 <button type="button" className="btn-klein" disabled={fokusIndex <= 0} onClick={() => schrittWaehlen(schritte[fokusIndex - 1].id)}>← vorherige</button>
                 <span>Teilaufgabe {fokusIndex + 1} von {schritte.length} · {erledigt} erledigt</span>
                 <button type="button" className="btn-klein" disabled={fokusIndex >= schritte.length - 1} onClick={() => schrittWaehlen(schritte[fokusIndex + 1].id)}>nächste →</button>
-                <button type="button" className="link-knopf" onClick={() => setNurSchritt(false)}>Ganzes Projekt anzeigen</button>
               </div>
             ) : (
             <section className="aw-abschnitt">
