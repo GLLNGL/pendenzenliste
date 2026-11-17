@@ -158,11 +158,12 @@ function verrechnungText(taetigkeiten) {
   return arten.join(' + ');
 }
 
-function aufgabenZeile(x, { projektZeile, titel }) {
+// titelStil: Projekt fett hinterlegt, Einzelpendenz fett, Teilaufgabe normal und eingerueckt.
+function aufgabenZeile(x, { projektZeile, titel, titelStil }) {
   const t = projektZeile ? 'projekt' : 'text';
   return [
     { wert: x.id, stil: projektZeile ? 'projekt' : 'text' },
-    { wert: titel, stil: projektZeile ? 'projekt' : 'schritt' },
+    { wert: titel, stil: titelStil },
     { wert: x.status, stil: statusStil(x.status) },
     datumZelle(x.datum, projektZeile ? 'projektDatum' : 'datum', t),
     datumZelle(x.frist, projektZeile ? 'projektDatum' : 'datum', t),
@@ -173,7 +174,7 @@ function aufgabenZeile(x, { projektZeile, titel }) {
   ];
 }
 
-function pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten = [], notizen = []) {
+function pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten = [], notizen = [], { firma = {}, bearbeiter = '' } = {}) {
   const liste = listeAufbauen(pendenzen, heute, zeiten, notizen);
   const { summen } = liste;
   const kennzahlen = [`${liste.anzahlOffen} offen`, summen.minuten ? `Zeitaufwand ${stundenCH(summen.minuten)} (Pauschal ${stundenCH(summen.pauschal) || '0:00 h'}, Extra ${stundenCH(summen.extra) || '0:00 h'})` : ''].filter(Boolean).join('   ·   ');
@@ -186,8 +187,9 @@ function pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten = [], notizen 
   for (const p of liste.projekte) {
     // Einzelpendenz: eine Zeile mit ihren Arbeiten. Projekt: Kopfzeile ohne Eingabefeld-Text,
     // Arbeiten am Projekt selbst dort, die Teilaufgaben je eine Zeile.
-    zeilen.push(aufgabenZeile(p, { projektZeile: p.schritte.length > 0, titel: p.titel }));
-    for (const s of p.schritte) zeilen.push(aufgabenZeile(s, { projektZeile: false, titel: `${s.nr}. ${s.titel}` }));
+    const istProjekt = p.schritte.length > 0;
+    zeilen.push(aufgabenZeile(p, { projektZeile: istProjekt, titel: p.titel, titelStil: istProjekt ? 'projekt' : 'schritt' }));
+    for (const s of p.schritte) zeilen.push(aufgabenZeile(s, { projektZeile: false, titel: s.titel, titelStil: 'taetigkeit' }));
   }
   const blatt = {
     name: 'Pendenzenliste',
@@ -195,11 +197,90 @@ function pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten = [], notizen 
     zeilen: [...titel, KOPF.map((t) => ({ wert: t, stil: 'kopf' })), ...zeilen],
     fixiereZeilen: titel.length + 1,
   };
-  return { liste, blaetter: [blatt] };
+  return { liste, blaetter: [blatt, druckBlatt(mandant, liste, heute, firma, bearbeiter)] };
 }
 
-function pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten = [], notizen = []) {
-  const { liste, blaetter } = pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten, notizen);
+// ---------------------------------------------------------------- Druckblatt «Protokoll»
+
+// Zweites Blatt, sofort druckbar bzw. als PDF speicherbar: A4 hoch, eine Seitenbreite, ohne
+// Gitternetz, Kopfzeile auf jeder Seite, Fusszeile mit Seitenzahl. Schrift Arial 10, Projekte
+// Arial 11 fett, Bemerkungen/erledigte Arbeiten bei den Aufgaben Arial 9.
+const DRUCK_KOPF = ['Datum', 'Projekt / Aufgabe', 'Status', 'Zeit', 'Bemerkung Mandant'];
+const DRUCK_BREITEN = [11.5, 50, 15, 9, 30];
+
+function statusMitFrist(x) {
+  return !x.erledigt && x.frist ? `${x.status}\nFrist ${datumCH(x.frist)}` : x.status;
+}
+
+function druckBlatt(mandant, liste, heute, firma = {}, bearbeiter = '') {
+  const z = [];
+  const { summen } = liste;
+  z.push([null, { wert: `Pendenzenliste ${mandant.name}`, stil: 'titel' }]);
+  z.push([null, `Protokoll · Stand ${datumCH(heute)} · ${liste.anzahlOffen} offen${summen.minuten ? ` · Zeitaufwand ${stundenCH(summen.minuten)}` : ''}`]);
+  z.push([]);
+  const kopfZeile = z.length + 1;
+  z.push(DRUCK_KOPF.map((t) => ({ wert: t, stil: 'kopf' })));
+
+  const arbeitenZeilen = (liste2) => {
+    for (const t of liste2) {
+      z.push([
+        t.datum ? { datum: t.datum, stil: 'dKleinDatum' } : null,
+        { wert: t.text, stil: 'dKlein' },
+        null,
+        { wert: [stundenCH(t.minuten), t.art].filter(Boolean).join('\n'), stil: 'dKleinText' },
+        null,
+      ]);
+    }
+  };
+  const aufgabenZeile = (a, { stil, datumStil }) => [
+    a.datum ? { datum: a.datum, stil: datumStil } : { wert: '', stil: stil === 'dProjekt' ? 'dProjekt' : 'dText' },
+    { wert: a.titel, stil },
+    { wert: statusMitFrist(a), stil: stil === 'dProjekt' ? 'dProjekt' : 'dText' },
+    { wert: stundenCH(a.minuten), stil: stil === 'dProjekt' ? 'dProjekt' : 'dText' },
+    { wert: '', stil: stil === 'dProjekt' ? 'dProjekt' : 'dText' },
+  ];
+
+  for (const p of liste.projekte) {
+    if (p.schritte.length) {
+      z.push(aufgabenZeile(p, { stil: 'dProjekt', datumStil: 'dProjektDatum' }));
+      arbeitenZeilen(p.taetigkeiten);
+      for (const s of p.schritte) {
+        z.push(aufgabenZeile(s, { stil: 'aufgabe', datumStil: 'dDatum' }));
+        arbeitenZeilen(s.taetigkeiten);
+      }
+    } else {
+      // Einzelpendenz: wie ein Projekt (Arial 11), Arbeiten darunter.
+      z.push(aufgabenZeile(p, { stil: 'dProjekt', datumStil: 'dProjektDatum' }));
+      arbeitenZeilen(p.taetigkeiten);
+    }
+  }
+  if (!liste.projekte.length) z.push([null, 'Keine offenen oder kürzlich erledigten Pendenzen.']);
+
+  // Bemerkungen und Unterschriften
+  const linie = () => [null, { wert: '', stil: 'dLinie' }, { wert: '', stil: 'dLinie' }, { wert: '', stil: 'dLinie' }, { wert: '', stil: 'dLinie' }];
+  z.push([], [null, { wert: 'Bemerkungen / Vereinbarungen', stil: 'dFett' }], linie(), linie(), linie(), [], []);
+  z.push([null, { wert: 'Für den Mandanten', stil: 'dFett' }, null, null, { wert: `Für ${firma.firma || 'den Treuhänder'}`, stil: 'dFett' }]);
+  z.push([null, mandant.name, null, null, bearbeiter || '']);
+  z.push([], []);
+  z.push([null, { wert: '', stil: 'dLinie' }, null, null, { wert: '', stil: 'dLinie' }]);
+  z.push([null, { wert: 'Ort, Datum, Unterschrift', stil: 'dKleinText' }, null, null, { wert: 'Ort, Datum, Unterschrift', stil: 'dKleinText' }]);
+
+  return {
+    name: 'Protokoll',
+    spalten: DRUCK_BREITEN.map((breite) => ({ breite })),
+    zeilen: z,
+    druck: {
+      hochformat: true,
+      ohneGitter: true,
+      wiederholeZeile: kopfZeile,
+      // "&" ist in Excel-Fusszeilen ein Steuerzeichen -- im Namen verdoppeln.
+      fusszeile: `&L&"Arial"&9Pendenzenliste ${String(mandant.name).replace(/&/g, '&&')} · Stand ${datumCH(heute)}&R&"Arial"&9Seite &P von &N`,
+    },
+  };
+}
+
+function pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten = [], notizen = [], { firma = {}, bearbeiter = '' } = {}) {
+  const { liste, blaetter } = pendenzenlisteBlaetter(mandant, pendenzen, heute, zeiten, notizen, { firma, bearbeiter });
   return { blob: xlsxBlob(blaetter), name: dateiname(mandant.name, heute), anzahlOffen: liste.anzahlOffen };
 }
 

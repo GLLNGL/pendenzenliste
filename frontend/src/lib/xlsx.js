@@ -13,8 +13,11 @@ const STILE = {
   taetigkeit: 14, zahl: 15, summe: 16,
   // Status farbig, Eingabefeld fuer den Mandanten hell hinterlegt, Arbeiten klein und grau.
   statusOffen: 17, statusArbeit: 18, statusWarten: 19, statusErledigt: 20, eingabe: 21, arbeiten: 22, untertitel: 23,
+  // Druckblatt: Projekte Arial 11 fett, Aufgaben Arial 10 normal, Bemerkungen/Arbeiten Arial 9.
+  dProjekt: 24, dProjektDatum: 25, aufgabe: 26, dText: 27, dDatum: 28, dKlein: 29, dKleinDatum: 30, dKleinText: 31,
+  dLinie: 32, dFett: 33,
 };
-const DATUM_STILE = new Set([STILE.datum, STILE.datumText, STILE.projektDatum, STILE.schrittDatum]);
+const DATUM_STILE = new Set([STILE.datum, STILE.datumText, STILE.projektDatum, STILE.schrittDatum, STILE.dProjektDatum, STILE.dDatum, STILE.dKleinDatum]);
 
 function xml(text) {
   return String(text)
@@ -55,35 +58,44 @@ function blattXml(blatt) {
     const zellen = zeile.map((zelle, c) => zelleXml(zelle, `${spaltenName(c)}${r + 1}`)).join('');
     return `<row r="${r + 1}">${zellen}</row>`;
   }).join('');
+  const druck = blatt.druck ?? {};
+  const gitter = druck.ohneGitter ? ' showGridLines="0"' : '';
   const fix = blatt.fixiereZeilen
-    ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${blatt.fixiereZeilen}" topLeftCell="A${blatt.fixiereZeilen + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
-    : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+    ? `<sheetViews><sheetView workbookViewId="0"${gitter}><pane ySplit="${blatt.fixiereZeilen}" topLeftCell="A${blatt.fixiereZeilen + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    : `<sheetViews><sheetView workbookViewId="0"${gitter}/></sheetViews>`;
   const filter = blatt.filter ? `<autoFilter ref="${blatt.filter}"/>` : '';
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>${fix}<sheetFormatPr defaultRowHeight="15"/>${spalten ? `<cols>${spalten}</cols>` : ''}<sheetData>${zeilen}</sheetData>${filter}`
-    + '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>'
-    + '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>'
+    + (druck.hochformat
+      ? '<printOptions horizontalCentered="1"/><pageMargins left="0.6" right="0.5" top="0.6" bottom="0.75" header="0.3" footer="0.35"/>'
+      : '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>')
+    + `<pageSetup paperSize="9" orientation="${druck.hochformat ? 'portrait' : 'landscape'}" fitToWidth="1" fitToHeight="0"/>`
+    + (druck.fusszeile ? `<headerFooter><oddFooter>${xml(druck.fusszeile)}</oddFooter></headerFooter>` : '')
     + '</worksheet>';
 }
 
 const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
   + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
   + '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd.mm.yyyy"/></numFmts>'
-  + '<fonts count="5"><font><sz val="10"/><name val="Arial"/></font>'
+  + '<fonts count="7"><font><sz val="10"/><name val="Arial"/></font>'
   + '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>'
   + '<font><b/><sz val="13"/><name val="Arial"/></font>'
   + '<font><b/><sz val="10"/><name val="Arial"/></font>'
-  + '<font><sz val="9"/><color rgb="FF4A5563"/><name val="Arial"/></font></fonts>'
+  + '<font><sz val="9"/><color rgb="FF4A5563"/><name val="Arial"/></font>'
+  + '<font><b/><sz val="11"/><color rgb="FF1F3A5F"/><name val="Arial"/></font>'
+  + '<font><sz val="9"/><color rgb="FF374151"/><name val="Arial"/></font></fonts>'
   + '<fills count="10"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
   + '<fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill>'
   + '<fill><patternFill patternType="solid"><fgColor rgb="FFDCE6F1"/><bgColor indexed="64"/></patternFill></fill>'
   + '<fill><patternFill patternType="solid"><fgColor rgb="FFF3F5F8"/><bgColor indexed="64"/></patternFill></fill>'
   + '<fill><patternFill patternType="solid"><fgColor rgb="FFE9EDF2"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD6E4FF"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE7C2"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9F2DD"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFBE6"/><bgColor indexed="64"/></patternFill></fill></fills>'
-  + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
-  + '<border><left style="thin"><color rgb="FFC8CDD3"/></left><right style="thin"><color rgb="FFC8CDD3"/></right><top style="thin"><color rgb="FFC8CDD3"/></top><bottom style="thin"><color rgb="FFC8CDD3"/></bottom><diagonal/></border></borders>'
+  + '<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border>'
+  + '<border><left style="thin"><color rgb="FFC8CDD3"/></left><right style="thin"><color rgb="FFC8CDD3"/></right><top style="thin"><color rgb="FFC8CDD3"/></top><bottom style="thin"><color rgb="FFC8CDD3"/></bottom><diagonal/></border>'
+  + '<border><left/><right/><top style="hair"><color rgb="FFB8C0CA"/></top><bottom/><diagonal/></border>'
+  + '<border><left/><right/><top/><bottom style="thin"><color rgb="FF333333"/></bottom><diagonal/></border></borders>'
   + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-  + '<cellXfs count="24">'
+  + '<cellXfs count="34">'
   + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
   + '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
   + '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
@@ -108,6 +120,16 @@ const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
   + '<xf numFmtId="0" fontId="0" fillId="9" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
   + '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
   + '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+  + '<xf numFmtId="0" fontId="5" fillId="3" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+  + '<xf numFmtId="164" fontId="5" fillId="3" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="2" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1" indent="1"/></xf>'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="2" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+  + '<xf numFmtId="164" fontId="0" fillId="0" borderId="2" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>'
+  + '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1" indent="2"/></xf>'
+  + '<xf numFmtId="164" fontId="6" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>'
+  + '<xf numFmtId="0" fontId="6" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="3" xfId="0" applyBorder="1"/>'
+  + '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
   + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
 function dateien(blaetter) {
@@ -128,8 +150,11 @@ function dateien(blaetter) {
     ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
       + `<sheets>${namen.map((n, i) => `<sheet name="${n}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>`
-      + (blaetter.some((b) => b.filter)
-        ? `<definedNames>${blaetter.map((b, i) => (b.filter ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${namen[i].replace(/'/g, "''")}'!${b.filter.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2')}</definedName>` : '')).join('')}</definedNames>`
+      + (blaetter.some((b) => b.filter || b.druck?.wiederholeZeile)
+        ? `<definedNames>${blaetter.map((b, i) => [
+          b.filter ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${namen[i].replace(/'/g, "''")}'!${b.filter.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2')}</definedName>` : '',
+          b.druck?.wiederholeZeile ? `<definedName name="_xlnm.Print_Titles" localSheetId="${i}">'${namen[i].replace(/'/g, "''")}'!$${b.druck.wiederholeZeile}:$${b.druck.wiederholeZeile}</definedName>` : '',
+        ].join('')).join('')}</definedNames>`
         : '')
       + '</workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

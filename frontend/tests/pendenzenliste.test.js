@@ -92,9 +92,11 @@ test('Pendenzenliste: gegliedert nach Projekt, Teilaufgabe und Taetigkeit', () =
 
 test('Pendenzenliste: Excel eine Zeile pro Aufgabe, Arbeiten zusammengefasst', () => {
   const { blaetter } = pendenzenlisteBlaetter({ name: 'A4 Personal AG' }, PENDENZEN, '2026-11-17', ZEITEN, NOTIZEN);
-  assert.equal(blaetter.length, 1);
+  assert.deepEqual(blaetter.map((b) => b.name), ['Pendenzenliste', 'Protokoll']);
   const z = blaetter[0].zeilen.slice(4);
-  assert.deepEqual(z.map((r) => r[1].wert), ['Altprojekt', '1. Teil eines alten Projekts', 'Jahresabschluss', '1. Belege anfordern', '2. Abschluss buchen', 'MWST Q3']);
+  // Teilaufgaben ohne Nummer und nicht fett
+  assert.deepEqual(z.map((r) => r[1].wert), ['Altprojekt', 'Teil eines alten Projekts', 'Jahresabschluss', 'Belege anfordern', 'Abschluss buchen', 'MWST Q3']);
+  assert.deepEqual(z.map((r) => r[1].stil), ['projekt', 'taetigkeit', 'projekt', 'taetigkeit', 'taetigkeit', 'schritt']);
   const belege = z[3];
   assert.equal(belege[2].stil, 'statusErledigt');
   assert.equal(belege[5].wert, '09.11.  Belege beim Kunden angefordert (1:30 h, Pauschal)\n10.11.  Nachfassen (0:30 h, Extra)');
@@ -103,6 +105,24 @@ test('Pendenzenliste: Excel eine Zeile pro Aufgabe, Arbeiten zusammengefasst', (
   assert.equal(z[5][2].stil, 'statusWarten');
   assert.equal(blaetter[0].fixiereZeilen, 4);
   assert.ok(xlsxBytes(blaetter, new Date(2026, 10, 17)).length > 1000);
+});
+
+test('Pendenzenliste: Druckblatt Protokoll in A4 mit Arial 11 / 10 / 9', () => {
+  const { blaetter } = pendenzenlisteBlaetter({ name: 'A4 Personal AG' }, PENDENZEN, '2026-11-17', ZEITEN, NOTIZEN, { firma: { firma: 'EST Controlling' }, bearbeiter: 'Angelo' });
+  const druck = blaetter[1];
+  assert.deepEqual([druck.druck.hochformat, druck.druck.ohneGitter, druck.druck.wiederholeZeile], [true, true, 4]);
+  const zeilen = druck.zeilen.slice(4).filter((r) => r[1]?.wert);
+  const projekt = zeilen.find((r) => r[1].wert === 'Jahresabschluss');
+  const aufgabe = zeilen.find((r) => r[1].wert === 'Belege anfordern');
+  const arbeit = zeilen.find((r) => r[1].wert === 'Belege beim Kunden angefordert');
+  assert.equal(projekt[1].stil, 'dProjekt');
+  assert.equal(aufgabe[1].stil, 'aufgabe');
+  assert.deepEqual([arbeit[1].stil, arbeit[3].wert], ['dKlein', '1:30 h\nPauschal']);
+  assert.ok(zeilen.some((r) => r[4]?.wert === 'Für EST Controlling'));
+  const xml = new TextDecoder().decode(xlsxBytes(blaetter, new Date(2026, 10, 17)));
+  assert.ok(xml.includes('orientation="portrait"'));
+  assert.ok(xml.includes("'Protokoll'!$4:$4"));
+  assert.ok(xml.includes('<sz val="11"/>'));
 });
 
 test('Protokoll-PDF: ausfuellbare Bemerkungsfelder fuer offene Aufgaben', () => {

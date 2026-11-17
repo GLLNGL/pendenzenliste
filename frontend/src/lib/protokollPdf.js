@@ -48,7 +48,7 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
     doc.addPage();
     y = MM.rand;
     if (fortsetzung) {
-      schrift(8, 'italic'); farbe(FARBE.hell);
+      schrift(9, 'italic'); farbe(FARBE.hell);
       doc.text(sauber(`Fortsetzung: ${fortsetzung}`), links, y + 3);
       y += 7;
     }
@@ -58,12 +58,12 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
   }
 
   function pille(text, xRechts, yMitte) {
-    schrift(7.5, 'bold');
+    schrift(9, 'bold');
     const t = sauber(text);
     const b = doc.getTextWidth(t) + 5;
     const { fl, tx } = pilleVon(text);
     doc.setFillColor(...fl);
-    doc.roundedRect(xRechts - b, yMitte - 2.4, b, 4.8, 2.4, 2.4, 'F');
+    doc.roundedRect(xRechts - b, yMitte - 2.7, b, 5.4, 2.7, 2.7, 'F');
     farbe(tx);
     doc.text(t, xRechts - b / 2, yMitte + 1, { align: 'center' });
     return b;
@@ -90,7 +90,7 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
     const b = logo.breite && logo.hoehe ? (h * logo.breite) / logo.hoehe : 40;
     doc.addImage(logo.daten, 'PNG', rechts - b, y - 2, b, h);
   }
-  schrift(7.5); farbe(FARBE.grau);
+  schrift(9); farbe(FARBE.grau);
   const absender = [firma.firma, firma.strasse, firma.plzOrt].filter(Boolean).join('  ·  ');
   if (absender) doc.text(sauber(absender), rechts, y + 15, { align: 'right' });
   schrift(22, 'bold'); farbe(FARBE.navy);
@@ -117,14 +117,14 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
     const x = links + i * (kb + 4);
     doc.setFillColor(243, 245, 248);
     doc.roundedRect(x, y, kb, 14, 2, 2, 'F');
-    schrift(7.5); farbe(FARBE.grau);
+    schrift(9); farbe(FARBE.grau);
     doc.text(titel, x + 4, y + 5);
     schrift(13, 'bold'); farbe(FARBE.navy);
     doc.text(wert, x + 4, y + 11.5);
   });
   y += 21;
 
-  schrift(8.5, 'italic'); farbe(FARBE.grau);
+  schrift(9, 'italic'); farbe(FARBE.grau);
   doc.text(umbrechen('Gelbe Felder können direkt im PDF ausgefüllt werden (z.B. im Adobe Acrobat Reader). Bitte das ausgefüllte PDF speichern und zurücksenden – oder ausdrucken und von Hand ergänzen.', innen), links, y);
   y += 10;
 
@@ -137,9 +137,9 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
   // ---- Taetigkeiten (erledigte Arbeiten) einer Aufgabe
   function taetigkeiten(liste2, einzug, fortsetzung) {
     for (const t of liste2) {
-      schrift(8.5);
-      const zeilen = umbrechen(t.text || '–', innen - einzug - 46);
-      const h = zeilen.length * zeilenHoehe(8.5) + 1;
+      schrift(9);
+      const zeilen = umbrechen(t.text || '–', innen - einzug - 48);
+      const h = zeilen.length * zeilenHoehe(9) + 1;
       platz(h, fortsetzung);
       farbe(FARBE.grau);
       doc.text(datumCH(t.datum), links + einzug, y + 3);
@@ -152,22 +152,22 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
   }
 
   // ---- Eine Aufgabe (Teilaufgabe oder Einzelpendenz): Titel, Status, Daten, Arbeiten, Bemerkungsfeld
-  function aufgabe(a, { nummer, einzug, fortsetzung, fett = true }) {
-    schrift(10, fett ? 'bold' : 'normal');
-    const titelZeilen = umbrechen(`${nummer ? `${nummer}. ` : ''}${a.titel}`, innen - einzug - 34);
+  function aufgabe(a, { einzug, fortsetzung, fett = false, groesse = 10 }) {
+    schrift(groesse, fett ? 'bold' : 'normal');
+    const titelZeilen = umbrechen(a.titel, innen - einzug - 38);
     const info = [a.erledigt ? (a.datum ? `erledigt am ${datumCH(a.datum)}` : 'erledigt') : (a.datum ? `bearbeiten am ${datumCH(a.datum)}` : null),
       !a.erledigt && a.frist ? `Frist ${datumCH(a.frist)}` : null, a.verantwortlich ? `verantwortlich ${a.verantwortlich}` : null,
       a.minuten ? `Zeit ${stundenCH(a.minuten)}` : null].filter(Boolean).join('  ·  ');
-    const kopfHoehe = titelZeilen.length * zeilenHoehe(10) + (info ? 4.5 : 0) + 2;
+    const kopfHoehe = titelZeilen.length * zeilenHoehe(groesse) + (info ? 4.8 : 0) + 2;
     platz(kopfHoehe + (a.erledigt ? 0 : 15), fortsetzung);
-    schrift(10, fett ? 'bold' : 'normal'); farbe(a.erledigt ? FARBE.grau : FARBE.text);
+    schrift(groesse, fett ? 'bold' : 'normal'); farbe(a.erledigt ? FARBE.grau : (fett ? FARBE.navy : FARBE.text));
     doc.text(titelZeilen, links + einzug, y + 4);
     pille(a.status, rechts, y + 2.8);
-    y += titelZeilen.length * zeilenHoehe(10) + 1;
+    y += titelZeilen.length * zeilenHoehe(groesse) + 1;
     if (info) {
-      schrift(8); farbe(FARBE.hell);
+      schrift(9); farbe(FARBE.hell);
       doc.text(sauber(info), links + einzug, y + 3);
-      y += 4.5;
+      y += 4.8;
     }
     y += 1;
     if (a.taetigkeiten.length) {
@@ -176,46 +176,46 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
     }
     if (!a.erledigt) {
       platz(14, fortsetzung);
-      schrift(7); farbe(FARBE.grau);
-      doc.text('Bemerkung Mandant', links + einzug, y + 2.5);
-      textFeld(`bemerkung_${a.id}`, links + einzug, y + 3.5, innen - einzug, 9);
-      y += 14;
+      schrift(9); farbe(FARBE.grau);
+      doc.text('Bemerkung Mandant', links + einzug, y + 3);
+      textFeld(`bemerkung_${a.id}`, links + einzug, y + 4.2, innen - einzug, 9);
+      y += 15;
     }
   }
 
   // ---- Projekte
   for (const p of liste.projekte) {
-    schrift(11.5, 'bold');
-    const titelZeilen = umbrechen(p.titel, innen - 72);
-    const kopf = titelZeilen.length * zeilenHoehe(11.5) + 6;
+    schrift(11, 'bold');
+    const titelZeilen = umbrechen(p.titel, innen - 76);
+    const kopf = titelZeilen.length * zeilenHoehe(11) + 6;
     platz(kopf + 20);
     if (p.schritte.length) {
       doc.setFillColor(...FARBE.projekt);
       doc.roundedRect(links, y, innen, kopf, 2, 2, 'F');
-      schrift(11.5, 'bold'); farbe(FARBE.navy);
+      schrift(11, 'bold'); farbe(FARBE.navy);
       doc.text(titelZeilen, links + 4, y + 5.6);
       const b = pille(p.status, rechts - 3, y + 4.6);
-      schrift(8); farbe(FARBE.grau);
+      schrift(9); farbe(FARBE.grau);
       const zusatz = [p.frist && !p.erledigt ? `Frist ${datumCH(p.frist)}` : '', stundenCH(p.minuten)].filter(Boolean).join('  ·  ');
       if (zusatz) doc.text(sauber(zusatz), rechts - 3 - b - 3, y + 5.6, { align: 'right' });
       y += kopf + 3;
       if (p.taetigkeiten.length) { taetigkeiten(p.taetigkeiten, 4, p.titel); y += 1; }
       p.schritte.forEach((s, i) => {
         if (i > 0) { doc.setDrawColor(...FARBE.linie); doc.setLineWidth(0.2); doc.line(links + 4, y - 1.5, rechts, y - 1.5); }
-        aufgabe(s, { nummer: s.nr, einzug: 4, fortsetzung: p.titel });
+        aufgabe(s, { einzug: 4, fortsetzung: p.titel });
       });
     } else {
       // Einzelpendenz als eigene Karte
       doc.setFillColor(...FARBE.projekt);
       doc.rect(links, y, 1.6, 6, 'F');
-      aufgabe(p, { einzug: 4, fortsetzung: p.titel });
+      aufgabe(p, { einzug: 4, fortsetzung: p.titel, fett: true, groesse: 11 });
     }
     y += 4;
   }
 
   // ---- Allgemeine Bemerkungen und Unterschriften
   platz(48 + 42);
-  schrift(10.5, 'bold'); farbe(FARBE.navy);
+  schrift(11, 'bold'); farbe(FARBE.navy);
   doc.text('Bemerkungen / Vereinbarungen', links, y + 4);
   textFeld('bemerkungen_allgemein', links, y + 6.5, innen, 36);
   y += 48;
@@ -224,17 +224,17 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
   const spalte = (x, titel, name, feldPrefix) => {
     schrift(10, 'bold'); farbe(FARBE.navy);
     doc.text(sauber(titel), x, y + 4);
-    schrift(7); farbe(FARBE.grau);
+    schrift(9); farbe(FARBE.grau);
     doc.text('Name', x, y + 9);
     if (feldPrefix) textFeld(`${feldPrefix}_name`, x, y + 10, sb, 7, { mehrzeilig: false, wert: sauber(name) });
     else { schrift(10); farbe(FARBE.text); doc.text(sauber(name), x + 1, y + 15); }
-    schrift(7); farbe(FARBE.grau);
+    schrift(9); farbe(FARBE.grau);
     doc.text('Ort, Datum', x, y + 21);
     if (feldPrefix) textFeld(`${feldPrefix}_ort_datum`, x, y + 22, sb, 7, { mehrzeilig: false });
     else { doc.setDrawColor(...FARBE.text); doc.setLineWidth(0.2); doc.line(x, y + 29, x + sb, y + 29); }
     doc.setDrawColor(...FARBE.text); doc.setLineWidth(0.3);
     doc.line(x, y + 39, x + sb, y + 39);
-    schrift(7); farbe(FARBE.grau);
+    schrift(9); farbe(FARBE.grau);
     doc.text('Unterschrift', x, y + 42);
   };
   spalte(links, 'Für den Mandanten', '', 'mandant');
@@ -245,7 +245,7 @@ function protokollPdf(jspdf, { mandant, liste, heute, firma = {}, bearbeiter = '
   const seiten = doc.getNumberOfPages();
   for (let i = 1; i <= seiten; i += 1) {
     doc.setPage(i);
-    schrift(7.5); farbe(FARBE.hell);
+    schrift(9); farbe(FARBE.hell);
     doc.text(sauber(`Pendenzenliste ${mandant.name} · Stand ${datumCH(heute)}`), links, MM.hoehe - 9);
     doc.text(`Seite ${i} von ${seiten}`, rechts, MM.hoehe - 9, { align: 'right' });
   }

@@ -54,8 +54,8 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
       const ordner = relativerOrdner(mandant, grund);
       const handle = await ordnerHandle(ordner);
       const heute = heutigesDatumISO();
-      const { pendenzen, zeiten, notizen } = await datenLaden(heute);
-      const { blob, name, anzahlOffen } = pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten, notizen);
+      const [{ pendenzen, zeiten, notizen, bearbeiter }, firma] = await Promise.all([datenLaden(heute), api.buero.lesen('firma')]);
+      const { blob, name, anzahlOffen } = pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten, notizen, { firma, bearbeiter });
       if (handle) {
         const pfad = await dateiAblegen(blob, name, ordner, handle);
         setMeldung({ ok: true, text: `${anzahlOffen} offene Pendenzen · abgelegt: ${pfad}` });
