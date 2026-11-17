@@ -86,6 +86,9 @@ export default function PendenzModal(props) {
   // ins Arbeitsfenster. Teilaufgaben und einzelne Pendenzen oeffnen das Arbeitsfenster.
   const istProjekt = !!pendenz && !pendenz.uebergeordnete_pendenz_id && pendenz.teilaufgaben_gesamt > 0;
   const [projektFormular, setProjektFormular] = useState(istProjekt && !detail);
+  // Teilaufgabe, aus der das Projekt (oder die Teilaufgabe selbst) zum Bearbeiten geoeffnet wurde --
+  // dorthin fuehren Zurueck, Abbrechen und Speichern wieder.
+  const [schrittZurueck, setSchrittZurueck] = useState(null);
   const arbeitsfenster = !!pendenz && !detail && pendenz.geplant !== false;
   if (projektFormular && !formularFuer) {
     return (
@@ -98,18 +101,32 @@ export default function PendenzModal(props) {
   if (arbeitsfenster && !formularFuer) {
     return (
       <PendenzArbeitsfenster
-        pendenz={pendenz}
+        key={schrittZurueck?.id ?? pendenz.id}
+        pendenz={schrittZurueck ?? pendenz}
         mandanten={props.mandanten}
         mitarbeitende={props.mitarbeitende}
         onSchliessen={() => { props.onGespeichert?.(); props.onSchliessen(); }}
-        onBearbeiten={(p) => setFormularFuer(p)}
+        onBearbeiten={(p, vonSchritt = null) => { setSchrittZurueck(vonSchritt); setFormularFuer(p); }}
         onGeloescht={props.onGeloescht}
       />
     );
   }
   const ziel = formularFuer ?? pendenz;
+  const zurueck = () => setFormularFuer(null);
+  // Projekt aus einer Teilaufgabe geoeffnet: deutlicher Weg zurueck in diese Teilaufgabe.
+  const zurueckZurTeilaufgabe = formularFuer && schrittZurueck && formularFuer.id !== schrittZurueck.id
+    ? { onZurueck: zurueck, zurueckText: `← Zurück zur Teilaufgabe «${schrittZurueck.titel}»` }
+    : {};
   const formularProps = formularFuer
-    ? { ...props, pendenz: formularFuer, onSchliessen: () => setFormularFuer(null), onGespeichert: () => setFormularFuer(null), onGeloescht: () => { setFormularFuer(null); if (formularFuer.id === pendenz.id) props.onGeloescht?.(); } }
+    ? {
+      ...props, ...zurueckZurTeilaufgabe, pendenz: formularFuer, onSchliessen: zurueck, onGespeichert: zurueck,
+      onGeloescht: () => {
+        // Geloeschte Teilaufgabe: zurueck ins Projekt statt in die nicht mehr vorhandene Teilaufgabe.
+        if (schrittZurueck?.id === formularFuer.id) setSchrittZurueck(null);
+        setFormularFuer(null);
+        if (formularFuer.id === pendenz.id) props.onGeloescht?.();
+      },
+    }
     : props;
   const alsProjekt = !detail && (ziel
     ? ziel.uebergeordnete_pendenz_id == null

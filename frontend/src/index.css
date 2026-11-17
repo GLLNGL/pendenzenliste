@@ -3099,3 +3099,7 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .aw-warten input:not([type="date"]) { width: 200px; }
 .aw-warten label { display: inline-flex; align-items: center; gap: 6px; }
 .aw-chip.aw-chip-warten { background: #fff1d6; color: #9a5b00; }
+
+/* Projekt aus einer Teilaufgabe geoeffnet: Zurueck-Knopf ueber dem Kopf */
+.projekt-zurueck { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--border); background: var(--accent-bg, #eef4ff); color: var(--accent); font: inherit; font-weight: 600; padding: 8px 18px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projekt-zurueck:hover { background: var(--surface-hover); }

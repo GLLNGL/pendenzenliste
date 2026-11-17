@@ -28,7 +28,7 @@ const neueZeile = (verrechnung = 'pauschal', bearbeitungstag = '') => ({
 // Prioritaet, Frist (abschliessen bis) und Verrechnung; die Arbeit steckt in den Teilschritten --
 // je eine Zeile mit eigenem Bearbeitungsdatum, Aufwand und Verrechnung. Der Aufwand des Projekts
 // ist die Summe der Teilschritte.
-export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, onSchliessen, onGespeichert, onGeloescht, onArbeitsfenster }) {
+export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], vorgabe, onSchliessen, onGespeichert, onGeloescht, onArbeitsfenster, onZurueck, zurueckText }) {
   const { benutzer } = useAuth();
   const leistungen = useLeistungen();
   const [kopf, setKopf] = useState(() => ({
@@ -255,6 +255,9 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
   return (
     <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div className="modal modal-breit projekt-modal" onClick={(e) => e.stopPropagation()}>
+        {onZurueck && (
+          <button type="button" className="projekt-zurueck" onClick={onZurueck} title="Ohne zu speichern zurück in die Teilaufgabe">{zurueckText || '← Zurück'}</button>
+        )}
         <div className="modal-kopf">
           <span>{!pendenz ? 'Neues Projekt' : pendenz.geplant === false ? 'Aus dem Eingang einplanen' : `Projekt ${pendenz.id} bearbeiten`}</span>
           <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>

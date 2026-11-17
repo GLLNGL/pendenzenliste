@@ -326,8 +326,8 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             {schrittAnsicht
               ? (
                 <>
-                  <button type="button" className="btn" onClick={() => onBearbeiten(fokus)} title="Diese Teilaufgabe bearbeiten">Bearbeiten</button>
-                  <button type="button" className="btn" onClick={() => onBearbeiten(projekt)} title="Das ganze Projekt bearbeiten">Projekt bearbeiten</button>
+                  <button type="button" className="btn" onClick={() => onBearbeiten(fokus, fokus)} title="Diese Teilaufgabe bearbeiten">Bearbeiten</button>
+                  <button type="button" className="btn" onClick={() => onBearbeiten(projekt, fokus)} title="Das ganze Projekt bearbeiten">Projekt bearbeiten</button>
                 </>
               )
               : <button type="button" className="btn" onClick={() => onBearbeiten(projekt)}>Bearbeiten</button>}
@@ -484,7 +484,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </section>
 
             <section className="aw-abschnitt">
-              <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Beschreibung der Teilaufgabe' : 'Beschreibung'}{schrittAnsicht && <button type="button" className="link-knopf aw-titel-link" onClick={() => onBearbeiten(fokus)}>✎ bearbeiten</button>}</div>
+              <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Beschreibung der Teilaufgabe' : 'Beschreibung'}{schrittAnsicht && <button type="button" className="link-knopf aw-titel-link" onClick={() => onBearbeiten(fokus, fokus)}>✎ bearbeiten</button>}</div>
               {beschreibung
                 ? <div className="aw-beschreibung">{beschreibungKurz ? `${beschreibung.slice(0, 320)}…` : beschreibung}{beschreibung.length > 320 && <button type="button" className="link-knopf" onClick={() => setBeschreibungLang((x) => !x)}>{beschreibungLang ? ' weniger' : ' mehr anzeigen'}</button>}</div>
                 : <div className="aw-leer">Keine Beschreibung – unter «Bearbeiten» ergänzen.</div>}
