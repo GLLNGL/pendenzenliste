@@ -144,11 +144,20 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const eintragSchrittId = schrittAnsicht ? fokus.id : Number(eingabe.schrittId) || arbeitAn.id;
   const eintragArt = eingabe.art || (schritte.find((s) => s.id === eintragSchrittId) ?? projekt).verrechnung || 'pauschal';
   const dauerMinuten = eingabe.dauer.trim() ? parseDauer(eingabe.dauer) : null;
-  async function eintragSpeichern() {
+  // Datum in der Zukunft = Pendenz auf diesen Tag verschieben (Bearbeiten am), Text als Notiz.
+  const zukunft = !!eingabe.datum && eingabe.datum > heute;
+  async function eintragSpeichern({ verschieben = true } = {}) {
     const text = eingabe.text.trim();
-    if (!text) return false;
     if (eingabe.dauer.trim() && !dauerMinuten) throw new Error('Dauer z.B. als 0:45, 1.5 oder 90 eingeben.');
     if (dauerMinuten && !eingabe.datum) throw new Error('Bitte das Datum der Arbeit eingeben.');
+    if (dauerMinuten && zukunft) throw new Error('Zeit kann nicht in der Zukunft erfasst werden. Ohne Zeitaufwand wird die Pendenz auf dieses Datum verschoben.');
+    if (zukunft && verschieben) {
+      if (text) await api.pendenzen.notizErstellen(eintragSchrittId, text);
+      await api.pendenzen.aktualisieren(eintragSchrittId, { bearbeitungstag: eingabe.datum });
+      setEingabe((x) => ({ ...x, text: '', dauer: '', datum: heute }));
+      return true;
+    }
+    if (!text) return false;
     if (dauerMinuten) {
       await api.zeit.speichern(null, {
         mandantId: projekt.mandant_id, pendenzId: eintragSchrittId, leistungId: projekt.leistung_id,
@@ -162,13 +171,14 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     return true;
   }
   const eintragen = () => tun(async () => {
-    if (!eingabe.text.trim()) throw new Error('Bitte beschreiben, was gemacht wurde.');
+    if (!eingabe.text.trim() && !zukunft) throw new Error('Bitte beschreiben, was gemacht wurde.');
     await eintragSpeichern();
   });
+  const bearbeitungstagSetzen = (p, tag) => tun(() => api.pendenzen.aktualisieren(p.id, { bearbeitungstag: tag || null }));
   // Teilaufgabe erledigen: ein noch nicht eingetragener Statustext wird vorher gespeichert.
   const schrittErledigen = () => tun(async () => {
     if (timer?.pendenz_id === fokus.id) throw new Error('Zuerst den Timer stoppen, damit die Zeit bei dieser Teilaufgabe gespeichert wird.');
-    await eintragSpeichern();
+    await eintragSpeichern({ verschieben: false });
     await api.pendenzen.statusAendern(fokus.id, 'Erledigt');
     setErledigtMeldung(fokus.titel);
   });
@@ -248,7 +258,13 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                     </select>
                   )
                   : fokus.status !== 'Offen' && <span className={`zeile-status-tag status-${statusSlug(fokus.status)}`}>{fokus.status}</span>}
-                {fokus.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(fokus.bearbeitungstag)}</span>}
+                {schrittAnsicht && fokus.status !== 'Erledigt'
+                  ? (
+                    <label className="aw-jetzt-tag">Bearbeiten am
+                      <input type="date" value={fokus.bearbeitungstag ?? ''} onChange={(e) => bearbeitungstagSetzen(fokus, e.target.value)} aria-label="Bearbeiten am" />
+                    </label>
+                  )
+                  : fokus.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(fokus.bearbeitungstag)}</span>}
                 {fokus.aufwand_minuten ? <span>≈ {formatiereAufwand(fokus.aufwand_minuten)}</span> : null}
                 {zeitProSchritt.get(fokus.id) ? <span>erfasst {formatiereDauer(zeitProSchritt.get(fokus.id))}</span> : null}
               </div>
@@ -324,7 +340,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) eintragen(); }} />
                 <div className="aw-eingabe-zeile">
                   <label className="aw-eingabe-feld">Datum
-                    <input type="date" className="aw-eingabe-datum" value={eingabe.datum} max={heute} onChange={(e) => setEingabe((x) => ({ ...x, datum: e.target.value }))} />
+                    <input type="date" className="aw-eingabe-datum" value={eingabe.datum} title="Vergangen/heute: Datum der Arbeit · Zukunft: Pendenz auf diesen Tag verschieben" onChange={(e) => setEingabe((x) => ({ ...x, datum: e.target.value }))} />
                   </label>
                   <label className="aw-eingabe-feld">Zeitaufwand
                     <input value={eingabe.dauer} onChange={(e) => setEingabe((x) => ({ ...x, dauer: e.target.value }))} placeholder="0:30" className={eingabe.dauer && !dauerMinuten ? 'ungueltig' : ''} />
@@ -343,7 +359,9 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                     </select>
                   )}
                   <DiktatKnopf titel="Diktieren" onText={(t) => setEingabe((x) => ({ ...x, text: textAnhaengen(x.text, t) }))} />
-                  <button type="button" className="btn btn-primary" onClick={eintragen} disabled={!eingabe.text.trim()}>{dauerMinuten ? `Eintragen (${formatiereDauer(dauerMinuten)})` : 'Notiz eintragen'}</button>
+                  <button type="button" className="btn btn-primary" onClick={eintragen} disabled={!eingabe.text.trim() && !zukunft}>
+                    {zukunft ? `Auf ${formatiereDatum(eingabe.datum)} verschieben${eingabe.text.trim() ? ' + Notiz' : ''}` : dauerMinuten ? `Eintragen (${formatiereDauer(dauerMinuten)})` : 'Notiz eintragen'}
+                  </button>
                 </div>
               </div>
               <ul className="aw-verlauf">
