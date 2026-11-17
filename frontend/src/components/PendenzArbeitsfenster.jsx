@@ -52,7 +52,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   const [fokusId, setFokusId] = useState(start.uebergeordnete_pendenz_id ? start.id : null);
   const [zeiten, setZeiten] = useState([]);
   const [notizen, setNotizen] = useState([]);
-  const [eingabe, setEingabe] = useState({ text: '', dauer: '', art: '', schrittId: '' });
+  const [eingabe, setEingabe] = useState(() => ({ text: '', datum: heutigesDatumISO(), dauer: '', art: '', schrittId: '' }));
   const [neuerSchritt, setNeuerSchritt] = useState('');
   const [zeitOffen, setZeitOffen] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -148,10 +148,11 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     const text = eingabe.text.trim();
     if (!text) return false;
     if (eingabe.dauer.trim() && !dauerMinuten) throw new Error('Dauer z.B. als 0:45, 1.5 oder 90 eingeben.');
+    if (dauerMinuten && !eingabe.datum) throw new Error('Bitte das Datum der Arbeit eingeben.');
     if (dauerMinuten) {
       await api.zeit.speichern(null, {
         mandantId: projekt.mandant_id, pendenzId: eintragSchrittId, leistungId: projekt.leistung_id,
-        art: projekt.mandant_id ? eintragArt : 'intern', datum: heute, minuten: dauerMinuten, beschreibung: text,
+        art: projekt.mandant_id ? eintragArt : 'intern', datum: eingabe.datum, minuten: dauerMinuten, beschreibung: text,
       });
       meldeZeitAenderung();
     } else {
@@ -322,7 +323,10 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 <textarea rows={schrittAnsicht ? 3 : 2} value={eingabe.text} onChange={(e) => setEingabe((x) => ({ ...x, text: e.target.value }))} placeholder={schrittAnsicht ? 'Stand / was wurde gemacht? z.B. «Unterlagen geprüft, Rückfrage an Kunde gestellt»' : 'Was wurde gemacht? z.B. «Belege Q3 kontiert, Rückfragen an Kunde»'}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) eintragen(); }} />
                 <div className="aw-eingabe-zeile">
-                  <label className="aw-eingabe-feld">Dauer
+                  <label className="aw-eingabe-feld">Datum
+                    <input type="date" className="aw-eingabe-datum" value={eingabe.datum} max={heute} onChange={(e) => setEingabe((x) => ({ ...x, datum: e.target.value }))} />
+                  </label>
+                  <label className="aw-eingabe-feld">Zeitaufwand
                     <input value={eingabe.dauer} onChange={(e) => setEingabe((x) => ({ ...x, dauer: e.target.value }))} placeholder="0:30" className={eingabe.dauer && !dauerMinuten ? 'ungueltig' : ''} />
                   </label>
                   {projekt.mandant_id && (

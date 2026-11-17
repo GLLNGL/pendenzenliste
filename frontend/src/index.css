@@ -2988,3 +2988,4 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .tp-kachel .tp-projektzeile button.tp-projekt-klapp { padding-left: 14px; }
 .tp-projektzeile button.tp-projekt-oeffnen { flex: 1; min-width: 0; padding-left: 6px; }
 .tp-projektzeile button.tp-projekt-oeffnen:hover .tp-projekt-titel { color: var(--accent); text-decoration: underline; }
+.aw-eingabe-feld input.aw-eingabe-datum { width: 135px; text-align: left; }
