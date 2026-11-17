@@ -3003,3 +3003,14 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .pl-meldung { font-size: var(--fs-klein); word-break: break-all; }
 .pl-meldung.ok { color: var(--success); }
 .pl-meldung.fehler { color: var(--danger); }
+
+/* Arbeitsfenster: verschiebbar am Kopf, klarer Groessen-Regler */
+.aw-kopf-ziehbar { cursor: grab; user-select: none; }
+body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none !important; }
+.aw-kopf-ziehbar input, .aw-kopf-ziehbar select, .aw-kopf-ziehbar button { cursor: pointer; }
+.aw-groesse-wahl { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); margin-right: 4px; }
+.aw-groesse-label { padding: 0 8px; font-size: var(--fs-klein); color: var(--text-muted); border-right: 1px solid var(--border); align-self: stretch; display: flex; align-items: center; background: var(--surface-2); }
+.aw-groesse-wahl button { border: none; background: none; width: 30px; height: 32px; font-size: 17px; font-weight: 600; color: var(--text); cursor: pointer; }
+.aw-groesse-wahl button:hover:not(:disabled) { background: var(--surface-hover); color: var(--accent); }
+.aw-groesse-wahl button:disabled { color: var(--text-faint); cursor: default; }
+.aw-groesse-wahl select { border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-radius: 0; height: 32px; width: auto; padding: 0 6px; font-size: var(--fs-klein); background: var(--surface); }

@@ -223,6 +223,12 @@ function pruefeFehler(error) {
 }
 
 // Leere Formularwerte ('' oder undefined) als null speichern, Zahlen als Zahl.
+// Datum mit unplausiblem Jahr (z.B. halb getipptes «0002») gar nicht erst speichern.
+function datumPruefen(wert, feld) {
+  if (wert && !/^(19|20)d{2}-d{2}-d{2}$/.test(String(wert))) throw new Error(`«${feld}»: ungültiges Datum (${wert}).`);
+  return wert || null;
+}
+
 function zahlOderNull(wert) {
   return wert === '' || wert == null ? null : Number(wert);
 }
@@ -1356,7 +1362,7 @@ const api = {
         warten_auf_person: wartet ? daten.wartenAufPerson.trim() : null,
         warte_seit: wartet ? (daten.warteSeit || heutigesDatumISO()) : null,
         wiedervorlage: wartet ? daten.wiedervorlage : null,
-        bearbeitungstag: daten.bearbeitungstag || null,
+        bearbeitungstag: datumPruefen(daten.bearbeitungstag, 'Bearbeiten am'),
         ...(daten.leistungId ? { leistung_id: Number(daten.leistungId) } : {}),
         ...(daten.verrechnung ? { verrechnung: daten.verrechnung === 'extra' ? 'extra' : 'pauschal' } : {}),
         uebergeordnete_pendenz_id: daten.uebergeordnetePendenzId ?? null,
@@ -1400,11 +1406,11 @@ const api = {
       if (daten.mandantId !== undefined) patch.mandant_id = daten.mandantId;
       if (daten.bearbeiterId !== undefined) patch.bearbeiter_id = daten.bearbeiterId;
       if (daten.beschreibung !== undefined) patch.beschreibung = daten.beschreibung || null;
-      if (daten.faelligkeit !== undefined) patch.faelligkeit = daten.faelligkeit || null;
+      if (daten.faelligkeit !== undefined) patch.faelligkeit = datumPruefen(daten.faelligkeit, 'Frist');
       if (daten.harteFrist !== undefined) patch.harte_frist = !!daten.harteFrist;
       if (daten.aufwandMinuten !== undefined) patch.aufwand_minuten = zahlOderNull(daten.aufwandMinuten);
       if (daten.block !== undefined) patch.block = daten.block || 'Sonstiges';
-      if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = daten.bearbeitungstag || null;
+      if (daten.bearbeitungstag !== undefined) patch.bearbeitungstag = datumPruefen(daten.bearbeitungstag, 'Bearbeiten am');
       if (daten.zuPlanenSeit !== undefined) patch.zu_planen_seit = daten.zuPlanenSeit || null;
       if (daten.leistungId !== undefined) patch.leistung_id = zahlOderNull(daten.leistungId);
       if (daten.verrechnung !== undefined) patch.verrechnung = daten.verrechnung === 'extra' ? 'extra' : 'pauschal';

@@ -19,6 +19,28 @@ import { chf } from '../lib/offerte.js';
 import { useLeistungen } from '../hooks.js';
 
 const GROESSE_SCHLUESSEL = 'arbeitsfenster-groesse';
+const GROESSEN = [60, 70, 80, 90, 100];
+
+// Plausibles Datum (Jahr 2000-2099) -- schuetzt vor halb getippten Jahren wie 0002.
+const datumGueltig = (iso) => /^20\d{2}-\d{2}-\d{2}$/.test(iso ?? '');
+
+// Datumsfeld, das erst beim Verlassen (oder Enter) speichert -- nicht bei jedem Tastendruck,
+// sonst wird beim Tippen des Jahres schon «0002» gespeichert.
+function DatumFeld({ wert, onSpeichern, onFehler, label }) {
+  const [entwurf, setEntwurf] = useState(wert ?? '');
+  useEffect(() => { setEntwurf(wert ?? ''); }, [wert]);
+  function uebernehmen() {
+    if (entwurf === (wert ?? '')) return;
+    if (entwurf && !datumGueltig(entwurf)) { onFehler('Bitte ein gültiges Datum eingeben (TT.MM.JJJJ).'); setEntwurf(wert ?? ''); return; }
+    onSpeichern(entwurf);
+  }
+  return (
+    <input type="date" value={entwurf} aria-label={label}
+      onChange={(e) => setEntwurf(e.target.value)}
+      onBlur={uebernehmen}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } if (e.key === 'Escape') { e.stopPropagation(); setEntwurf(wert ?? ''); } }} />
+  );
+}
 const stunden = (min) => (min >= 60 ? `${(min / 60).toLocaleString('de-CH', { maximumFractionDigits: 1 })} h` : `${Math.round(min || 0)} Min.`);
 
 function TimerKnopf({ pendenz, timer, gross = false, beschriftung = 'Start', onFehler, onStopp }) {
@@ -70,6 +92,30 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   function groesseAendern(wert) {
     setGroesse(wert);
     try { localStorage.setItem(GROESSE_SCHLUESSEL, String(wert)); } catch { /* ohne Speicher weiter */ }
+  }
+
+  // Fenster am Kopf verschieben (ziehen); Doppelklick auf den Kopf zentriert es wieder.
+  const [versatz, setVersatz] = useState({ x: 0, y: 0 });
+  function ziehenStarten(e) {
+    if (e.button !== 0 || e.target.closest('button, input, select, textarea, a, label')) return;
+    const fenster = e.currentTarget.closest('.aw-fenster');
+    const rect = fenster.getBoundingClientRect();
+    const massstab = rect.width / fenster.offsetWidth || 1; // CSS-Zoom der App
+    const start = { mx: e.clientX, my: e.clientY, ...versatz };
+    const bewegen = (ev) => {
+      const dx = Math.min(Math.max(ev.clientX - start.mx, 120 - rect.right), window.innerWidth - 120 - rect.left);
+      const dy = Math.min(Math.max(ev.clientY - start.my, -rect.top), window.innerHeight - 60 - rect.top);
+      setVersatz({ x: start.x + dx / massstab, y: start.y + dy / massstab });
+    };
+    const ende = () => {
+      window.removeEventListener('pointermove', bewegen);
+      window.removeEventListener('pointerup', ende);
+      document.body.classList.remove('aw-zieht');
+    };
+    window.addEventListener('pointermove', bewegen);
+    window.addEventListener('pointerup', ende);
+    document.body.classList.add('aw-zieht');
+    e.preventDefault();
   }
 
   const laden = useCallback(async () => {
@@ -214,12 +260,16 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     <div className="modal-hintergrund" {...hintergrundSchliessen(onSchliessen)}>
       <div
         className="aw-fenster"
-        style={{ width: `calc(${groesse}vw / var(--app-zoom, 1))`, height: `calc(${Math.min(groesse + 6, 100)}vh / var(--app-zoom, 1))` }}
+        style={{
+          width: `calc(${groesse}vw / var(--app-zoom, 1))`, height: `calc(${Math.min(groesse + 6, 100)}vh / var(--app-zoom, 1))`,
+          transform: versatz.x || versatz.y ? `translate(${versatz.x}px, ${versatz.y}px)` : undefined,
+        }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={projekt.titel}
       >
-        <header className="aw-kopf">
+        <header className="aw-kopf aw-kopf-ziehbar" onPointerDown={ziehenStarten} onDoubleClick={(e) => { if (!e.target.closest('button, input, select, a, label')) setVersatz({ x: 0, y: 0 }); }}
+          title="Am Kopf ziehen, um das Fenster zu verschieben · Doppelklick zentriert">
           <div className="aw-kopf-text">
             <div className="aw-pfad">
               <span className="aw-mandant">{mandant?.name ?? 'Intern'}</span>
@@ -237,10 +287,15 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </div>
           </div>
           <div className="aw-kopf-aktionen">
-            <label className="mail-groesse aw-groesse" title="Fenstergrösse">
-              <span aria-hidden="true">⤡</span>
-              <input type="range" min="50" max="100" step="5" value={groesse} onChange={(e) => groesseAendern(Number(e.target.value))} aria-label="Fenstergrösse" />
-            </label>
+            <div className="aw-groesse-wahl" role="group" aria-label="Fenstergrösse">
+              <span className="aw-groesse-label">Grösse</span>
+              <button type="button" onClick={() => groesseAendern(Math.max(50, groesse - 10))} disabled={groesse <= 50} title="Fenster kleiner" aria-label="Fenster kleiner">−</button>
+              <select value={GROESSEN.includes(groesse) ? groesse : ''} onChange={(e) => groesseAendern(Number(e.target.value))} aria-label="Fenstergrösse in Prozent">
+                {!GROESSEN.includes(groesse) && <option value="">{groesse} %</option>}
+                {GROESSEN.map((g) => <option key={g} value={g}>{g === 100 ? 'Vollbild' : `${g} %`}</option>)}
+              </select>
+              <button type="button" onClick={() => groesseAendern(Math.min(100, groesse + 10))} disabled={groesse >= 100} title="Fenster grösser" aria-label="Fenster grösser">+</button>
+            </div>
             <button type="button" className="btn" onClick={() => onBearbeiten(projekt)}>Bearbeiten</button>
             <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
           </div>
@@ -262,7 +317,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 {schrittAnsicht && fokus.status !== 'Erledigt'
                   ? (
                     <label className="aw-jetzt-tag">Bearbeiten am
-                      <input type="date" value={fokus.bearbeitungstag ?? ''} onChange={(e) => bearbeitungstagSetzen(fokus, e.target.value)} aria-label="Bearbeiten am" />
+                      <DatumFeld key={fokus.id} wert={fokus.bearbeitungstag} label="Bearbeiten am" onFehler={setFehler} onSpeichern={(tag) => bearbeitungstagSetzen(fokus, tag)} />
                     </label>
                   )
                   : fokus.bearbeitungstag && <span>Bearbeiten am {formatiereDatum(fokus.bearbeitungstag)}</span>}
