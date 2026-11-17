@@ -101,9 +101,9 @@ function nachProjekt(zeilen) {
 }
 
 function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken }) {
-  // Projekte sind im Cockpit aufgeklappt (Teilaufgaben abhaken); Klick aufs Projekt klappt zu.
-  const [zu, setZu] = useState(() => new Set());
-  const umschalten = (id) => setZu((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // Projekte sind im Cockpit eingeklappt; der Pfeil klappt die Teilaufgaben auf.
+  const [auf, setAuf] = useState(() => new Set());
+  const umschalten = (id) => setAuf((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const total = offen.length + erledigt.length;
   const fertig = erledigtAnzahl ?? erledigt.length;
   const gesamt = offen.length + fertig;
@@ -139,7 +139,7 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
                   return <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />;
                 }
                 const offenImProjekt = b.zeilen.filter((z) => !z.erledigt).length;
-                const geschlossen = zu.has(b.id);
+                const geschlossen = !auf.has(b.id);
                 return [
                   <li key={`projekt-${b.id}`} className="tp-projektzeile">
                     <button type="button" className="tp-projekt-klapp" onClick={() => umschalten(b.id)} aria-expanded={!geschlossen} aria-label={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'} title={geschlossen ? 'Teilaufgaben anzeigen' : 'Teilaufgaben einklappen'}>
@@ -199,7 +199,8 @@ export default function TagesCockpit() {
   // Klick auf einen Projekttitel liefert nur die ID -- die volle Pendenz nachschlagen.
   const oeffnen = (p) => setAktivePendenz(p.status ? p : daten.offene.find((x) => x.id === p.id) ?? p);
   const plan = tagesplan(daten.offene, daten.erledigte, { heute, ichId: benutzer?.id ?? null });
-  const anzahlZuPlanen = zuPlanen(daten.offene).length;
+  const listeZuPlanen = zuPlanen(daten.offene);
+  const anzahlZuPlanen = listeZuPlanen.length;
   const morgenName = morgenTitel(heute, plan.morgen.tag);
   const abgelaufen = abgelaufene(daten.offene, { heute, ichId: benutzer?.id ?? null });
 
@@ -249,7 +250,7 @@ export default function TagesCockpit() {
         <h1 className="seiten-titel">Cockpit</h1>
         <span className="tp-kopf-datum">{tagText(heute)}{heute.slice(0, 4)}</span>
         <span className="tp-kopf-links">
-          <Link to="/planen">Zu planen <strong>{anzahlZuPlanen}</strong></Link>
+          <a href="#zu-planen" onClick={(e) => { e.preventDefault(); document.getElementById('zu-planen')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Zu planen <strong>{anzahlZuPlanen}</strong></a>
           {daten.eingang > 0 && <Link to="/eingang">Eingang <strong>{daten.eingang}</strong></Link>}
           <Link to="/uebersicht">Übersicht &amp; Kalender</Link>
         </span>
@@ -299,6 +300,19 @@ export default function TagesCockpit() {
           onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
+        <div id="zu-planen" className="tp-zuplanen-anker">
+          <Karte
+            titel="Zu planen"
+            untertitel="Noch ohne Bearbeitungstag – auf Heute, den nächsten Arbeitstag legen oder in der Pendenz ein Datum wählen"
+            offen={listeZuPlanen}
+            leerText="Alles ist eingeplant."
+            heute={heute}
+            aktionen={aktionen('zuplanen')}
+            onOeffnen={oeffnen}
+            onAbhaken={abhaken}
+            klasse="tp-karte-zuplanen"
+          />
+        </div>
       </div>
 
       {aktivePendenz && (

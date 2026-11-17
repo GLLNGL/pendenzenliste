@@ -2991,3 +2991,7 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .aw-eingabe-feld input.aw-eingabe-datum { width: 135px; text-align: left; }
 .aw-jetzt-tag { display: inline-flex; align-items: center; gap: 6px; }
 .aw-jetzt-tag input { font-size: var(--fs-klein); padding: 1px 6px; height: auto; width: 130px; }
+
+/* Cockpit: «Zu planen» als breite Karte unter den Tageskarten */
+.tp-zuplanen-anker { grid-column: 1 / -1; scroll-margin-top: 12px; }
+.tp-karte-zuplanen .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
