@@ -1234,6 +1234,28 @@ const api = {
       const { error } = await supabase.from('pendenzen').update({ verrechnung: art === 'extra' ? 'extra' : 'pauschal' }).eq('id', id);
       pruefeFehler(error);
     },
+    // Offene Projekte eines Mandanten (Ziel beim Verschieben von Teilschritten).
+    offeneProjekte: async (mandantId) => {
+      let q = supabase.from('pendenzen').select('id, titel').is('uebergeordnete_pendenz_id', null)
+        .neq('status', 'Erledigt').eq('geplant', true).order('id', { ascending: false }).limit(100);
+      q = mandantId == null ? q.is('mandant_id', null) : q.eq('mandant_id', mandantId);
+      const { data, error } = await q;
+      pruefeFehler(error);
+      return data;
+    },
+    // Teilschritte in ein anderes Projekt haengen (hinten anfuegen, Reihenfolge bleibt). Die
+    // Projekt-Logik der Datenbank fuehrt danach beide Projekte nach (aktiver Schritt, Status).
+    schritteVerschieben: async (ids, zielProjektId) => {
+      const { data: letzte, error: fehlerLesen } = await supabase.from('pendenzen').select('reihenfolge')
+        .eq('uebergeordnete_pendenz_id', zielProjektId).order('reihenfolge', { ascending: false, nullsFirst: false }).limit(1);
+      pruefeFehler(fehlerLesen);
+      let nr = letzte?.[0]?.reihenfolge ?? 0;
+      for (const id of ids) {
+        const { error } = await supabase.from('pendenzen')
+          .update({ uebergeordnete_pendenz_id: zielProjektId, reihenfolge: ++nr }).eq('id', id);
+        pruefeFehler(error);
+      }
+    },
     teilaufgaben: async (id) => {
       const { data, error } = await supabase.from('pendenzen_angereichert').select('*')
         .eq('uebergeordnete_pendenz_id', id)

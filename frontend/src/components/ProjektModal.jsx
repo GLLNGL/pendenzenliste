@@ -48,6 +48,12 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
   const [fehler, setFehler] = useState(null);
   const [speichert, setSpeichert] = useState(false);
   const [details, setDetails] = useState(false);
+  // Teilschritte in ein anderes (neues oder bestehendes) Projekt verschieben -- z.B. wenn aus
+  // einer Mail zwei Auftraege in einem Projekt gelandet sind. Wird beim Speichern ausgefuehrt.
+  const [auswahl, setAuswahl] = useState(() => new Set());
+  const [zielWahl, setZielWahl] = useState('neu');
+  const [neuTitel, setNeuTitel] = useState('');
+  const [projekte, setProjekte] = useState([]);
   const titelRef = useRef(null);
 
   useEffect(() => { titelRef.current?.focus(); }, []);
@@ -88,7 +94,37 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
   }
   const schrittHinzufuegen = () => setSchritte((liste) => [...liste, neueZeile(kopf.verrechnung)]);
 
-  const summe = schritte.filter((s) => s.status !== 'Erledigt').reduce((t, s) => t + (Number(s.aufwandMinuten) || 0), 0);
+  const auswahlAktiv = auswahl.size > 0;
+  useEffect(() => {
+    if (!auswahlAktiv || !kopf.mandantId) return;
+    api.pendenzen.offeneProjekte(kopf.mandantId === INTERN ? null : Number(kopf.mandantId))
+      .then((l) => setProjekte(l.filter((p) => p.id !== pendenz?.id))).catch(() => setProjekte([]));
+  }, [auswahlAktiv, kopf.mandantId, pendenz]);
+  function auswahlUmschalten(k) {
+    const n = new Set(auswahl);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    // Vorschlag fuer den Titel des neuen Projekts: der erste angewaehlte Schritt.
+    if (auswahl.size === 0 && n.size === 1) setNeuTitel(schritte.find((s) => s._k === k)?.titel ?? '');
+    setAuswahl(n);
+  }
+  function verschiebenVormerken() {
+    let ziel;
+    if (zielWahl === 'neu') {
+      if (!neuTitel.trim()) { setFehler('Bitte einen Titel für das neue Projekt eingeben.'); return; }
+      ziel = { schluessel: `neu:${neuTitel.trim()}`, neu: true, titel: neuTitel.trim() };
+    } else {
+      const p = projekte.find((x) => String(x.id) === zielWahl);
+      if (!p) return;
+      ziel = { schluessel: `id:${p.id}`, id: p.id, titel: p.titel };
+    }
+    setFehler(null);
+    setSchritte((liste) => liste.map((s) => (auswahl.has(s._k) ? { ...s, ziel } : s)));
+    setAuswahl(new Set());
+    setZielWahl('neu');
+  }
+  const verschoben = schritte.filter((s) => s.ziel);
+
+  const summe = schritte.filter((s) => s.status !== 'Erledigt' && !s.ziel).reduce((t, s) => t + (Number(s.aufwandMinuten) || 0), 0);
   const ohneAufwand = schritte.filter((s) => s.titel.trim() && s.status !== 'Erledigt' && !s.aufwandMinuten).length;
 
   async function speichern(e) {
@@ -121,8 +157,27 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
         : await api.pendenzen.erstellen({ ...gemeinsam, status: 'Offen' });
 
       for (const id of geloescht) await api.pendenzen.loeschen(id);
+
+      // Zielprojekte fuer verschobene Teilschritte: neue Projekte uebernehmen Mandant,
+      // Bearbeiter, Prioritaet, Frist, Verrechnung und Leistung dieses Projekts.
+      const zielIds = new Map();
+      for (const s of schritte) {
+        if (!s.ziel || zielIds.has(s.ziel.schluessel)) continue;
+        if (s.ziel.neu) {
+          const neu = await api.pendenzen.erstellen({
+            ...gemeinsam, titel: s.ziel.titel, status: 'Offen',
+            beschreibung: `Abgespalten aus Projekt #${projekt.id} «${gemeinsam.titel}».`,
+          });
+          zielIds.set(s.ziel.schluessel, neu.id);
+        } else {
+          zielIds.set(s.ziel.schluessel, s.ziel.id);
+        }
+      }
+      const zuVerschieben = new Map();
+
       // Nacheinander, damit die Reihenfolge der Teilschritte erhalten bleibt.
       for (const s of schritte) {
+        const zielId = s.ziel ? zielIds.get(s.ziel.schluessel) : null;
         const daten = {
           titel: s.titel.trim(), bearbeitungstag: s.bearbeitungstag || null, aufwandMinuten: s.aufwandMinuten === '' ? null : Number(s.aufwandMinuten),
           verrechnung: s.verrechnung, mandantId, bearbeiterId, prioritaet: kopf.prioritaet,
@@ -133,10 +188,12 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
             || (o.aufwand_minuten ?? null) !== daten.aufwandMinuten || (o.verrechnung ?? 'pauschal') !== daten.verrechnung
             || (o.mandant_id ?? null) !== mandantId || (o.bearbeiter_id ?? null) !== bearbeiterId || o.prioritaet !== kopf.prioritaet;
           if (geaendert) await api.pendenzen.aktualisieren(s.id, daten);
+          if (zielId) zuVerschieben.set(zielId, [...(zuVerschieben.get(zielId) ?? []), s.id]);
         } else if (daten.titel) {
-          await api.pendenzen.erstellen({ ...daten, uebergeordnetePendenzId: projekt.id, leistungId: kopf.leistungId || null, status: 'Offen' });
+          await api.pendenzen.erstellen({ ...daten, uebergeordnetePendenzId: zielId ?? projekt.id, leistungId: kopf.leistungId || null, status: 'Offen' });
         }
       }
+      for (const [zielId, ids] of zuVerschieben) await api.pendenzen.schritteVerschieben(ids, zielId);
       meldeAenderung();
 
       // Anhaenge (z.B. aus der Auftrags-Mail) in den OneDrive-Ordner des Mandanten legen.
@@ -258,11 +315,14 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
               </div>
               <table className="tabelle projekt-schritte-tabelle">
                 <thead>
-                  <tr><th>Teilschritt</th><th>Bearbeiten am</th><th>Aufwand</th><th>Verrechnung</th><th>Status</th><th></th></tr>
+                  <tr><th className="projekt-auswahl" title="Auswählen, um in ein anderes Projekt zu verschieben">⇄</th><th>Teilschritt</th><th>Bearbeiten am</th><th>Aufwand</th><th>Verrechnung</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
                   {schritte.map((s, i) => (
-                    <tr key={s._k} className={s.status === 'Erledigt' ? 'erledigt' : ''}>
+                    <tr key={s._k} className={`${s.status === 'Erledigt' ? 'erledigt' : ''} ${s.ziel ? 'projekt-verschoben' : ''}`}>
+                      <td className="projekt-auswahl">
+                        {!s.ziel && <input type="checkbox" checked={auswahl.has(s._k)} onChange={() => auswahlUmschalten(s._k)} aria-label="Zum Verschieben auswählen" />}
+                      </td>
                       <td>
                         <input
                           value={s.titel}
@@ -285,13 +345,41 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
                           {VERRECHNUNG.map((v) => <option key={v.wert} value={v.wert}>{v.label}</option>)}
                         </select>
                       </td>
-                      <td className="projekt-schritt-status">{s.id ? s.status : 'neu'}</td>
-                      <td><button type="button" className="btn-symbol" onClick={() => schrittEntfernen(s)} title="Teilschritt entfernen">×</button></td>
+                      <td className="projekt-schritt-status">
+                        {s.ziel
+                          ? <span className="projekt-ziel" title={s.ziel.neu ? 'Neues Projekt – wird beim Speichern angelegt' : `Projekt #${s.ziel.id}`}>→ {s.ziel.neu ? 'neu: ' : ''}{s.ziel.titel}</span>
+                          : s.id ? s.status : 'neu'}
+                      </td>
+                      <td>
+                        {s.ziel
+                          ? <button type="button" className="btn-symbol" onClick={() => schrittAendern(s._k, { ziel: null })} title="Hier behalten">↶</button>
+                          : <button type="button" className="btn-symbol" onClick={() => schrittEntfernen(s)} title="Teilschritt entfernen">×</button>}
+                      </td>
                     </tr>
                   ))}
-                  {geladen && schritte.length === 0 && <tr><td colSpan={6} className="leer-hinweis">Noch keine Teilschritte.</td></tr>}
+                  {geladen && schritte.length === 0 && <tr><td colSpan={7} className="leer-hinweis">Noch keine Teilschritte.</td></tr>}
                 </tbody>
               </table>
+              {auswahlAktiv && (
+                <div className="projekt-verschieben-leiste">
+                  <strong>{auswahl.size} {auswahl.size === 1 ? 'Teilschritt' : 'Teilschritte'} verschieben nach</strong>
+                  <select value={zielWahl} onChange={(e) => setZielWahl(e.target.value)} aria-label="Zielprojekt">
+                    <option value="neu">neues Projekt …</option>
+                    {projekte.map((p) => <option key={p.id} value={String(p.id)}>#{p.id} {p.titel}</option>)}
+                  </select>
+                  {zielWahl === 'neu' && (
+                    <input value={neuTitel} onChange={(e) => setNeuTitel(e.target.value)} placeholder="Titel des neuen Projekts" aria-label="Titel des neuen Projekts"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); verschiebenVormerken(); } }} />
+                  )}
+                  <button type="button" className="btn-klein btn-klein-primaer" onClick={verschiebenVormerken}>Verschieben</button>
+                  <button type="button" className="btn-klein" onClick={() => setAuswahl(new Set())}>Abbrechen</button>
+                </div>
+              )}
+              {verschoben.length > 0 && (
+                <p className="feld-hinweis projekt-verschieben-hinweis">
+                  {verschoben.length} {verschoben.length === 1 ? 'Teilschritt wird' : 'Teilschritte werden'} beim Speichern verschoben (erfasste Zeit und Notizen gehen mit). ↶ behält einen Schritt hier.
+                </p>
+              )}
               <button type="button" className="btn-klein" onClick={schrittHinzufuegen}>+ Teilschritt</button>
             </div>
 

@@ -2968,3 +2968,16 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .ra-schritt-haken { display: inline-block; width: 16px; color: var(--text-faint); }
 .ra-schritt-haken.erledigt { color: var(--success); font-weight: 700; }
 .ra-gruppe .ra-titel .ra-pendenz, .ra-schritt .ra-eintrag-knopf { display: inline; text-align: left; white-space: normal; }
+
+/* Projekt-Formular: Teilschritte in ein anderes Projekt verschieben */
+.projekt-schritte-tabelle .projekt-auswahl { width: 26px; text-align: center; padding-left: 4px; padding-right: 0; }
+.projekt-verschoben td { background: #fff8e6; }
+.projekt-verschoben input, .projekt-verschoben select { opacity: 0.75; }
+.projekt-ziel { color: #a86b00; font-weight: 600; font-size: var(--fs-klein); }
+.projekt-verschieben-leiste { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; padding: 8px 10px; background: #eef4ff; border: 1px solid #cddcfb; border-radius: 8px; font-size: var(--fs-klein); }
+.projekt-verschieben-leiste select { width: auto; max-width: 280px; }
+.projekt-verschieben-leiste input { flex: 1; min-width: 200px; }
+.projekt-verschieben-hinweis { color: #a86b00; margin: 6px 0; }
+.projekt-schritte-tabelle td.projekt-auswahl { width: 26px; }
+.projekt-schritte-tabelle td:nth-child(2) { width: 42%; }
+.projekt-schritte-tabelle .projekt-auswahl input { width: auto; }
