@@ -9,6 +9,7 @@ import { heutigesDatumISO, formatiereDatum } from '../format.js';
 import { formatiereAufwand, formatiereStunden } from '../constants.js';
 import { tagesplan, zuPlanen, morgenTitel, abgelaufene, tageZwischen } from '../lib/tagesplan.js';
 import { montagDerWoche } from '../lib/wochenrueckblick.js';
+import { hintergrundSchliessen } from '../lib/modal.js';
 
 const WOCHENTAG_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 function tagText(iso) {
@@ -43,7 +44,27 @@ function abgelaufenText(p, heute) {
 }
 
 // Eine Zeile: abhaken, Titel (Projekt darueber), Hinweise, Aufwand; rechts kurze Planen-Knoepfe.
-function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt = false }) {
+// Datum direkt waehlen (Fenster "Abgelaufen"/"Zu planen"). Gespeichert wird erst ein
+// vollstaendiges, plausibles Datum -- halb getippte Jahre wie «0002» nie.
+function NeuesDatum({ p, heute, onDatum }) {
+  const [wert, setWert] = useState('');
+  function uebernehmen(neu) {
+    if (!/^20\d{2}-\d{2}-\d{2}$/.test(neu ?? '') || neu < heute) return;
+    setWert('');
+    onDatum(p, neu);
+  }
+  const gueltig = /^20\d{2}-\d{2}-\d{2}$/.test(wert) && wert >= heute;
+  return (
+    <span className="tp-datum-wahl">
+      <input type="date" value={wert} min={heute} aria-label={`Neues Datum für ${p.titel}`} title="Neues Datum wählen"
+        onChange={(e) => setWert(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uebernehmen(wert); } }} />
+      {gueltig && <button type="button" className="tp-aktion tp-aktion-ok" onClick={() => uebernehmen(wert)}>Terminieren</button>}
+    </span>
+  );
+}
+
+function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, onDatum, inProjekt = false }) {
   const ab = !erledigt ? p.abgelaufen : null;
   const ueberfaellig = !ab && !erledigt && p.faelligkeit && p.faelligkeit < heute;
   const nachfassen = !ab && !erledigt && p.status === 'Warten auf';
@@ -76,6 +97,7 @@ function Zeile({ p, heute, erledigt, aktionen, onOeffnen, onAbhaken, inProjekt =
           {aktionen.filter((a) => !a.sichtbar || a.sichtbar(p)).map((a) => (
             <button key={a.label} type="button" className="tp-aktion" onClick={() => a.ausfuehren(p)} title={a.titel}>{a.label}</button>
           ))}
+          {onDatum && <NeuesDatum p={p} heute={heute} onDatum={onDatum} />}
         </span>
       )}
     </li>
@@ -100,9 +122,10 @@ function nachProjekt(zeilen) {
   return bloecke;
 }
 
-function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken }) {
-  // Projekte sind im Cockpit eingeklappt; der Pfeil klappt die Teilaufgaben auf.
-  const [auf, setAuf] = useState(() => new Set());
+function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtAnzahl = null, leerText, heute, aktionen, onOeffnen, onAbhaken, onDatum, alleAuf = false }) {
+  // Projekte sind im Cockpit eingeklappt; der Pfeil klappt die Teilaufgaben auf. Im Fenster
+  // "Abgelaufen"/"Zu planen" (alleAuf) sind sie offen, damit jede Aufgabe terminiert werden kann.
+  const [auf, setAuf] = useState(() => new Set(alleAuf ? offen.map((p) => p.uebergeordnete_pendenz_id).filter(Boolean) : []));
   const umschalten = (id) => setAuf((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const total = offen.length + erledigt.length;
   const fertig = erledigtAnzahl ?? erledigt.length;
@@ -112,7 +135,7 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
     <section className={`tp-karte ${klasse}`}>
       <header className="tp-karte-kopf">
         <div>
-          <h2 className="tp-karte-titel">{titel}</h2>
+          {titel && <h2 className="tp-karte-titel">{titel}</h2>}
           <div className="tp-karte-untertitel">{untertitel}</div>
         </div>
         <div className="tp-karte-stand">
@@ -136,7 +159,7 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
               {nachProjekt(g.zeilen).map((b) => {
                 if (b.art === 'einzeln') {
                   const { p, erledigt: e } = b.z;
-                  return <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />;
+                  return <Zeile key={p.id} p={p} heute={heute} erledigt={e} aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} onDatum={onDatum} />;
                 }
                 const offenImProjekt = b.zeilen.filter((z) => !z.erledigt).length;
                 const geschlossen = !auf.has(b.id);
@@ -151,7 +174,7 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
                     </button>
                   </li>,
                   ...(geschlossen ? [] : b.zeilen.map(({ p, erledigt: e }) => (
-                    <Zeile key={p.id} p={p} heute={heute} erledigt={e} inProjekt aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} />
+                    <Zeile key={p.id} p={p} heute={heute} erledigt={e} inProjekt aktionen={e ? undefined : aktionen} onOeffnen={onOeffnen} onAbhaken={onAbhaken} onDatum={onDatum} />
                   ))),
                 ];
               })}
@@ -168,13 +191,15 @@ function Karte({ klasse = '', titel, untertitel, offen, erledigt = [], erledigtA
   );
 }
 
-// Cockpit (v7): nur Heute, Morgen und Wochenziele -- klar getrennt, mit Abhaken. Alles ohne
-// Bearbeitungstag liegt im Ordner "Zu planen".
+// Cockpit (v7): nur Heute, Morgen und Wochenziele -- klar getrennt, mit Abhaken. "Abgelaufen"
+// (rot) und "Zu planen" (gelb) sind Knoepfe oben, die ein Fenster zum Terminieren oeffnen.
 export default function TagesCockpit() {
   const { benutzer } = useAuth();
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [aktivePendenz, setAktivePendenz] = useState(null);
+  // Fenster "Abgelaufen" oder "Zu planen" (Knoepfe oben) -- nicht mehr als Spalten im Cockpit.
+  const [ordner, setOrdner] = useState(null);
   const mandanten = useMandanten();
   const mitarbeitende = useMitarbeitende();
   const heute = heutigesDatumISO();
@@ -250,24 +275,16 @@ export default function TagesCockpit() {
         <h1 className="seiten-titel">Cockpit</h1>
         <span className="tp-kopf-datum">{tagText(heute)}{heute.slice(0, 4)}</span>
         <span className="tp-kopf-links">
-          <a href="#zu-planen" onClick={(e) => { e.preventDefault(); document.getElementById('zu-planen')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Zu planen <strong>{anzahlZuPlanen}</strong></a>
+          <button type="button" className={`tp-ordner-knopf rot ${abgelaufen.length ? '' : 'leer'}`} onClick={() => setOrdner('abgelaufen')}
+            title="Abgelaufene Aufgaben anzeigen und neu terminieren">Abgelaufen <strong>{abgelaufen.length}</strong></button>
+          <button type="button" className={`tp-ordner-knopf gelb ${anzahlZuPlanen ? '' : 'leer'}`} onClick={() => setOrdner('zuplanen')}
+            title="Aufgaben ohne Bearbeitungstag anzeigen und terminieren">Zu planen <strong>{anzahlZuPlanen}</strong></button>
           {daten.eingang > 0 && <Link to="/eingang">Eingang <strong>{daten.eingang}</strong></Link>}
           <Link to="/uebersicht">Übersicht &amp; Kalender</Link>
         </span>
       </div>
 
       <div className="tp-karten">
-        <Karte
-          titel="Abgelaufen"
-          untertitel="Frist, Bearbeitungstag oder Nachfassdatum vorbei"
-          offen={abgelaufen}
-          leerText="Nichts abgelaufen."
-          heute={heute}
-          aktionen={aktionen('abgelaufen')}
-          onOeffnen={oeffnen}
-          onAbhaken={abhaken}
-          klasse="tp-karte-abgelaufen"
-        />
         <Karte
           titel="Heute"
           untertitel={`${tagText(heute)} · geplant, heute fällig, in Arbeit`}
@@ -300,20 +317,49 @@ export default function TagesCockpit() {
           onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
-        <div id="zu-planen" className="tp-zuplanen-anker">
-          <Karte
-            titel="Zu planen"
-            untertitel="Noch ohne Bearbeitungstag – auf Heute, den nächsten Arbeitstag legen oder in der Pendenz ein Datum wählen"
-            offen={listeZuPlanen}
-            leerText="Alles ist eingeplant."
-            heute={heute}
-            aktionen={aktionen('zuplanen')}
-            onOeffnen={oeffnen}
-            onAbhaken={abhaken}
-            klasse="tp-karte-zuplanen"
-          />
-        </div>
       </div>
+
+      {ordner && (
+        <div className="modal-hintergrund" {...hintergrundSchliessen(() => setOrdner(null))}>
+          <div className={`modal tp-ordner-fenster ${ordner === 'abgelaufen' ? 'rot' : 'gelb'}`} role="dialog" aria-modal="true"
+            aria-label={ordner === 'abgelaufen' ? 'Abgelaufen' : 'Zu planen'} onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape' && !aktivePendenz) setOrdner(null); }}>
+            <div className="modal-kopf">
+              <h2>{ordner === 'abgelaufen' ? `Abgelaufen (${abgelaufen.length})` : `Zu planen (${anzahlZuPlanen})`}</h2>
+              <button type="button" className="modal-schliessen" onClick={() => setOrdner(null)} aria-label="Schliessen" autoFocus>✕</button>
+            </div>
+            <div className="modal-koerper">
+              {ordner === 'abgelaufen' ? (
+                <Karte
+                  untertitel="Frist, Bearbeitungstag oder Nachfassdatum vorbei – auf Heute, den nächsten Arbeitstag oder ein Datum legen"
+                  offen={abgelaufen}
+                  leerText="Nichts abgelaufen."
+                  heute={heute}
+                  aktionen={aktionen('abgelaufen')}
+                  onOeffnen={oeffnen}
+                  onAbhaken={abhaken}
+                  onDatum={planen}
+                  alleAuf
+                  klasse="tp-karte-abgelaufen tp-karte-im-fenster"
+                />
+              ) : (
+                <Karte
+                  untertitel="Noch ohne Bearbeitungstag – auf Heute, den nächsten Arbeitstag oder ein Datum legen"
+                  offen={listeZuPlanen}
+                  leerText="Alles ist eingeplant."
+                  heute={heute}
+                  aktionen={aktionen('zuplanen')}
+                  onOeffnen={oeffnen}
+                  onAbhaken={abhaken}
+                  onDatum={planen}
+                  alleAuf
+                  klasse="tp-karte-zuplanen tp-karte-im-fenster"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {aktivePendenz && (
         <PendenzModal

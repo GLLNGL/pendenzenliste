@@ -2993,7 +2993,6 @@ table.tabelle.zv-eintraege td, table.tabelle.zv-eintraege th { padding: 4px 8px;
 .aw-jetzt-tag input { font-size: var(--fs-klein); padding: 1px 6px; height: auto; width: 130px; }
 
 /* Cockpit: «Zu planen» als breite Karte unter den Tageskarten */
-.tp-zuplanen-anker { grid-column: 1 / -1; scroll-margin-top: 12px; }
 .tp-karte-zuplanen .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
 
 /* Pendenzenliste als Excel */
@@ -3030,3 +3029,27 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 @media (max-width: 640px) {
   .modal:not(.modal-klein):not(.mandant-suche-popup):not(.modal-mail) { width: calc(100vw - 16px); height: auto; }
 }
+
+/* Cockpit: "Abgelaufen" (rot) und "Zu planen" (gelb) als Knoepfe oben, Inhalt im Fenster. */
+.tp-karten { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1300px) { .tp-karten { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .tp-karten { grid-template-columns: 1fr; } }
+.tp-kopf-links { align-items: center; }
+.tp-ordner-knopf { font: inherit; cursor: pointer; padding: 5px 12px; border-radius: var(--radius); border: 1px solid; font-weight: 600; }
+.tp-ordner-knopf strong { margin-left: 4px; }
+.tp-ordner-knopf.rot { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+.tp-ordner-knopf.rot:hover { background: var(--danger); color: #fff; }
+.tp-ordner-knopf.gelb { background: #fff4cc; color: #8a5a00; border-color: #e0b100; }
+.tp-ordner-knopf.gelb:hover { background: #ffe58a; }
+.tp-ordner-knopf.leer { background: var(--surface); color: var(--text-muted); border-color: var(--border); font-weight: 400; }
+.tp-ordner-fenster.rot { border-top: 4px solid var(--danger); }
+.tp-ordner-fenster.gelb { border-top: 4px solid #e0b100; }
+.tp-ordner-fenster.rot .modal-kopf h2 { color: var(--danger); }
+.tp-ordner-fenster.gelb .modal-kopf h2 { color: #8a5a00; }
+.tp-karte.tp-karte-im-fenster { border: none; box-shadow: none; padding: 0; background: none; }
+.tp-karte-im-fenster .tp-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+.tp-datum-wahl { display: inline-flex; align-items: center; gap: 4px; }
+.tp-datum-wahl input { width: 128px; padding: 1px 4px; font-size: var(--fs-klein); height: 24px; }
+.tp-aktion.tp-aktion-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.tp-karte-im-fenster .tp-aktionen { display: flex; position: static; background: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; grid-column: 2 / -1; padding: 0; }
