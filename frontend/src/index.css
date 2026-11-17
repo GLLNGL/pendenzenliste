@@ -3092,3 +3092,10 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .ck-pendenz-titel { display: block; font-size: var(--fs-klein); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .ck-pendenz-info { display: block; font-size: 11px; color: var(--text-muted); }
 .ck-pendenz.warten .ck-pendenz-titel { color: #8a5a00; }
+
+/* Arbeitsfenster: Status "Warten auf" direkt mit Person und Nachfassdatum setzen */
+.aw-warten { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border: 1px solid #f0c36d; background: #fff7e6; border-radius: var(--radius); font-size: var(--fs-klein); }
+.aw-warten-titel { font-weight: 600; color: #8a5a00; }
+.aw-warten input:not([type="date"]) { width: 200px; }
+.aw-warten label { display: inline-flex; align-items: center; gap: 6px; }
+.aw-chip.aw-chip-warten { background: #fff1d6; color: #9a5b00; }

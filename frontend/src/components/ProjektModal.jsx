@@ -3,7 +3,7 @@ import api from '../api.js';
 import { meldeAenderung } from '../events.js';
 import { useAuth } from '../AuthContext.jsx';
 import { useAblageGrund, useLeistungen } from '../hooks.js';
-import { PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, formatiereAufwand, formatiereStunden } from '../constants.js';
+import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, formatiereAufwand, formatiereStunden } from '../constants.js';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import DateienListe from './DateienListe.jsx';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
@@ -41,6 +41,10 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
     verrechnung: pendenz?.verrechnung ?? 'pauschal',
     leistungId: pendenz?.leistung_id == null ? '' : String(pendenz.leistung_id),
     beschreibung: pendenz?.beschreibung ?? '',
+    // Status auf Projektebene (bleibt so, bis du ihn aenderst oder alle Teilschritte erledigt sind).
+    status: pendenz?.status ?? 'Offen',
+    wartenAufPerson: pendenz?.warten_auf_person ?? '',
+    wiedervorlage: pendenz?.wiedervorlage ?? '',
   }));
   const [schritte, setSchritte] = useState(() => (pendenz ? [] : [neueZeile('pauschal', vorgabe?.bearbeitungstag ?? '')]));
   const [geloescht, setGeloescht] = useState([]);
@@ -132,6 +136,9 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
     e.stopPropagation();
     if (!kopf.titel.trim()) { setFehler('Bitte einen Titel für das Projekt eingeben.'); return; }
     if (!kopf.mandantId) { setFehler('Bitte den Mandanten wählen (oder «Intern»).'); return; }
+    if (kopf.status === 'Warten auf' && (!kopf.wartenAufPerson.trim() || !kopf.wiedervorlage)) {
+      setFehler('Status «Warten auf»: bitte Person und Nachfassdatum angeben.'); return;
+    }
     const leereBestehende = schritte.filter((s) => s.id && !s.titel.trim());
     if (leereBestehende.length) { setFehler('Ein bestehender Teilschritt hat keinen Text mehr – Text ergänzen oder mit × entfernen.'); return; }
     if (geloescht.length && !window.confirm(`${geloescht.length} Teilschritt(e) werden gelöscht. Fortfahren?`)) return;
@@ -152,9 +159,16 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
         titel: kopf.titel.trim(), mandantId, bearbeiterId, prioritaet: kopf.prioritaet, faelligkeit: kopf.faelligkeit || null,
         harteFrist: kopf.harteFrist, verrechnung: kopf.verrechnung, leistungId: kopf.leistungId || null, beschreibung: kopf.beschreibung.trim() || null,
       };
+      // Status nur mitschicken, wenn er geaendert wurde (sonst bleiben Erledigt-Datum und
+      // Warten-Angaben unberuehrt).
+      const wartenGeaendert = kopf.status === 'Warten auf'
+        && (kopf.wartenAufPerson !== (pendenz?.warten_auf_person ?? '') || kopf.wiedervorlage !== (pendenz?.wiedervorlage ?? ''));
+      const statusDaten = !pendenz || kopf.status !== pendenz.status || wartenGeaendert
+        ? { status: kopf.status, wartenAufPerson: kopf.wartenAufPerson, wiedervorlage: kopf.wiedervorlage || null, warteSeit: pendenz?.warte_seit ?? null }
+        : {};
       const projekt = pendenz
-        ? await api.pendenzen.aktualisieren(pendenz.id, gemeinsam)
-        : await api.pendenzen.erstellen({ ...gemeinsam, status: 'Offen' });
+        ? await api.pendenzen.aktualisieren(pendenz.id, { ...gemeinsam, ...statusDaten })
+        : await api.pendenzen.erstellen({ ...gemeinsam, ...statusDaten });
 
       for (const id of geloescht) await api.pendenzen.loeschen(id);
 
@@ -278,6 +292,28 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
                   {PRIORITAETEN.map((p) => <option key={p} value={p}>{PRIORITAET_BESCHREIBUNG[p]}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="feld-reihe projekt-reihe-3">
+              <div className="feld">
+                <label htmlFor="pr-status">Status des Projekts</label>
+                <select id="pr-status" value={kopf.status} onChange={(e) => feld('status', e.target.value)}>
+                  {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {kopf.status === 'Erledigt' && pendenz?.status !== 'Erledigt' && <p className="feld-hinweis">Beim Speichern werden alle offenen Teilschritte erledigt.</p>}
+              </div>
+              {kopf.status === 'Warten auf' && (
+                <>
+                  <div className="feld">
+                    <label htmlFor="pr-warten">Warten auf *</label>
+                    <input id="pr-warten" value={kopf.wartenAufPerson} onChange={(e) => feld('wartenAufPerson', e.target.value)} placeholder="z.B. Kunde, Steueramt" />
+                  </div>
+                  <div className="feld">
+                    <label htmlFor="pr-nachfassen">Nachfassen am *</label>
+                    <input id="pr-nachfassen" type="date" value={kopf.wiedervorlage} onChange={(e) => feld('wiedervorlage', e.target.value)} />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="feld-reihe projekt-reihe-3">

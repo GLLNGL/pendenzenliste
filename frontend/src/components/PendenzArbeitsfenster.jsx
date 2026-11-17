@@ -83,6 +83,8 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
   // Aus einem Schritt geoeffnet: nur diese Teilaufgabe zeigen (Projekt bleibt im Titel).
   const [nurSchritt, setNurSchritt] = useState(!!start.uebergeordnete_pendenz_id);
   const [erledigtMeldung, setErledigtMeldung] = useState(null);
+  // Eingabe fuer "Warten auf" (Person, Nachfassdatum) beim Statuswechsel.
+  const [warten, setWarten] = useState(null);
   const [groesse, setGroesse] = useState(() => { try { return Number(localStorage.getItem(GROESSE_SCHLUESSEL)) || 75; } catch { return 75; } });
   const timer = useLaufenderTimer();
   const leistungen = useLeistungen();
@@ -169,6 +171,16 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
     try { await fn(); meldeAenderung(); await laden(); } catch (e) { setFehler(e.message); }
   }
   const statusSetzen = (p, status) => tun(() => api.pendenzen.statusAendern(p.id, status));
+  // "Warten auf" braucht Person und Nachfassdatum -- dafuer eine kleine Eingabe statt Fehler.
+  const statusWaehlen = (p, status) => {
+    if (status === 'Warten auf') setWarten({ ziel: p, person: p.warten_auf_person ?? '', datum: p.wiedervorlage ?? '' });
+    else { setWarten(null); statusSetzen(p, status); }
+  };
+  const wartenSpeichern = () => tun(async () => {
+    if (!warten.person.trim() || !warten.datum) throw new Error('Bitte Person und Nachfassdatum angeben.');
+    await api.pendenzen.aktualisieren(warten.ziel.id, { status: 'Warten auf', wartenAufPerson: warten.person, wiedervorlage: warten.datum });
+    setWarten(null);
+  });
   const schrittHinzufuegen = () => tun(async () => {
     const titel = neuerSchritt.trim();
     if (!titel) return;
@@ -277,14 +289,27 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
             </div>
             <h2 className="aw-titel">{projekt.titel}</h2>
             <div className="aw-chips">
-              <select className={`aw-status status-${statusSlug(projekt.status)}`} value={projekt.status} onChange={(e) => statusSetzen(projekt, e.target.value)} aria-label="Status des Projekts">
+              <select className={`aw-status status-${statusSlug(projekt.status)}`} value={warten?.ziel.id === projekt.id ? 'Warten auf' : projekt.status} onChange={(e) => statusWaehlen(projekt, e.target.value)} aria-label="Status des Projekts"
+                title="Status des ganzen Projekts – bleibt so, bis du ihn änderst oder alle Teilaufgaben erledigt sind">
                 {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <span className={`aw-chip aw-prio-${projekt.prioritaet}`}>Prio {projekt.prioritaet}</span>
               {projekt.faelligkeit && <span className={`aw-chip ${fristUeber ? 'aw-chip-rot' : ''}`}>Frist {formatiereDatum(projekt.faelligkeit)}{projekt.harte_frist ? ' · hart' : ''}</span>}
               <span className={`aw-chip ${projekt.verrechnung === 'extra' ? 'aw-chip-extra' : ''}`}>{projekt.verrechnung === 'extra' ? 'Extra (verrechnen)' : 'Pauschal'}</span>
               {schritte.length > 0 && <span className="aw-chip">{erledigt}/{schritte.length} Schritte erledigt</span>}
+              {projekt.status === 'Warten auf' && !warten && (
+                <span className="aw-chip aw-chip-warten">wartet auf {projekt.warten_auf_person || '–'}{projekt.wiedervorlage ? ` · nachfassen ${formatiereDatum(projekt.wiedervorlage)}` : ''}</span>
+              )}
             </div>
+            {warten && (
+              <form className="aw-warten" onSubmit={(e) => { e.preventDefault(); wartenSpeichern(); }}>
+                <span className="aw-warten-titel">«{warten.ziel.titel}» wartet auf</span>
+                <input value={warten.person} onChange={(e) => setWarten((w) => ({ ...w, person: e.target.value }))} placeholder="Person, z.B. Kunde" aria-label="Warten auf Person" autoFocus />
+                <label>nachfassen am <input type="date" value={warten.datum} onChange={(e) => setWarten((w) => ({ ...w, datum: e.target.value }))} aria-label="Nachfassdatum" /></label>
+                <button type="submit" className="btn btn-primary">Speichern</button>
+                <button type="button" className="btn" onClick={() => setWarten(null)}>Abbrechen</button>
+              </form>
+            )}
           </div>
           <div className="aw-kopf-aktionen">
             <div className="aw-groesse-wahl" role="group" aria-label="Fenstergrösse">
@@ -309,7 +334,7 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
               <div className="aw-jetzt-meta">
                 {schrittAnsicht
                   ? (
-                    <select className={`aw-status aw-status-klein status-${statusSlug(fokus.status)}`} value={fokus.status} onChange={(e) => statusSetzen(fokus, e.target.value)} aria-label="Status der Teilaufgabe">
+                    <select className={`aw-status aw-status-klein status-${statusSlug(fokus.status)}`} value={warten?.ziel.id === fokus.id ? 'Warten auf' : fokus.status} onChange={(e) => statusWaehlen(fokus, e.target.value)} aria-label="Status der Teilaufgabe">
                       {STATUS_WERTE.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   )

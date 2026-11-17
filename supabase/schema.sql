@@ -470,7 +470,13 @@ begin
     set status = abgeleiteter_status,
         erledigt_am = case when abgeleiteter_status = 'Erledigt' then coalesce(erledigt_am, current_date) else null end,
         warten_auf_person = null, wiedervorlage = null, warte_seit = null
-    where id = p_projekt and status is distinct from abgeleiteter_status;
+    where id = p_projekt
+      and status is distinct from abgeleiteter_status
+      -- Von Hand gesetzter Projektstatus bleibt (projektstatus-v7.sql): angepasst wird nur bei
+      -- "alle erledigt", "wieder geoeffnet" und "Offen -> ein Schritt in Arbeit".
+      and (abgeleiteter_status = 'Erledigt'
+           or status = 'Erledigt'
+           or (status = 'Offen' and abgeleiteter_status = 'In Arbeit'));
 end;
 $$ language plpgsql;
 
