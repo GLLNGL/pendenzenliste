@@ -321,7 +321,16 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
               </select>
               <button type="button" onClick={() => groesseAendern(GROESSEN.find((g) => g > groesse) ?? 100)} disabled={groesse >= 100} title="Fenster grösser" aria-label="Fenster grösser">+</button>
             </div>
-            <button type="button" className="btn" onClick={() => onBearbeiten(projekt)}>Bearbeiten</button>
+            {/* In der Teilaufgaben-Ansicht bearbeitet «Bearbeiten» die Teilaufgabe; das Projekt
+                bleibt ueber den zweiten Knopf erreichbar. */}
+            {schrittAnsicht
+              ? (
+                <>
+                  <button type="button" className="btn" onClick={() => onBearbeiten(fokus)} title="Diese Teilaufgabe bearbeiten">Bearbeiten</button>
+                  <button type="button" className="btn" onClick={() => onBearbeiten(projekt)} title="Das ganze Projekt bearbeiten">Projekt bearbeiten</button>
+                </>
+              )
+              : <button type="button" className="btn" onClick={() => onBearbeiten(projekt)}>Bearbeiten</button>}
             <button type="button" className="modal-schliessen" onClick={onSchliessen} aria-label="Schliessen">×</button>
           </div>
         </header>
