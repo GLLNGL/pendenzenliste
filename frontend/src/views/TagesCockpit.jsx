@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api.js';
 import PendenzModal from '../components/PendenzModal.jsx';
+import CockpitKalender from '../components/CockpitKalender.jsx';
 import { useMandanten, useMitarbeitende } from '../hooks.js';
 import { useAuth } from '../AuthContext.jsx';
 import { aufAenderungHoeren, meldeAenderung } from '../events.js';
@@ -284,6 +285,7 @@ export default function TagesCockpit() {
         </span>
       </div>
 
+      <div className="tp-mit-kalender">
       <div className="tp-karten">
         <Karte
           titel="Heute"
@@ -317,6 +319,8 @@ export default function TagesCockpit() {
           onOeffnen={oeffnen}
           onAbhaken={abhaken}
         />
+      </div>
+      <CockpitKalender offene={daten.offene} heute={heute} onOeffnen={oeffnen} />
       </div>
 
       {ordner && (

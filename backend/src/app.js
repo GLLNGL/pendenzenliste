@@ -16,6 +16,7 @@ import { generiereFaelligePendenzen } from './generate.js';
 import { istKonfiguriert, sendeEmail, sendeTestEmail, zuruecksetzenTransporter } from './mail.js';
 import { baueICS, dateinameFuer } from './ics.js';
 import { leseSmtpEinstellungen, speichereSmtpEinstellungen } from './einstellungen.js';
+import { termine as outlookTermine, nurLokal } from './outlook.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIST = join(__dirname, '..', '..', 'frontend', 'dist');
@@ -30,6 +31,18 @@ function erstelleApp(db) {
 
   // Login-Routen sind offen, alles andere unter /api/* erfordert eine Anmeldung.
   app.use('/api/auth', authRouter);
+
+  // Outlook-Termine fuer das Cockpit (v7-App meldet sich bei Supabase an, nicht hier) --
+  // darum ohne Login, aber nur vom eigenen PC (siehe nurLokal).
+  app.get('/api/outlook/termine', async (req, res) => {
+    if (!nurLokal(req)) return res.status(403).json({ fehler: 'Outlook-Termine nur in der Desktop-App auf diesem PC' });
+    try {
+      res.json({ termine: await outlookTermine(String(req.query.von ?? ''), String(req.query.bis ?? '')) });
+    } catch (err) {
+      res.status(503).json({ fehler: err.message });
+    }
+  });
+
   app.use(authMiddleware(db));
 
   app.get('/api/meta', (req, res) => {

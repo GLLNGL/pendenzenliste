@@ -3053,3 +3053,42 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .tp-aktion.tp-aktion-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 .tp-karte-im-fenster .tp-aktionen { display: flex; position: static; background: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; grid-column: 2 / -1; padding: 0; }
+
+/* Cockpit: rechte Spalte wie in Outlook -- Monatskalender, Termine und Pendenzen des Tages. */
+.tp-mit-kalender { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.tp-mit-kalender .tp-karten { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1500px) { .tp-mit-kalender .tp-karten { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1050px) { .tp-mit-kalender { grid-template-columns: 1fr; } .tp-mit-kalender .tp-karten { grid-template-columns: 1fr; } }
+.ck-leiste { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px 14px; position: sticky; top: 12px; max-height: calc(100vh / var(--app-zoom, 1) - 24px); overflow-y: auto; }
+.ck-monat-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ck-monat-kopf button { border: none; background: none; cursor: pointer; font-size: 18px; color: var(--text-muted); width: 28px; height: 28px; border-radius: 4px; }
+.ck-monat-kopf button:hover { background: var(--surface-hover); color: var(--text); }
+.ck-monat-kopf .ck-monat-name { width: auto; font-size: var(--fs-text); font-weight: 650; color: var(--text); padding: 0 8px; }
+.ck-raster { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.ck-wochentag { font-size: 11px; color: var(--text-muted); font-weight: 600; padding: 2px 0 4px; }
+.ck-tag { position: relative; border: none; background: none; cursor: pointer; height: 30px; font: inherit; font-size: var(--fs-klein); color: var(--text); border-radius: 3px; }
+.ck-tag:hover { background: var(--surface-hover); }
+.ck-tag.fremd { color: var(--text-faint); }
+.ck-tag.mit-termin { font-weight: 700; }
+.ck-tag.heute { background: var(--accent); color: #fff; }
+.ck-tag.gewaehlt:not(.heute) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ck-tag.heute.gewaehlt { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.ck-punkt { position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #e0a100; }
+.ck-tag.heute .ck-punkt { background: #fff; }
+.ck-tagesbereich { border-top: 1px solid var(--text); margin-top: 14px; padding-top: 10px; }
+.ck-tagesbereich + .ck-tagesbereich { border-top-color: var(--border); }
+.ck-ueberschrift { font-size: var(--fs-text); font-weight: 700; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+.ck-anzahl { font-weight: 400; color: var(--text-muted); font-size: var(--fs-klein); }
+.ck-leer, .ck-hinweis { font-size: var(--fs-klein); color: var(--text-muted); }
+.ck-fehler { color: var(--danger); }
+.ck-termine, .ck-pendenzen { list-style: none; margin: 0; padding: 0; }
+.ck-termin { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; padding: 5px 0 5px 8px; border-left: 3px solid var(--accent); margin-bottom: 4px; background: var(--surface-2); font-size: var(--fs-klein); }
+.ck-termin.frei { border-left-color: var(--border); }
+.ck-termin-zeit { color: var(--text-muted); white-space: nowrap; }
+.ck-termin-betreff { display: block; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.ck-termin-ort { display: block; color: var(--text-muted); }
+.ck-pendenz { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--border); background: none; padding: 6px 2px; cursor: pointer; font: inherit; }
+.ck-pendenz:hover { background: var(--surface-hover); }
+.ck-pendenz-titel { display: block; font-size: var(--fs-klein); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.ck-pendenz-info { display: block; font-size: 11px; color: var(--text-muted); }
+.ck-pendenz.warten .ck-pendenz-titel { color: #8a5a00; }

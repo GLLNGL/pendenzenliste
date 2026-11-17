@@ -988,6 +988,16 @@ const api = {
   },
 
   // Zeiterfassung (v7, Etappe 2). Laufender Timer = minuten null (pro Person hoechstens einer).
+  // Outlook-Termine aus dem lokalen Outlook -- nur in der Desktop-App (Backend auf diesem PC).
+  outlook: {
+    verfuegbar: () => ['localhost', '127.0.0.1'].includes(window.location.hostname),
+    termine: async (von, bis) => {
+      const antwort = await fetch(`/api/outlook/termine?von=${von}&bis=${bis}`);
+      const daten = await antwort.json().catch(() => ({}));
+      if (!antwort.ok) throw new Error(daten.fehler || 'Outlook nicht erreichbar');
+      return daten.termine ?? [];
+    },
+  },
   zeit: {
     liste: async (filter = {}) => {
       let q = supabase.from('zeiteintraege')
