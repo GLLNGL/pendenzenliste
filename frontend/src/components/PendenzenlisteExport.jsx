@@ -2,7 +2,7 @@ import { useState } from 'react';
 import api from '../api.js';
 import { useAblageGrund } from '../hooks.js';
 import { relativerOrdner } from '../lib/ablage.js';
-import { unterstuetzt, grundOrdnerHolen, dateiAblegen, herunterladen } from '../lib/ablageOrdner.js';
+import { unterstuetzt, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben } from '../lib/ablageOrdner.js';
 import { pendenzenlisteXlsx, listeAufbauen, ERLEDIGT_TAGE } from '../lib/pendenzenliste.js';
 import { protokollPdf } from '../lib/protokollPdf.js';
 import { heutigesDatumISO } from '../format.js';
@@ -25,14 +25,11 @@ async function logoLaden() {
   }
 }
 
-// Schreibrecht fuer den Ablage-Ordner im Klick selbst anfragen -- nach dem Laden der Daten
-// blockiert der Browser die Rueckfrage.
-async function ordnerHandle(ordner) {
-  if (!unterstuetzt() || !ordner?.length) return null;
-  const handle = await grundOrdnerHolen();
-  if (handle && (await handle.queryPermission({ mode: 'readwrite' })) !== 'granted'
-    && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return null;
-  return handle;
+// Ablageordner im Klick selbst waehlen (startet im Ordner des Mandanten) -- nach dem Laden der
+// Daten blockiert der Browser die Ordnerauswahl. Abbruch -> 'abbruch'; ohne Unterstuetzung null.
+async function zielWaehlen(ordner) {
+  if (!unterstuetzt()) return null;
+  return (await zielOrdnerWaehlen(ordner ?? [])) ?? 'abbruch';
 }
 
 // Pendenzenliste des Mandanten: als Excel direkt im Ablage-Ordner des Mandanten
@@ -51,13 +48,13 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
     setLaeuft('excel');
     setMeldung(null);
     try {
-      const ordner = relativerOrdner(mandant, grund);
-      const handle = await ordnerHandle(ordner);
+      const ziel = await zielWaehlen(relativerOrdner(mandant, grund));
+      if (ziel === 'abbruch') return;
       const heute = heutigesDatumISO();
       const [{ pendenzen, zeiten, notizen, bearbeiter }, firma] = await Promise.all([datenLaden(heute), api.buero.lesen('firma')]);
       const { blob, name, anzahlOffen } = pendenzenlisteXlsx(mandant, pendenzen, heute, zeiten, notizen, { firma, bearbeiter });
-      if (handle) {
-        const pfad = await dateiAblegen(blob, name, ordner, handle);
+      if (ziel) {
+        const pfad = await dateiInOrdnerSchreiben(blob, name, ziel);
         setMeldung({ ok: true, text: `${anzahlOffen} offene Pendenzen · abgelegt: ${pfad}` });
       } else {
         herunterladen(blob, name);
@@ -77,8 +74,8 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
     setLaeuft('protokoll');
     setMeldung(null);
     try {
-      const ordner = relativerOrdner(mandant, grund);
-      const handle = await ordnerHandle(ordner);
+      const ziel = await zielWaehlen(relativerOrdner(mandant, grund));
+      if (ziel === 'abbruch') return;
       const heute = heutigesDatumISO();
       const [{ pendenzen, zeiten, notizen, bearbeiter }, firma, logo, jspdf] = await Promise.all([
         datenLaden(heute), api.buero.lesen('firma'), logoLaden(), import('jspdf'),
@@ -86,8 +83,8 @@ export default function PendenzenlisteExport({ mandant, klein = false }) {
       const liste = listeAufbauen(pendenzen, heute, zeiten, notizen);
       const { doc, name, seiten } = protokollPdf(jspdf, { mandant, liste, heute, firma, bearbeiter, logo });
       const blob = doc.output('blob');
-      if (handle) {
-        const pfad = await dateiAblegen(blob, name, ordner, handle);
+      if (ziel) {
+        const pfad = await dateiInOrdnerSchreiben(blob, name, ziel);
         setMeldung({ ok: true, text: `PDF-Protokoll (${seiten} Seite${seiten === 1 ? '' : 'n'}) abgelegt: ${pfad}` });
       } else {
         herunterladen(blob, name);

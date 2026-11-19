@@ -7,7 +7,7 @@ import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, f
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import DateienListe from './DateienListe.jsx';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
-import { unterstuetzt, grundOrdnerHolen, dateiAblegen } from '../lib/ablageOrdner.js';
+import { unterstuetzt, grundOrdnerHolen, zielOrdnerWaehlen, dateiInOrdnerSchreiben } from '../lib/ablageOrdner.js';
 import DiktatKnopf from './DiktatKnopf.jsx';
 import { textAnhaengen } from '../lib/diktat.js';
 import { Link } from 'react-router-dom';
@@ -143,12 +143,20 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
     if (leereBestehende.length) { setFehler('Ein bestehender Teilschritt hat keinen Text mehr – Text ergänzen oder mit × entfernen.'); return; }
     if (geloescht.length && !window.confirm(`${geloescht.length} Teilschritt(e) werden gelöscht. Fortfahren?`)) return;
 
-    // Ablage vorbereiten: Die Ordner-Freigabe muss im Klick selbst angefragt werden (vor allen
-    // anderen Wartezeiten), sonst blockiert der Browser die Rueckfrage.
-    const ablageZiel = abzulegen.length && grundHandle ? relativerOrdner(mandant, grund) : null;
-    const ablage = ablageZiel?.length
-      ? { dateien: abzulegen, ordner: ablageZiel, recht: grundHandle.requestPermission({ mode: 'readwrite' }).catch(() => 'denied') }
-      : null;
+    // Ablage: Du waehlst den Ablageordner selbst (Start im Mail-Ordner des Mandanten). Die
+    // Ordnerauswahl muss im Klick selbst kommen (vor allen anderen Wartezeiten), sonst blockiert
+    // der Browser sie. Abbrechen = speichern, Anhaenge bleiben in der App.
+    let ablage = null;
+    if (abzulegen.length && unterstuetzt()) {
+      try {
+        const mitMail = abzulegen.some((d) => d.quelle === 'mail');
+        const ziel = await zielOrdnerWaehlen([...(relativerOrdner(mandant, grund) ?? []), ...(mitMail ? segmente(grund.unterordnerMail) : [])]);
+        if (ziel) ablage = { dateien: abzulegen, ziel };
+      } catch (err) {
+        setFehler(err.message);
+        return;
+      }
+    }
 
     setSpeichert(true);
     setFehler(null);
@@ -213,19 +221,15 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
       // Anhaenge (z.B. aus der Auftrags-Mail) in den OneDrive-Ordner des Mandanten legen.
       if (ablage) {
         const fehlgeschlagen = [];
-        const erlaubt = (await ablage.recht) === 'granted';
         for (const d of ablage.dateien) {
           try {
             if (d.mandant_id !== mandantId) await api.dateien.mandantSetzen(d.id, mandantId);
-            if (!erlaubt) continue;
-            const unter = d.quelle === 'mail' ? segmente(grund.unterordnerMail) : [];
-            const ziel = await dateiAblegen(await api.dateien.blob(d), d.dateiname, [...ablage.ordner, ...unter], grundHandle);
+            const ziel = await dateiInOrdnerSchreiben(await api.dateien.blob(d), d.dateiname, ablage.ziel);
             await api.dateien.abgelegt(d, { ziel, entfernen: true });
           } catch (err) {
             fehlgeschlagen.push(`${d.dateiname}: ${err.message}`);
           }
         }
-        if (!erlaubt) fehlgeschlagen.unshift('Kein Zugriff auf den OneDrive-Ordner erteilt – Anhänge wurden nicht abgelegt.');
         if (fehlgeschlagen.length) {
           setFehler(`Gespeichert, aber nicht alle Anhänge abgelegt: ${fehlgeschlagen.join(' · ')}`);
           setSpeichert(false);
@@ -440,10 +444,9 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
               const ziel = relativerOrdner(mandant, grund);
               const n = abzulegen.length === 1 ? '1 Anhang' : `${abzulegen.length} Anhänge`;
               let text;
-              if (!grundHandle) text = <>{n} noch nicht abgelegt – OneDrive ist auf diesem Gerät nicht verbunden (<Link to="/einstellungen" onClick={onSchliessen}>Einstellungen › Ablage</Link>), darum werden sie beim Speichern nicht abgelegt.</>;
-              else if (!mandant) text = `${n} noch nicht abgelegt – bitte einen Mandanten wählen.`;
-              else if (!ziel?.length) text = `${n} noch nicht abgelegt – beim Mandanten ${mandant.name} ist kein Ablage-Ordner hinterlegt («Mandant bearbeiten» › Ordner wählen).`;
-              else text = <>Beim Speichern {abzulegen.length === 1 ? 'wird' : 'werden'} {n} im Ordner <code>{[grundHandle.name, ...ziel, ...(grund.unterordnerMail ? segmente(grund.unterordnerMail) : [])].join('\\')}</code> abgelegt.</>;
+              if (!unterstuetzt()) text = `${n} noch nicht abgelegt – direktes Ablegen geht nur mit Edge/Chrome am PC.`;
+              else if (!grundHandle) text = <>{n} noch nicht abgelegt – beim Speichern wählst du den Ablageordner (zuerst einmal <Link to="/einstellungen" onClick={onSchliessen}>Einstellungen › Ablage</Link> verbinden).</>;
+              else text = <>Beim Speichern wählst du den Ablageordner für {n}{ziel?.length ? <> – die Auswahl startet in <code>{[grundHandle.name, ...ziel, ...(grund.unterordnerMail ? segmente(grund.unterordnerMail) : [])].join('\\')}</code></> : ''}. «Abbrechen» in der Ordnerauswahl speichert ohne Ablage.</>;
               return <p className="feld-hinweis ablage-hinweis">📁 {text}</p>;
             })()}
             {fehler && <div className="hinweis-fehler">{fehler}</div>}

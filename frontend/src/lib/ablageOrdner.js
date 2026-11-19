@@ -79,6 +79,47 @@ async function unterordnerWaehlen() {
   return { teile, grundName: grund.name };
 }
 
+// Ablageordner bei jedem Speichern selbst waehlen: Die Ordnerauswahl startet im vorgeschlagenen
+// Ordner (z.B. Mandant\09_Pendenzenliste) bzw. im tiefsten davon vorhandenen Ordner. Der gewaehlte
+// Ordner muss im Grundordner liegen (sonst findet die App den Beleg spaeter nicht wieder).
+// Muss direkt im Klick aufgerufen werden (Browser-Regel). Abbruch -> null.
+// Rueckgabe: { handle, teile, grundName } fuer dateiInOrdnerSchreiben.
+async function zielOrdnerWaehlen(vorschlagTeile = []) {
+  let grund = await grundOrdnerHolen();
+  if (!grund) grund = await grundOrdnerWaehlen();
+  let start = grund;
+  try {
+    if ((await grund.queryPermission({ mode: 'read' })) === 'granted') {
+      for (const teil of vorschlagTeile ?? []) {
+        try { start = await start.getDirectoryHandle(teil); } catch { break; }
+      }
+    }
+  } catch { /* ohne Leserecht im Grundordner starten */ }
+  let gewaehlt;
+  try {
+    gewaehlt = await window.showDirectoryPicker({ id: 'ablage-ziel', startIn: start, mode: 'readwrite' });
+  } catch (err) {
+    if (err?.name === 'AbortError') return null;
+    throw err;
+  }
+  const teile = await grund.resolve(gewaehlt);
+  if (teile == null) {
+    throw new Error(`Der gewählte Ordner liegt nicht im Ablage-Grundordner «${grund.name}». Bitte einen Ordner darin wählen.`);
+  }
+  return { handle: gewaehlt, teile, grundName: grund.name };
+}
+
+// Datei in den mit zielOrdnerWaehlen gewaehlten Ordner schreiben ("Name (2).pdf", falls
+// vorhanden). Gibt den Ablagepfad relativ zum Grundordner zurueck (fuer das spaetere Ansehen).
+async function dateiInOrdnerSchreiben(blob, dateiname, ziel) {
+  const name = await freierName(ziel.handle, dateiname);
+  const datei = await ziel.handle.getFileHandle(name, { create: true });
+  const schreiber = await datei.createWritable();
+  await schreiber.write(blob);
+  await schreiber.close();
+  return [ziel.grundName, ...ziel.teile, name].join('\\');
+}
+
 // Ordner <Grundordner>/<Mandantenordner> anlegen (falls noch nicht vorhanden).
 async function ordnerAnlegen(ordnerTeile) {
   let grund = await grundOrdnerHolen();
@@ -136,4 +177,4 @@ function herunterladen(blob, dateiname) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, dateiLesen, herunterladen };
+export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, dateiLesen, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben };

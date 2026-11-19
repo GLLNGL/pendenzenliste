@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { useAblageGrund } from '../hooks.js';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
-import { unterstuetzt, dateiAblegen, herunterladen } from '../lib/ablageOrdner.js';
+import { unterstuetzt, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben } from '../lib/ablageOrdner.js';
 import BelegVorschau from './BelegVorschau.jsx';
 
 function groesseText(bytes) {
@@ -43,17 +43,24 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   if (leerAusblenden && dateien.length === 0 && !hochladenFuer) return null;
 
   const ordner = relativerOrdner(mandant, grund);
-  const direkt = unterstuetzt() && ordner?.length;
+  // Ablage: Ordnerauswahl (startet im Ordner des Mandanten) -- du bestimmst jedes Mal den Ort.
+  const direkt = unterstuetzt();
 
   async function ablegen(d) {
-    setBeschaeftigt(d.id);
     setFehler(null);
     setMeldung(null);
     try {
-      const blob = await api.dateien.blob(d);
+      // Ordnerauswahl zuerst -- der Browser erlaubt sie nur direkt nach dem Klick.
+      let zielOrdner = null;
       if (direkt) {
         const unter = d.quelle === 'mail' ? segmente(grund.unterordnerMail) : [];
-        const ziel = await dateiAblegen(blob, d.dateiname, [...ordner, ...unter]);
+        zielOrdner = await zielOrdnerWaehlen([...(ordner ?? []), ...unter]);
+        if (!zielOrdner) return;
+      }
+      setBeschaeftigt(d.id);
+      const blob = await api.dateien.blob(d);
+      if (zielOrdner) {
+        const ziel = await dateiInOrdnerSchreiben(blob, d.dateiname, zielOrdner);
         // Liegt sicher im OneDrive-Ordner -> aus dem Speicher der App entfernen.
         await api.dateien.abgelegt(d, { ziel, entfernen: true });
         setMeldung(`Abgelegt: ${ziel}`);
@@ -92,8 +99,8 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   }
 
   const ablageTitel = direkt
-    ? `Direkt in den Ordner «${ordner.join('\\')}» legen`
-    : mandant ? 'Herunterladen (direkt ablegen: Grundordner in den Einstellungen verbinden, Edge/Chrome)' : 'Herunterladen (kein Mandant zugeordnet)';
+    ? `Ablageordner wählen und dort speichern${ordner?.length ? ` (startet in ${ordner.join('\\')})` : ''}`
+    : 'Herunterladen (direkt ablegen: Edge/Chrome am PC)';
 
   return (
     <div
@@ -134,7 +141,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
           {d.abgelegt_am && <span className="dateien-abgelegt" title={`abgelegt am ${new Date(d.abgelegt_am).toLocaleString('de-CH')}`}>✓ abgelegt</span>}
           <span className="dateien-aktionen">
             <button type="button" className="btn-klein" onClick={() => ablegen(d)} disabled={beschaeftigt === d.id} title={ablageTitel}>
-              {beschaeftigt === d.id ? '…' : direkt ? 'In Ablage speichern' : 'Herunterladen'}
+              {beschaeftigt === d.id ? '…' : direkt ? 'In Ablage speichern…' : 'Herunterladen'}
             </button>
             <button type="button" className="btn-klein btn-gefahr-text" onClick={() => loeschen(d)} title="Aus der App löschen">×</button>
           </span>
