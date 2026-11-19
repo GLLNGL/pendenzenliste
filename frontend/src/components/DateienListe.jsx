@@ -3,6 +3,7 @@ import api from '../api.js';
 import { useAblageGrund } from '../hooks.js';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
 import { unterstuetzt, dateiAblegen, herunterladen } from '../lib/ablageOrdner.js';
+import BelegVorschau from './BelegVorschau.jsx';
 
 function groesseText(bytes) {
   if (!bytes) return '';
@@ -22,6 +23,8 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   const [meldung, setMeldung] = useState(null);
   // Belege (z.B. PDF-Schreiben des Steueramts) per Drag & Drop anhaengen.
   const [ziehen, setZiehen] = useState(false);
+  // Beleg in der App ansehen (PDF/Bild), statt in einem neuen Browserfenster.
+  const [ansicht, setAnsicht] = useState(null);
   const grund = useAblageGrund();
   const eingabeRef = useRef(null);
   const schluessel = pendenzIds ? pendenzIds.join(',') : `m${mandantId}`;
@@ -41,12 +44,6 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
 
   const ordner = relativerOrdner(mandant, grund);
   const direkt = unterstuetzt() && ordner?.length;
-
-  async function oeffnen(d) {
-    try {
-      window.open(await api.dateien.link(d), '_blank', 'noopener');
-    } catch (err) { setFehler(err.message); }
-  }
 
   async function ablegen(d) {
     setBeschaeftigt(d.id);
@@ -121,7 +118,9 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
       {ziehen && <div className="dateien-ablegen-hinweis">Loslassen, um anzuhängen</div>}
       {dateien.map((d) => (d.abgelegt_am && !d.speicherpfad ? (
         <div key={d.id} className="dateien-zeile dateien-zeile-abgelegt">
-          <span className="dateien-name" title={d.abgelegt_in || ''}>{d.dateiname}</span>
+          {d.abgelegt_in
+            ? <button type="button" className="link-knopf dateien-name" onClick={() => setAnsicht(d)} title={`Ansehen (aus ${d.abgelegt_in})`}>{d.dateiname}</button>
+            : <span className="dateien-name">{d.dateiname}</span>}
           <span className="dateien-abgelegt">✓ abgelegt am {new Date(d.abgelegt_am).toLocaleDateString('de-CH')}</span>
           {d.abgelegt_in && <span className="dateien-info dateien-ort">{d.abgelegt_in.split('\\').slice(0, -1).join('\\')}</span>}
           <span className="dateien-aktionen">
@@ -130,7 +129,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
         </div>
       ) : (
         <div key={d.id} className="dateien-zeile">
-          <button type="button" className="link-knopf dateien-name" onClick={() => oeffnen(d)} title="Öffnen">{d.dateiname}</button>
+          <button type="button" className="link-knopf dateien-name" onClick={() => setAnsicht(d)} title="Ansehen">{d.dateiname}</button>
           <span className="dateien-info">{groesseText(d.groesse)}</span>
           {d.abgelegt_am && <span className="dateien-abgelegt" title={`abgelegt am ${new Date(d.abgelegt_am).toLocaleString('de-CH')}`}>✓ abgelegt</span>}
           <span className="dateien-aktionen">
@@ -142,6 +141,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
         </div>
       )))}
       {meldung && <div className="hinweis-erfolg">{meldung}</div>}
+      {ansicht && <BelegVorschau datei={ansicht} onSchliessen={() => setAnsicht(null)} />}
       {fehler && <div className="hinweis-fehler">{fehler}</div>}
     </div>
   );

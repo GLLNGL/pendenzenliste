@@ -3119,3 +3119,15 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 /* Belege per Drag & Drop an Pendenzen haengen */
 .dateien-liste.dateien-ziehen { outline: 2px dashed var(--accent); outline-offset: 2px; background: var(--accent-bg, #eef4ff); }
 .dateien-ablegen-hinweis { font-size: var(--fs-klein); color: var(--accent); font-weight: 600; padding: 6px 0; }
+
+/* Beleg in der App ansehen (PDF, Bild) -- ueber allen Fenstern */
+.beleg-hintergrund { position: fixed; inset: 0; z-index: 80; background: rgba(15, 23, 42, 0.55); display: flex; align-items: center; justify-content: center; }
+.beleg-fenster { width: calc(85vw / var(--app-zoom, 1)); height: calc(90vh / var(--app-zoom, 1)); background: var(--surface); border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; }
+.beleg-kopf { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.beleg-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.beleg-inhalt { flex: 1; min-height: 0; display: flex; background: #525659; }
+.beleg-rahmen { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
+.beleg-text { background: #fff; }
+.beleg-bild { flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 16px; }
+.beleg-bild img { max-width: 100%; height: auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+.beleg-meldung { margin: auto; padding: 24px; background: var(--surface); border-radius: 8px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; max-width: 480px; }
