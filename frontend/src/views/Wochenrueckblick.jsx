@@ -87,7 +87,7 @@ export default function Wochenrueckblick() {
     try {
       const neu = await api.regeln.erzeugen(naechsteWoche(heute).bis);
       meldeAenderung();
-      setErzeugtMeldung(neu.length ? `${neu.length} Pendenz${neu.length === 1 ? '' : 'en'} erzeugt.` : 'Alles bereits vorhanden.');
+      setErzeugtMeldung(`${neu.length ? `${neu.length} Pendenz${neu.length === 1 ? '' : 'en'} erzeugt.` : 'Alles bereits vorhanden.'}${neu.fehler?.length ? ` Fehler: ${neu.fehler.join(' · ')}` : ''}`);
     } catch (err) {
       setErzeugtMeldung(`Fehler: ${err.message}`);
     } finally {

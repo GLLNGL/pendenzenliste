@@ -189,15 +189,31 @@ function erscheintAb(rule, faelligkeitISO) {
   return toISODate(addDays(fromISODate(faelligkeitISO), -vorlauf));
 }
 
+// ISO-Kalenderwoche (Montag = Wochenbeginn, KW 1 enthaelt den ersten Donnerstag) und das
+// zugehoerige Jahr -- z.B. 29.12.2025 -> KW 1 / 2026.
+function kalenderwoche(iso) {
+  const d = fromISODate(iso);
+  const tag = (d.getUTCDay() + 6) % 7; // Mo = 0
+  const donnerstag = addDays(d, 3 - tag);
+  const jahr = donnerstag.getUTCFullYear();
+  const ersterJan = Date.UTC(jahr, 0, 1);
+  return { kw: Math.floor((donnerstag.getTime() - ersterJan) / 86400000 / 7) + 1, jahr };
+}
+
 function rendereTitel(titelVorlage, rhythmus, periodKey, faelligkeitISO) {
   const basisKey = periodKey.split('#')[0];
   const { jahr, monatIndex0 } = parsePeriodKey(rhythmus, basisKey);
   const datum = faelligkeitISO ? faelligkeitISO.split('-').reverse().join('.') : '';
+  // Kalenderwoche der Faelligkeit; bei Wochen-Rhythmen ist {Jahr} das Jahr dieser Woche.
+  const woche = faelligkeitISO ? kalenderwoche(faelligkeitISO) : null;
+  const jahrText = woche && istWochenRhythmus(rhythmus) ? woche.jahr : jahr;
   return titelVorlage
     .replaceAll('{Monat}', MONATSNAMEN[monatIndex0])
     .replaceAll('{Quartal}', `Q${Math.floor(monatIndex0 / 3) + 1}`)
     .replaceAll('{Halbjahr}', monatIndex0 < 6 ? 'H1' : 'H2')
-    .replaceAll('{Jahr}', String(jahr))
+    .replaceAll('{Kalenderwoche}', woche ? `KW ${woche.kw}` : '')
+    .replaceAll('{KW}', woche ? String(woche.kw) : '')
+    .replaceAll('{Jahr}', String(jahrText))
     .replaceAll('{Datum}', datum);
 }
 
@@ -271,5 +287,5 @@ function faelligeVorkommen(rule, heuteISO, bisISO) {
 
 export {
   heutigesDatumUTC, naechstePendenzen, faelligeVorkommen, rendereTitel, erscheintAb,
-  istWochenRhythmus, NACHTRAG_TAGE,
+  istWochenRhythmus, NACHTRAG_TAGE, kalenderwoche,
 };

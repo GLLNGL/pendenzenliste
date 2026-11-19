@@ -85,3 +85,13 @@ test('Vorlagen übernehmen die Mandats-Eckdaten', () => {
   assert.equal(vorlageFuerTyp('Zahlungslauf', null).vorlaufEinheit, 'arbeitstage');
   assert.ok(vorlageFuerTyp('Lohnlauf', null).checkliste.length > 0);
 });
+
+test('Titel: Kalenderwoche fuer Zahlungs- und Mahnlauf', async () => {
+  const { rendereTitel, kalenderwoche } = await import('../src/lib/recurrence.js');
+  assert.deepEqual(kalenderwoche('2026-11-19'), { kw: 47, jahr: 2026 });
+  assert.deepEqual(kalenderwoche('2026-01-01'), { kw: 1, jahr: 2026 });
+  assert.deepEqual(kalenderwoche('2027-01-01'), { kw: 53, jahr: 2026 });
+  assert.equal(rendereTitel('Mahnlauf {Kalenderwoche} {Jahr}', 'woechentlich', '2026-11-16', '2026-11-20'), 'Mahnlauf KW 47 2026');
+  assert.equal(rendereTitel('Zahlungslauf KW {KW} {Jahr}', 'woechentlich', '2026-12-28', '2027-01-01'), 'Zahlungslauf KW 53 2026');
+  assert.equal(rendereTitel('Lohnlauf {Monat} {Jahr}', 'monatlich', '2026-11', '2026-11-25'), 'Lohnlauf November 2026');
+});

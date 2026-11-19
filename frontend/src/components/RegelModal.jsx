@@ -8,7 +8,7 @@ import { formatiereDatum } from '../format.js';
 import { hintergrundSchliessen } from '../lib/modal.js';
 
 const WOCHENTAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
-const PLATZHALTER_HINWEIS = 'Platzhalter: {Datum}, {Monat}, {Quartal}, {Halbjahr}, {Jahr}';
+const PLATZHALTER_HINWEIS = 'Platzhalter: {Datum}, {Kalenderwoche} (= «KW 47»), {KW} (= «47»), {Monat}, {Quartal}, {Halbjahr}, {Jahr}';
 
 function configAusRegel(regel) {
   const c = regel?.faelligkeit_config ?? {};

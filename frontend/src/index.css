@@ -3138,3 +3138,4 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .beleg-knopf { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-klein); font-weight: 600; cursor: pointer; }
 .beleg-knopf:hover { background: var(--accent); color: #fff; }
 .beleg-knopf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wiederkehr-fehler { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }

@@ -28,6 +28,8 @@ export default function Layout() {
   const [mitarbeitende, setMitarbeitende] = useState([]);
   const [schnellErfassungOffen, setSchnellErfassungOffen] = useState(false);
   const [eingangAnzahl, setEingangAnzahl] = useState(0);
+  // Fehler der automatischen Erzeugung wiederkehrender Arbeiten (sichtbar statt still).
+  const [wiederkehrFehler, setWiederkehrFehler] = useState(null);
   const [navBreite, setNavBreite] = useState(() => {
     try { return Number(localStorage.getItem(NAV_SCHLUESSEL)) || NAV_STANDARD; } catch { return NAV_STANDARD; }
   });
@@ -69,9 +71,12 @@ export default function Layout() {
     try { zuletzt = localStorage.getItem(WIEDERKEHR_SCHLUESSEL); } catch { /* ohne Speicher: jedes Mal */ }
     if (zuletzt === heute) return;
     api.regeln.erzeugen(heute).then((neu) => {
-      try { localStorage.setItem(WIEDERKEHR_SCHLUESSEL, heute); } catch { /* ohne Speicher weiter nutzbar */ }
       if (neu.length) meldeAenderung();
-    }).catch(() => { /* naechster Versuch beim naechsten Oeffnen */ });
+      // Nur als erledigt merken, wenn alle Regeln geklappt haben -- sonst beim naechsten Oeffnen
+      // nochmals versuchen und den Grund anzeigen.
+      if (neu.fehler?.length) { setWiederkehrFehler(neu.fehler.join(' · ')); return; }
+      try { localStorage.setItem(WIEDERKEHR_SCHLUESSEL, heute); } catch { /* ohne Speicher weiter nutzbar */ }
+    }).catch((err) => setWiederkehrFehler(err.message));
   }, []);
 
   // Auftraege per E-Mail beim Oeffnen der App abholen (hoechstens alle 15 Minuten, still --
@@ -153,6 +158,12 @@ export default function Layout() {
       </aside>
 
       <main className="hauptbereich">
+        {wiederkehrFehler && (
+          <div className="hinweis-fehler wiederkehr-fehler">
+            Wiederkehrende Arbeiten konnten nicht erzeugt werden: {wiederkehrFehler}
+            <button type="button" className="btn-klein" onClick={() => setWiederkehrFehler(null)}>Ausblenden</button>
+          </div>
+        )}
         <Outlet />
       </main>
 

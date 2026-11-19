@@ -1663,7 +1663,11 @@ const api = {
       pruefeFehler(error);
 
       const erzeugt = [];
+      // Jede Regel fuer sich: Ein Fehler bei einer Regel haelt die anderen nicht mehr auf und
+      // wird gemeldet (frueher brach die Schleife ab und die Automatik schwieg).
+      const fehler = [];
       for (const regel of regeln) {
+        try {
         const kandidaten = faelligeVorkommen(regel, heute, stichtag);
         if (!kandidaten.length) continue;
         const checkliste = (Array.isArray(regel.checkliste) ? regel.checkliste : [])
@@ -1684,6 +1688,9 @@ const api = {
             ...gemeinsam,
             titel: v.titel,
             faelligkeit: v.faelligkeit,
+            // Am Faelligkeitstag einplanen -- so steht die Arbeit an diesem Tag im Cockpit und im
+            // Kalender (ohne Bearbeitungstag laege sie im Ordner "Zu planen").
+            bearbeitungstag: v.faelligkeit,
             // Mit Checkliste steckt der Aufwand in den Schritten (Projekt-Kopf ohne eigenen).
             aufwand_minuten: checkliste.length ? null : (regel.aufwand_minuten ?? null),
             regel_id: regel.id,
@@ -1700,6 +1707,7 @@ const api = {
                 ...gemeinsam,
                 titel: schritt,
                 faelligkeit: projekt.faelligkeit,
+                bearbeitungstag: projekt.faelligkeit,
                 uebergeordnete_pendenz_id: projekt.id,
                 reihenfolge: index + 1,
               });
@@ -1708,7 +1716,11 @@ const api = {
           }
           erzeugt.push({ ...projekt, schritte: checkliste.length });
         }
+        } catch (err) {
+          fehler.push(`«${regel.titel_vorlage}»: ${err.message}`);
+        }
       }
+      erzeugt.fehler = fehler;
       return erzeugt;
     },
     loeschen: async (id) => {

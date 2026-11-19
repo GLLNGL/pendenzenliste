@@ -47,7 +47,7 @@ export default function Regeln() {
     try {
       const neu = await api.regeln.erzeugen(bis);
       meldeAenderung();
-      setErgebnis({ bis, neu });
+      setErgebnis({ bis, neu, fehler: neu.fehler?.length ? `${neu.length} erzeugt, aber nicht alle Regeln: ${neu.fehler.join(' · ')}` : null });
     } catch (err) {
       setErgebnis({ bis, fehler: err.message });
     } finally {
