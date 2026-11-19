@@ -20,6 +20,8 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   const [fehler, setFehler] = useState(null);
   const [beschaeftigt, setBeschaeftigt] = useState(null);
   const [meldung, setMeldung] = useState(null);
+  // Belege (z.B. PDF-Schreiben des Steueramts) per Drag & Drop anhaengen.
+  const [ziehen, setZiehen] = useState(false);
   const grund = useAblageGrund();
   const eingabeRef = useRef(null);
   const schluessel = pendenzIds ? pendenzIds.join(',') : `m${mandantId}`;
@@ -79,7 +81,11 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
   async function hochladen(e) {
     const files = [...(e.target.files ?? [])];
     e.target.value = '';
-    if (!files.length) return;
+    await dateienHochladen(files);
+  }
+
+  async function dateienHochladen(files) {
+    if (!files.length || !hochladenFuer) return;
     setBeschaeftigt('upload');
     setFehler(null);
     try {
@@ -93,19 +99,26 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
     : mandant ? 'Herunterladen (direkt ablegen: Grundordner in den Einstellungen verbinden, Edge/Chrome)' : 'Herunterladen (kein Mandant zugeordnet)';
 
   return (
-    <div className="dateien-liste" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`dateien-liste ${ziehen ? 'dateien-ziehen' : ''}`}
+      onClick={(e) => e.stopPropagation()}
+      onDragOver={hochladenFuer ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setZiehen(true); } : undefined}
+      onDragLeave={hochladenFuer ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setZiehen(false); } : undefined}
+      onDrop={hochladenFuer ? (e) => { e.preventDefault(); setZiehen(false); dateienHochladen([...(e.dataTransfer?.files ?? [])]); } : undefined}
+    >
       <div className="dateien-kopf">
         <span className="dateien-titel">📎 {titel}{dateien.length > 0 && ` (${dateien.length})`}</span>
         {hochladenFuer && (
           <>
             <button type="button" className="btn-klein" onClick={() => eingabeRef.current?.click()} disabled={beschaeftigt === 'upload'}>
-              {beschaeftigt === 'upload' ? 'Lädt hoch…' : '+ Datei'}
+              {beschaeftigt === 'upload' ? 'Lädt hoch…' : '+ Beleg anhängen'}
             </button>
             <input ref={eingabeRef} type="file" multiple hidden onChange={hochladen} />
           </>
         )}
       </div>
-      {dateien.length === 0 && <div className="dateien-leer">Keine Dateien.</div>}
+      {dateien.length === 0 && <div className="dateien-leer">{hochladenFuer ? 'Noch keine Belege – PDF (z.B. Schreiben des Steueramts) hierher ziehen oder «+ Beleg anhängen».' : 'Keine Dateien.'}</div>}
+      {ziehen && <div className="dateien-ablegen-hinweis">Loslassen, um anzuhängen</div>}
       {dateien.map((d) => (d.abgelegt_am && !d.speicherpfad ? (
         <div key={d.id} className="dateien-zeile dateien-zeile-abgelegt">
           <span className="dateien-name" title={d.abgelegt_in || ''}>{d.dateiname}</span>

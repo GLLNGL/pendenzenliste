@@ -1,6 +1,7 @@
 import { useLeistungen } from '../hooks.js';
 import PendenzZeit from './PendenzZeit.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
+import DateienListe from './DateienListe.jsx';
 import ProjektModal from './ProjektModal.jsx';
 import PendenzArbeitsfenster from './PendenzArbeitsfenster.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
@@ -562,6 +563,16 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
               </label>
               <textarea id="beschreibung" value={formular.beschreibung} onChange={(e) => feldAendern('beschreibung', e.target.value)} />
             </div>
+
+            {/* Belege (z.B. Mahnung des Steueramts als PDF) direkt an die Pendenz haengen. */}
+            {pendenz?.id && (
+              <DateienListe
+                titel="Belege & Dateien"
+                pendenzIds={[pendenz.id]}
+                mandant={ausgewaehlterMandant}
+                hochladenFuer={{ pendenzId: pendenz.id, mandantId: pendenz.mandant_id ?? null }}
+              />
+            )}
 
             {pendenz?.zuletzt_geaendert_am && (
               <p className="feld-hinweis">

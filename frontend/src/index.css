@@ -3115,3 +3115,7 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .antwort-aktion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--fs-klein); }
 .antwort-aktion label { display: inline-flex; align-items: center; gap: 6px; }
 .offert-nachfassen { margin-left: 10px; }
+
+/* Belege per Drag & Drop an Pendenzen haengen */
+.dateien-liste.dateien-ziehen { outline: 2px dashed var(--accent); outline-offset: 2px; background: var(--accent-bg, #eef4ff); }
+.dateien-ablegen-hinweis { font-size: var(--fs-klein); color: var(--accent); font-weight: 600; padding: 6px 0; }

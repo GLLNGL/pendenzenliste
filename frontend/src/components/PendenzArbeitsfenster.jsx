@@ -506,6 +506,18 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
           </main>
 
           <aside className="aw-seite">
+            {/* Belege zuoberst: in der Teilaufgabe haengen sie an der Teilaufgabe, sonst am Projekt
+                (dort sind auch die Belege aller Teilaufgaben sichtbar). PDF hineinziehen genuegt. */}
+            <section className="aw-karte">
+              <DateienListe
+                key={`${dateienStand}-${schrittAnsicht ? fokus.id : projekt.id}`}
+                titel={schrittAnsicht ? 'Belege der Teilaufgabe' : 'Belege & Dateien'}
+                pendenzIds={schrittAnsicht ? [fokus.id] : [projekt.id, ...schritte.map((s) => s.id)]}
+                mandant={mandant}
+                hochladenFuer={{ pendenzId: schrittAnsicht ? fokus.id : projekt.id, mandantId: projekt.mandant_id }}
+                leerAusblenden={false}
+              />
+            </section>
             <section className="aw-karte">
               <div className="aw-abschnitt-titel">{schrittAnsicht ? 'Zeit Teilaufgabe' : 'Zeit Projekt'}</div>
               <div className="aw-zeit-gross">{stunden(summe.gesamt)}<span className="aw-zeit-von">{geschaetzt ? ` von ≈ ${stunden(geschaetzt)}` : ''}</span></div>
@@ -545,10 +557,6 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 {mandant && <PendenzenlisteExport mandant={mandant} klein />}
                 <button type="button" className="btn-klein btn-gefahr-text" onClick={loeschen}>Löschen</button>
               </div>
-            </section>
-
-            <section className="aw-karte">
-              <DateienListe key={dateienStand} pendenzIds={[projekt.id, ...schritte.map((s) => s.id)]} mandant={mandant} hochladenFuer={{ pendenzId: projekt.id, mandantId: projekt.mandant_id }} leerAusblenden={false} />
             </section>
           </aside>
         </div>
