@@ -2,6 +2,7 @@ import { useLeistungen } from '../hooks.js';
 import PendenzZeit from './PendenzZeit.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import DateienListe from './DateienListe.jsx';
+import BelegKnoepfe from './BelegKnoepfe.jsx';
 import ProjektModal from './ProjektModal.jsx';
 import PendenzArbeitsfenster from './PendenzArbeitsfenster.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
@@ -442,6 +443,7 @@ export function PendenzDetailModal({ pendenz, mandanten, mitarbeitende = [], vor
                 placeholder="Verb + Objekt, z.B. «MWST-Abrechnung Q3 in Abacus abstimmen»"
               />
               <p className="feld-hinweis">Ein konkreter Schritt, kein Thema – was tust du als Nächstes?</p>
+              {pendenz?.id && <BelegKnoepfe pendenzIds={[pendenz.id]} />}
             </div>
 
             <div className="feld">

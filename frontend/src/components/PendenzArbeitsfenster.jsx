@@ -5,6 +5,7 @@ import api from '../api.js';
 import ZeitModal from './ZeitModal.jsx';
 import DateienListe from './DateienListe.jsx';
 import AntwortErhalten from './AntwortErhalten.jsx';
+import BelegKnoepfe from './BelegKnoepfe.jsx';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import PendenzenlisteExport from './PendenzenlisteExport.jsx';
 import DiktatKnopf from './DiktatKnopf.jsx';
@@ -304,6 +305,8 @@ export default function PendenzArbeitsfenster({ pendenz: start, mandanten = [], 
                 <span className="aw-chip aw-chip-warten">wartet auf {projekt.warten_auf_person || '–'}{projekt.wiedervorlage ? ` · nachfassen ${formatiereDatum(projekt.wiedervorlage)}` : ''}</span>
               )}
             </div>
+            {/* Belege gut sichtbar unter dem Titel -- Klick oeffnet sie direkt. */}
+            <BelegKnoepfe pendenzIds={schrittAnsicht ? [fokus.id] : [projekt.id, ...schritte.map((s) => s.id)]} stand={dateienStand} />
             {warten && (
               <form className="aw-warten" onSubmit={(e) => { e.preventDefault(); wartenSpeichern(); }}>
                 <span className="aw-warten-titel">«{warten.ziel.titel}» wartet auf</span>

@@ -79,8 +79,10 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
 
   // Abgelegter Beleg: Lesezugriff gleich im Klick erlauben lassen (spaeter blockiert der Browser
   // die Rueckfrage), dann anzeigen.
-  async function belegAnsehen(d) {
-    try { await leseZugriffErlauben(); } catch { /* das Ansichtsfenster bietet die Erlaubnis nochmals an */ }
+  // Das Fenster oeffnet sofort -- auch wenn der Browser die Rueckfrage nicht zeigt (frueher
+  // wartete der Klick darauf, und es geschah scheinbar nichts).
+  function belegAnsehen(d) {
+    if (!d.speicherpfad) leseZugriffErlauben().catch(() => { /* das Ansichtsfenster bietet die Erlaubnis nochmals an */ });
     setAnsicht(d);
   }
 
@@ -133,20 +135,22 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
       {dateien.map((d) => (d.abgelegt_am && !d.speicherpfad ? (
         <div key={d.id} className="dateien-zeile dateien-zeile-abgelegt">
           {d.abgelegt_in
-            ? <button type="button" className="link-knopf dateien-name" onClick={() => belegAnsehen(d)} title={`Ansehen (aus ${d.abgelegt_in})`}>{d.dateiname}</button>
+            ? <button type="button" className="link-knopf dateien-name" onClick={() => belegAnsehen(d)} title={`Ansehen (aus ${d.abgelegt_in})`}><span aria-hidden="true">{/\.pdf$/i.test(d.dateiname) ? '📄 ' : '📎 '}</span>{d.dateiname}</button>
             : <span className="dateien-name">{d.dateiname}</span>}
           <span className="dateien-abgelegt">✓ abgelegt am {new Date(d.abgelegt_am).toLocaleDateString('de-CH')}</span>
           {d.abgelegt_in && <span className="dateien-info dateien-ort">{d.abgelegt_in.split('\\').slice(0, -1).join('\\')}</span>}
           <span className="dateien-aktionen">
+            {d.abgelegt_in && <button type="button" className="btn-klein btn-klein-primaer" onClick={() => belegAnsehen(d)}>👁 Ansehen</button>}
             <button type="button" className="btn-klein btn-gefahr-text" onClick={() => loeschen(d)} title="Eintrag entfernen (die Datei in OneDrive bleibt)">×</button>
           </span>
         </div>
       ) : (
         <div key={d.id} className="dateien-zeile">
-          <button type="button" className="link-knopf dateien-name" onClick={() => setAnsicht(d)} title="Ansehen">{d.dateiname}</button>
+          <button type="button" className="link-knopf dateien-name" onClick={() => belegAnsehen(d)} title="Ansehen"><span aria-hidden="true">{/\.pdf$/i.test(d.dateiname) ? '📄 ' : '📎 '}</span>{d.dateiname}</button>
           <span className="dateien-info">{groesseText(d.groesse)}</span>
           {d.abgelegt_am && <span className="dateien-abgelegt" title={`abgelegt am ${new Date(d.abgelegt_am).toLocaleString('de-CH')}`}>✓ abgelegt</span>}
           <span className="dateien-aktionen">
+            <button type="button" className="btn-klein btn-klein-primaer" onClick={() => belegAnsehen(d)}>👁 Ansehen</button>
             <button type="button" className="btn-klein" onClick={() => ablegen(d)} disabled={beschaeftigt === d.id} title={ablageTitel}>
               {beschaeftigt === d.id ? '…' : direkt ? 'In Ablage speichern…' : 'Herunterladen'}
             </button>

@@ -6,6 +6,7 @@ import { useAblageGrund, useLeistungen } from '../hooks.js';
 import { STATUS_WERTE, PRIORITAETEN, PRIORITAET_BESCHREIBUNG, AUFWAND_MINUTEN, formatiereAufwand, formatiereStunden } from '../constants.js';
 import AblageKnoepfe from './AblageKnoepfe.jsx';
 import DateienListe from './DateienListe.jsx';
+import BelegKnoepfe from './BelegKnoepfe.jsx';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
 import { unterstuetzt, grundOrdnerHolen, zielOrdnerWaehlen, dateiInOrdnerSchreiben } from '../lib/ablageOrdner.js';
 import DiktatKnopf from './DiktatKnopf.jsx';
@@ -274,6 +275,8 @@ export default function ProjektModal({ pendenz, mandanten, mitarbeitende = [], v
                 <DiktatKnopf titel="Titel diktieren" onText={(t) => setKopf((k) => ({ ...k, titel: textAnhaengen(k.titel, t) }))} />
               </label>
               <input id="pr-titel" ref={titelRef} value={kopf.titel} onChange={(e) => feld('titel', e.target.value)} placeholder="z.B. Jahresabschluss 2026" />
+              {/* Belege des Projekts und seiner Teilschritte -- Klick oeffnet sie direkt. */}
+              {pendenz && <BelegKnoepfe pendenzIds={[pendenz.id, ...schritte.filter((s) => s.id).map((s) => s.id)]} />}
             </div>
 
             <div className="feld-reihe projekt-reihe-3">

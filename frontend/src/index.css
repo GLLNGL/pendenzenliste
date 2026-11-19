@@ -3132,3 +3132,9 @@ body.aw-zieht, body.aw-zieht * { cursor: grabbing !important; user-select: none 
 .beleg-bild img { max-width: 100%; height: auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
 .beleg-meldung { margin: auto; padding: 24px; background: var(--surface); border-radius: 8px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; max-width: 480px; }
 .antwort-ablegen { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-klein); color: #8a5a00; }
+
+/* Belege als Knoepfe unter dem Titel der Pendenz */
+.beleg-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.beleg-knopf { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-klein); font-weight: 600; cursor: pointer; }
+.beleg-knopf:hover { background: var(--accent); color: #fff; }
+.beleg-knopf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
