@@ -146,13 +146,31 @@ async function dateiAblegen(blob, dateiname, ordnerTeile, grundHandle = null) {
   return [grund.name, ...ordnerTeile, name].join('\\');
 }
 
+// Lesezugriff auf den Grundordner per Klick erlauben (nach einem Neustart fragt der Browser
+// einmal nach). Gibt true zurueck, wenn erlaubt.
+async function leseZugriffErlauben() {
+  const grund = await grundOrdnerHolen();
+  if (!grund) return false;
+  if ((await grund.queryPermission({ mode: 'read' })) === 'granted') return true;
+  return (await grund.requestPermission({ mode: 'read' })) === 'granted';
+}
+
 // Datei aus dem verbundenen OneDrive-Ordner lesen. pfad wie von dateiAblegen zurueckgegeben
 // ("Grundordner\Unterordner\Datei.pdf"). Gibt ein File zurueck.
 async function dateiLesen(pfad) {
   const grund = await grundOrdnerHolen();
   if (!grund) throw new Error('OneDrive ist auf diesem Gerät nicht verbunden (Einstellungen › Ablage).');
-  if ((await grund.queryPermission({ mode: 'read' })) !== 'granted'
-    && (await grund.requestPermission({ mode: 'read' })) !== 'granted') throw new Error('Kein Zugriff auf den OneDrive-Ordner erteilt.');
+  if ((await grund.queryPermission({ mode: 'read' })) !== 'granted') {
+    // Die Rueckfrage des Browsers ist nur direkt nach einem Klick erlaubt -- sonst eine
+    // verstaendliche Meldung statt der englischen Browser-Fehlermeldung.
+    let erlaubt = 'denied';
+    try { erlaubt = await grund.requestPermission({ mode: 'read' }); } catch {
+      const fehler = new Error('Die App braucht einmal deine Erlaubnis, um den Ablageordner zu lesen.');
+      fehler.code = 'ZUGRIFF';
+      throw fehler;
+    }
+    if (erlaubt !== 'granted') throw new Error('Kein Zugriff auf den Ablageordner erteilt.');
+  }
   const teile = String(pfad).split(/[\\/]+/).filter(Boolean);
   if (teile[0] === grund.name) teile.shift();
   const name = teile.pop();
@@ -177,4 +195,4 @@ function herunterladen(blob, dateiname) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, dateiLesen, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben };
+export { unterstuetzt, grundOrdnerHolen, grundOrdnerWaehlen, grundOrdnerVergessen, unterordnerWaehlen, ordnerAnlegen, dateiAblegen, dateiLesen, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben, leseZugriffErlauben };

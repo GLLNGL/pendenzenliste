@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../api.js';
-import { dateiLesen, herunterladen } from '../lib/ablageOrdner.js';
+import { dateiLesen, herunterladen, leseZugriffErlauben } from '../lib/ablageOrdner.js';
 
 // Typ aus dem Dateinamen, falls die Datei keinen (oder einen allgemeinen) Typ mitbringt.
 function typVon(datei, blob) {
@@ -20,6 +20,9 @@ function typVon(datei, blob) {
 export default function BelegVorschau({ datei, onSchliessen }) {
   const [inhalt, setInhalt] = useState(null);
   const [fehler, setFehler] = useState(null);
+  // Nach einem Neustart fragt der Browser einmal nach dem Lesezugriff auf den Ablageordner.
+  const [zugriffNoetig, setZugriffNoetig] = useState(false);
+  const [versuch, setVersuch] = useState(0);
 
   useEffect(() => {
     let url = null;
@@ -32,11 +35,22 @@ export default function BelegVorschau({ datei, onSchliessen }) {
         url = URL.createObjectURL(blob);
         if (aktiv) setInhalt({ url, typ, blob });
       } catch (err) {
-        if (aktiv) setFehler(err.message);
+        if (!aktiv) return;
+        if (err?.code === 'ZUGRIFF') setZugriffNoetig(true);
+        else setFehler(err.message);
       }
     })();
     return () => { aktiv = false; if (url) URL.revokeObjectURL(url); };
-  }, [datei]);
+  }, [datei, versuch]);
+
+  async function zugriffErlauben() {
+    try {
+      if (await leseZugriffErlauben()) { setZugriffNoetig(false); setFehler(null); setVersuch((n) => n + 1); }
+      else setFehler('Kein Zugriff auf den Ablageordner erteilt.');
+    } catch {
+      setFehler('Der Zugriff auf den Ablageordner konnte nicht erteilt werden.');
+    }
+  }
 
   useEffect(() => {
     const taste = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onSchliessen(); } };
@@ -61,7 +75,13 @@ export default function BelegVorschau({ datei, onSchliessen }) {
         </div>
         <div className="beleg-inhalt">
           {fehler && <div className="hinweis-fehler beleg-meldung">{fehler}</div>}
-          {!fehler && !inhalt && <div className="beleg-meldung">Beleg wird geladen…</div>}
+          {zugriffNoetig && !fehler && (
+            <div className="beleg-meldung">
+              Der Beleg liegt im Ablageordner. Der Browser braucht einmal deine Erlaubnis, ihn zu lesen.
+              <button type="button" className="btn btn-primary" onClick={zugriffErlauben}>Zugriff erlauben und anzeigen</button>
+            </div>
+          )}
+          {!fehler && !inhalt && !zugriffNoetig && <div className="beleg-meldung">Beleg wird geladen…</div>}
           {inhalt?.typ === 'application/pdf' && <iframe title={datei.dateiname} src={inhalt.url} className="beleg-rahmen" />}
           {inhalt?.typ.startsWith('image/') && <div className="beleg-bild"><img src={inhalt.url} alt={datei.dateiname} /></div>}
           {inhalt?.typ.startsWith('text/') && <iframe title={datei.dateiname} src={inhalt.url} className="beleg-rahmen beleg-text" />}

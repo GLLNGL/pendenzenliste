@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api.js';
 import { useAblageGrund } from '../hooks.js';
 import { relativerOrdner, segmente } from '../lib/ablage.js';
-import { unterstuetzt, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben } from '../lib/ablageOrdner.js';
+import { unterstuetzt, herunterladen, zielOrdnerWaehlen, dateiInOrdnerSchreiben, leseZugriffErlauben } from '../lib/ablageOrdner.js';
 import BelegVorschau from './BelegVorschau.jsx';
 
 function groesseText(bytes) {
@@ -77,6 +77,13 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
     }
   }
 
+  // Abgelegter Beleg: Lesezugriff gleich im Klick erlauben lassen (spaeter blockiert der Browser
+  // die Rueckfrage), dann anzeigen.
+  async function belegAnsehen(d) {
+    try { await leseZugriffErlauben(); } catch { /* das Ansichtsfenster bietet die Erlaubnis nochmals an */ }
+    setAnsicht(d);
+  }
+
   async function loeschen(d) {
     if (!window.confirm(d.speicherpfad ? `«${d.dateiname}» aus der App löschen? (Bereits abgelegte Kopien bleiben in OneDrive.)` : `Eintrag «${d.dateiname}» entfernen? Die Datei in OneDrive bleibt.`)) return;
     try { await api.dateien.loeschen(d); laden(); } catch (err) { setFehler(err.message); }
@@ -126,7 +133,7 @@ export default function DateienListe({ pendenzIds, mandantId, mandant, hochladen
       {dateien.map((d) => (d.abgelegt_am && !d.speicherpfad ? (
         <div key={d.id} className="dateien-zeile dateien-zeile-abgelegt">
           {d.abgelegt_in
-            ? <button type="button" className="link-knopf dateien-name" onClick={() => setAnsicht(d)} title={`Ansehen (aus ${d.abgelegt_in})`}>{d.dateiname}</button>
+            ? <button type="button" className="link-knopf dateien-name" onClick={() => belegAnsehen(d)} title={`Ansehen (aus ${d.abgelegt_in})`}>{d.dateiname}</button>
             : <span className="dateien-name">{d.dateiname}</span>}
           <span className="dateien-abgelegt">✓ abgelegt am {new Date(d.abgelegt_am).toLocaleDateString('de-CH')}</span>
           {d.abgelegt_in && <span className="dateien-info dateien-ort">{d.abgelegt_in.split('\\').slice(0, -1).join('\\')}</span>}
